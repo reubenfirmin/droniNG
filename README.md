@@ -8,6 +8,12 @@ See [dronin.org](http://dronin.org) for more details.
 
 ## Supported Targets
 
+### Desktop Ground Station
+
+The desktop ground station targets Linux and macOS, using Qt 5 and system zlib.
+Windows build, driver and packaging targets have been removed. Embedded firmware
+and Android targets are retained.
+
 ### Full Support
 
 - AeroQuad32

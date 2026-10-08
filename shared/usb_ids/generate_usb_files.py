@@ -32,30 +32,6 @@ def generate_udev(fp, defs):
                           'MODE="0664", GROUP="plugdev", TAG+="uaccess", TAG+="udev-acl"')
                 print(hidraw.format(dev['vid'], dev['pid']), file=fp)
 
-def generate_inf(fp, defs):
-    def _sanitize_name(name):
-        return re.sub('[^{}{}]'.format(string.ascii_letters, string.digits), '', name)
-
-    with open(os.path.join(os.path.dirname(__file__), 'driver_template.inf')) as templ_fp:
-        devlist = ''
-        strings = 'ProviderName = "{}"\n'.format(_sanitize_name(defs['project']))
-
-        for group in defs['groups']:
-            devlist += '; {}\n'.format(group['name'])
-            for dev in group['devices']:
-                if 'cdc' in dev['type']:
-                    devlist += '%{}% = DriverInstall,USB\VID_{:04x}&PID_{:04x}&MI_00\n'.format(
-                        _sanitize_name(dev['name']), dev['vid'], dev['pid']
-                    )
-                    strings += '{} = "CDC Driver"\n'.format(_sanitize_name(dev['name']))
-
-        subs = {
-            'DEVICE_LIST': devlist,
-            'STRINGS': strings,
-        }
-        templ = string.Template(re.sub('\$[^{]', '$\g<0>', templ_fp.read()))
-        print(templ.substitute(subs), file=fp, end='')
-
 def generate_header(fp, defs):
     def _sanitize_name(name):
         return re.sub('[^{}{}]'.format(string.ascii_letters, string.digits), '', name).upper()
@@ -92,7 +68,6 @@ def main():
     parser.add_argument('-i', '--input', type=str, default='./usb_ids.json', help='Default is ./usb_ids.json')
     parser.add_argument('-c', '--c', type=argparse.FileType('w'), default=None, help='File to write C header')
     parser.add_argument('-u', '--udev', type=argparse.FileType('w'), default=None, help='File to write udev rules')
-    parser.add_argument('-d', '--driver', type=argparse.FileType('w'), default=None, help='File to write Windows driver inf')
     args = parser.parse_args()
 
     try:
@@ -103,7 +78,7 @@ def main():
         parser.print_usage()
         return 1
 
-    if not args.udev and not args.driver and not args.c:
+    if not args.udev and not args.c:
         print('Need at least one output!', file=sys.stderr)
         parser.print_usage()
         return 1
@@ -118,10 +93,6 @@ def main():
         generate_udev(args.udev, defs)
         print('Wrote udev rules to {}'.format(args.udev.name))
         args.udev.close()
-    if args.driver:
-        generate_inf(args.driver, defs)
-        print('Wrote Windows driver inf to {}'.format(args.driver.name))
-        args.driver.close()
     if args.c:
         generate_header(args.c, defs)
         #print('Wrote C header to {}'.format(args.c.name))

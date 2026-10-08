@@ -78,10 +78,6 @@ def main():
             label = "Linux 64-bit portable"
         elif name.endswith('.deb'):
             label = "Ubuntu 64-bit package"
-        elif name.endswith('.zip'):
-            label = "Windows (portable)"
-        elif name.endswith('-install.exe'):
-            label = "Windows (installer)"
         elif name.endswith('.dmg'):
             label = "macOS"
         else:

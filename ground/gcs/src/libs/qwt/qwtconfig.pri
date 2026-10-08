@@ -111,16 +111,11 @@ QWT_CONFIG     += QwtMathML
 # of linking it against the shared Qwt library. Has no effect
 # when QwtDesigner or QwtDll are not both enabled.
 #
-# On systems where rpath is supported ( all Unixoids ) the 
-# location of the installed Qwt library is compiled into the plugin,
-# but on Windows it might be easier to have a self contained
-# plugin to avoid any hassle with configuring the runtime
-# environment of the designer/creator.
+# On systems where rpath is supported, the location of the installed
+# Qwt library is compiled into the plugin.
 ######################################################################
 
-win32 {
 #    QWT_CONFIG     += QwtDesignerSelfContained
-}
 
 ######################################################################
 # If you want to auto build the examples, enable the line below

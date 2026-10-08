@@ -34,14 +34,10 @@
 #include <stdio.h>
 #include <pthread.h>
 
-#if !(defined(_WIN32) || defined(WIN32) || defined(__MINGW32__))
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
-#else
-#include <ws2tcpip.h>
-#endif
 
 #include <stdlib.h>
 #include <string.h>

@@ -23,10 +23,7 @@
 # This makefile requires bash
 ###############################################################################
 
-# Set bash shell for all OSs except MS Windows
-ifndef COMSPEC
 SHELL := bash
-endif
 
 include $(MAKE_INC_DIR)/firmware-defs.mk
 

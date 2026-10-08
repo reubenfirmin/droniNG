@@ -48,7 +48,6 @@ SOURCES += mainwindow.cpp \
     icore.cpp \
     dialogs/ioptionspage.cpp \
     dialogs/iwizard.cpp \
-    eventfilteringmainwindow.cpp \
     connectionmanager.cpp \
     iconnection.cpp \
     iuavgadgetconfiguration.cpp \
@@ -103,7 +102,6 @@ HEADERS += mainwindow.h \
     plugindialog.h \
     styleanimator.h \
     minisplitter.h \
-    eventfilteringmainwindow.h \
     connectionmanager.h \
     iconnection.h \
     iuavgadgetconfiguration.h \

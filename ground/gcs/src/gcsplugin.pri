@@ -35,7 +35,7 @@ exists($$PLUGINSPEC_IN) {
     copy2build.output = $$DESTDIR/${QMAKE_FUNC_FILE_IN_stripSrcDir}
 }
 copy2build.input = PLUGINSPEC
-isEmpty(vcproj):copy2build.variable_out = PRE_TARGETDEPS
+copy2build.variable_out = PRE_TARGETDEPS
 copy2build.commands = $$QMAKE_COPY ${QMAKE_FILE_IN} ${QMAKE_FILE_OUT}
 copy2build.name = COPY ${QMAKE_FILE_IN}
 copy2build.CONFIG += no_link

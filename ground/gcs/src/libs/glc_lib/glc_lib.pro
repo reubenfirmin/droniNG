@@ -311,9 +311,6 @@ SOURCES +=	3DWidget/glc_3dwidget.cpp \
 			
 SOURCES +=	glu/glc_project.cpp
 
-# Windows compilation configuration
-win32:CONFIG *= dll
-
 # install header
 HEADERS_INST = include/GLC_BoundingBox \
     		   include/GLC_Box \
@@ -439,25 +436,6 @@ unix {
 	include_glc_glu.path = $${INCLUDE_DIR}/GLC_lib/glu
 }
 
-# Windows Install configuration
-win32 { 
-    # Location of HEADERS and library
-    LIB_DIR = C:/GLC_lib/lib
-    INCLUDE_DIR = C:/GLC_lib/include
-    include.path = $${INCLUDE_DIR}
-    include_lib3ds.path = $${INCLUDE_DIR}/3rdparty/lib3ds
-    include_glext.path = $${INCLUDE_DIR}/3rdparty/glext
-    include_quazip.path = $${INCLUDE_DIR}/3rdparty/quazip
-    include_glc_maths.path = $${INCLUDE_DIR}/maths
-    include_glc_io.path = $${INCLUDE_DIR}/io
-    include_glc_scengraph.path = $${INCLUDE_DIR}/sceneGraph
-    include_glc_geometry.path = $${INCLUDE_DIR}/geometry
-    include_glc_shading.path = $${INCLUDE_DIR}/shading
-    include_glc_viewport.path = $${INCLUDE_DIR}/viewport
-    include_glc_3dwidget.path = $${INCLUDE_DIR}/3DWidget
-    include_glc_glu.path = $${INCLUDE_DIR}/glu
-}    
-
 include.files = $${HEADERS_GLC} $${HEADERS_INST}
 include_lib3ds.files = $${HEADERS_LIB3DS}
 include_glext.files =$${HEADERS_GLEXT}
@@ -489,9 +467,3 @@ OTHER_FILES += \
     qtc_packaging/debian_harmattan/control \
     qtc_packaging/debian_harmattan/compat \
     qtc_packaging/debian_harmattan/changelog
-
-win32-msvc* {
-	LIBS += opengl32.lib
-} else:win32 {
-	LIBS += -lopengl32
-}

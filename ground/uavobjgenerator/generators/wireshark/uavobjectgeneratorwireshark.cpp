@@ -49,7 +49,7 @@ bool UAVObjectGeneratorWireshark::generate(UAVObjectParser* parser,QString templ
 
     /* Copy static files for wireshark plugins root directory into output directory */
     QStringList topstaticfiles;
-    topstaticfiles << "Custom.m4" << "Custom.make" << "Custom.nmake";
+    topstaticfiles << "Custom.m4" << "Custom.make";
     for (int i = 0; i < topstaticfiles.length(); ++i) {
       QFile::copy(wiresharkCodePath.absoluteFilePath(topstaticfiles[i]),
 		  wiresharkOutputPath.absoluteFilePath(topstaticfiles[i]));
@@ -60,9 +60,8 @@ bool UAVObjectGeneratorWireshark::generate(UAVObjectParser* parser,QString templ
     uavtalkOutputPath.mkpath(uavtalkOutputPath.absolutePath());
     QStringList uavtalkstaticfiles;
     uavtalkstaticfiles << "AUTHORS" << "COPYING" << "ChangeLog";
-    uavtalkstaticfiles << "CMakeLists.txt" << "Makefile.nmake";
-    uavtalkstaticfiles << "Makefile.am" << "moduleinfo.h" << "moduleinfo.nmake";
-    uavtalkstaticfiles << "plugin.rc.in";
+    uavtalkstaticfiles << "CMakeLists.txt";
+    uavtalkstaticfiles << "Makefile.am" << "moduleinfo.h";
     uavtalkstaticfiles << "Makefile.common" << "packet-op-uavtalk.c";
     for (int i = 0; i < uavtalkstaticfiles.length(); ++i) {
       QFile::copy(wiresharkCodePath.absoluteFilePath("op-uavtalk/" + uavtalkstaticfiles[i]),
@@ -74,9 +73,8 @@ bool UAVObjectGeneratorWireshark::generate(UAVObjectParser* parser,QString templ
     uavobjectsOutputPath.mkpath(uavobjectsOutputPath.absolutePath());
     QStringList uavostaticfiles;
     uavostaticfiles << "AUTHORS" << "COPYING" << "ChangeLog";
-    uavostaticfiles << "CMakeLists.txt" << "Makefile.nmake";
-    uavostaticfiles << "Makefile.am" << "moduleinfo.h" << "moduleinfo.nmake";
-    uavostaticfiles << "plugin.rc.in";
+    uavostaticfiles << "CMakeLists.txt";
+    uavostaticfiles << "Makefile.am" << "moduleinfo.h";
     for (int i = 0; i < uavostaticfiles.length(); ++i) {
       QFile::copy(wiresharkCodePath.absoluteFilePath("op-uavobjects/" + uavostaticfiles[i]),
 		  uavobjectsOutputPath.absoluteFilePath(uavostaticfiles[i]));

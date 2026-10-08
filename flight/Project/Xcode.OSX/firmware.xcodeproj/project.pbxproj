@@ -20,12 +20,6 @@
 		65904F2814632C1700FD9482 /* version-info.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = "version-info.py"; sourceTree = "<group>"; };
 		65904F2914632C1700FD9482 /* firmwareinfotemplate.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = firmwareinfotemplate.c; sourceTree = "<group>"; };
 		65904F2A14632C1700FD9482 /* gcsversioninfotemplate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = gcsversioninfotemplate.h; sourceTree = "<group>"; };
-		65904F2D14632C1700FD9482 /* README.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = README.txt; sourceTree = "<group>"; };
-		65904F2E14632C1700FD9482 /* shell_script.reg */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = shell_script.reg; sourceTree = "<group>"; };
-		65904F2F14632C1700FD9482 /* install */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.sh; path = install; sourceTree = "<group>"; };
-		65904F3014632C1700FD9482 /* make */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.sh; path = make; sourceTree = "<group>"; };
-		65904F3114632C1700FD9482 /* make.sh */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.sh; path = make.sh; sourceTree = "<group>"; };
-		65904F3214632C1700FD9482 /* sh.cmd */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = sh.cmd; sourceTree = "<group>"; };
 		65904F34146362F300FD9482 /* board-info.mk */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = "board-info.mk"; sourceTree = "<group>"; };
 		65E466BC14E244020075459C /* uavobjectdefinition */ = {isa = PBXFileReference; lastKnownFileType = folder; path = uavobjectdefinition; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -65,7 +59,6 @@
 				65904F1814632C1700FD9482 /* firmware-defs.mk */,
 				65904F1914632C1700FD9482 /* scripts */,
 				65904F1A14632C1700FD9482 /* templates */,
-				65904F1B14632C1700FD9482 /* winx86 */,
 			);
 			name = make;
 			path = Xcode.OSX.xcodeproj/../../../../make;
@@ -101,17 +94,6 @@
 				65904F2A14632C1700FD9482 /* gcsversioninfotemplate.h */,
 			);
 			path = templates;
-			sourceTree = "<group>";
-		};
-		65904F1B14632C1700FD9482 /* winx86 */ = {
-			isa = PBXGroup;
-			children = (
-				65904F2B14632C1700FD9482 /* bin */,
-				65904F2C14632C1700FD9482 /* cmd */,
-				65904F2D14632C1700FD9482 /* README.txt */,
-				65904F2E14632C1700FD9482 /* shell_script.reg */,
-			);
-			path = winx86;
 			sourceTree = "<group>";
 		};
 		65904F1C14632C1700FD9482 /* revomini */ = {
@@ -152,24 +134,6 @@
 				65904F2714632C1700FD9482 /* board-info.mk */,
 			);
 			path = pipxtreme;
-			sourceTree = "<group>";
-		};
-		65904F2B14632C1700FD9482 /* bin */ = {
-			isa = PBXGroup;
-			children = (
-				65904F2F14632C1700FD9482 /* install */,
-				65904F3014632C1700FD9482 /* make */,
-			);
-			path = bin;
-			sourceTree = "<group>";
-		};
-		65904F2C14632C1700FD9482 /* cmd */ = {
-			isa = PBXGroup;
-			children = (
-				65904F3114632C1700FD9482 /* make.sh */,
-				65904F3214632C1700FD9482 /* sh.cmd */,
-			);
-			path = cmd;
 			sourceTree = "<group>";
 		};
 		65904F33146362F300FD9482 /* revolution */ = {

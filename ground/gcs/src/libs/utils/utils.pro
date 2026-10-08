@@ -1,8 +1,7 @@
 TEMPLATE = lib
 TARGET = Utils
 
-!win32-msvc*:QMAKE_CXXFLAGS += -Wno-sign-compare
-win32: QMAKE_CXXFLAGS_RELEASE -= -Zc:strictStrings
+QMAKE_CXXFLAGS += -Wno-sign-compare
 
 QT += gui \
     network \
@@ -35,13 +34,6 @@ SOURCES += \
     longlongspinbox.cpp
 
 SOURCES += xmlconfig.cpp
-
-win32 {
-    SOURCES += \
-        winutils.cpp
-    HEADERS += winutils.h
-}
-else:SOURCES +=
 
 HEADERS += utils_global.h \
     pathchooser.h \

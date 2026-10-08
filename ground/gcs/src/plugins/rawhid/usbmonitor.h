@@ -104,7 +104,6 @@ signals:
       A new device has been connected to the system.
 
       setUpNotifications() must be called first to enable event-driven device notifications.
-      Currently only implemented on Windows and OS X.
       \param info The device that has been discovered.
     */
     void deviceDiscovered(const USBPortInfo &info);
@@ -112,7 +111,6 @@ signals:
       A device has been disconnected from the system.
 
       setUpNotifications() must be called first to enable event-driven device notifications.
-      Currently only implemented on Windows and OS X.
       \param info The device that was disconnected.
     */
     void deviceRemoved(const USBPortInfo &info);

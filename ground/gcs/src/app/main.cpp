@@ -71,42 +71,12 @@
 #include GCS_VERSION_INFO_FILE
 
 #define USE_CRASHREPORTING
-#ifdef Q_OS_WIN
-#ifndef _MSC_VER
-#undef USE_CRASHREPORTING
-#endif
-#endif
 
 enum { OptionIndent = 4, DescriptionIndent = 24 };
 
 static const char *corePluginNameC = "Core";
 
 typedef QList<ExtensionSystem::PluginSpec *> PluginSpecSet;
-
-// Helpers for displaying messages. Note that there is no console on Windows.
-#ifdef Q_OS_WIN
-// Format as <pre> HTML
-static inline void toHtml(QString &t)
-{
-    t.replace(QLatin1Char('&'), QLatin1String("&amp;"));
-    t.replace(QLatin1Char('<'), QLatin1String("&lt;"));
-    t.replace(QLatin1Char('>'), QLatin1String("&gt;"));
-    t.insert(0, QLatin1String("<html><pre>"));
-    t.append(QLatin1String("</pre></html>"));
-}
-
-static void displayHelpText(QString t) // No console on Windows.
-{
-    toHtml(t);
-    QMessageBox::information(0, GCS_PROJECT_BRANDING_PRETTY, t);
-}
-
-static void displayError(const QString &t) // No console on Windows.
-{
-    QMessageBox::critical(0, GCS_PROJECT_BRANDING_PRETTY, t);
-}
-
-#else
 
 static void displayHelpText(const QString &t)
 {
@@ -117,8 +87,6 @@ static void displayError(const QString &t)
 {
     qCritical("%s", qPrintable(t));
 }
-
-#endif
 
 static void printVersion(const ExtensionSystem::PluginSpec *coreplugin,
                          const ExtensionSystem::PluginManager &pm)
@@ -290,7 +258,7 @@ int main(int argc, char **argv)
     bool enableReporter = parser.values(doTestsOption).isEmpty();
 
     // not implemented on linux
-#if defined(Q_OS_WIN) || defined(Q_OS_MAC)
+#if defined(Q_OS_MAC)
     enableReporter &= !Utils::HostOsInfo::debuggerPresent();
 #endif
 

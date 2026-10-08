@@ -4,7 +4,7 @@ QT -= gui
 
 # The ABI version.
 
-!win32:VERSION = 1.0.0
+VERSION = 1.0.0
 
 # 1.0.0 is the first stable ABI.
 # The next binary incompatible change will be 2.0.0 and so on.
@@ -27,7 +27,6 @@ QT -= gui
 DEFINES += QUAZIP_BUILD
 
 include(../../gcslibrary.pri)
-include(../zlib/zlib.pri)
 # You'll need to define this one manually if using a build system other
 # than qmake or using QuaZIP sources directly in your project.
 CONFIG(staticlib): DEFINES += QUAZIP_STATIC
@@ -77,12 +76,4 @@ unix:!symbian {
 	OBJECTS_DIR=.obj
 	MOC_DIR=.moc
         LIBS += -lz
-}
-win32 {
-    headers.path=$$PREFIX/include/quazip
-    headers.files=$$HEADERS
-    target.path=$$PREFIX/lib
-#    INSTALLS += headers target
-    # workaround for qdatetime.h macro bug
-    DEFINES += NOMINMAX
 }

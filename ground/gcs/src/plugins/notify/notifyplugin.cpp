@@ -313,12 +313,6 @@ void SoundNotifyPlugin::stateChanged(QMediaPlayer::State newstate)
 {
 // qNotifyDebug() << "File length (ms): " << phonon.mo->totalTime();
 
-#ifndef Q_OS_WIN
-// This is a hack to force Linux to wait until the end of the
-// wav file before moving to the next in the queue.
-// I wish I did not have to go through a #define, but I did not
-// manage to make this work on both platforms any other way!
-#endif
     if ((newstate == QMediaPlayer::PausedState) || (newstate == QMediaPlayer::StoppedState)) {
         qNotifyDebug() << "New State: " << QVariant(newstate).toString();
 

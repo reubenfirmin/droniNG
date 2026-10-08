@@ -59,7 +59,6 @@ class GenericSymbolDump(object):
 
     def enumerate_targets(self):
         for file in recursive_file_gen(self.root_path):
-            # might have to move down into os specific subclass if we ever package outside mingw
             sig = subprocess.check_output(['file', '-b', file]).decode('utf-8').split(' ')
             if self.is_object_file(file, sig):
                 info("Found object file: " + os.path.relpath(file, self.root_path))
@@ -71,7 +70,6 @@ class GenericSymbolDump(object):
         # this logic causes us to prefer files with matching debug symbols in the case
         # of multiple symlinked copies (qmake does this with libraries)
         # while also catching things without debug symbols so we can still get public symbols
-        # (except on Windows where that doesn't work)
         if real_path not in self.targets:
             self.targets[real_path] = {"source_file": file, "debug_symbols": None}
         elif os.path.islink(file) and os.path.basename(file) == os.path.basename(real_path):
@@ -179,37 +177,6 @@ class MacOSSymbolDump(GenericSymbolDump):
     def get_symbol_name(self, objname):
         return objname + '.sym'
 
-class WindowsSymbolDump(GenericSymbolDump):
-    def __init__(self, path):
-        self.init(path)
-
-    def is_object_file(self, file, sig):
-        if len(sig) < 3:
-            return False
-        # windows dump_syms can only dump from pdbs, so just find them
-        return sig[0] == "MSVC" and sig[2] == "database"
-
-    def find_debug_symbols(self, file):
-        name, ext = os.path.splitext(file)
-        pdb = name + ".pdb"
-        if os.path.isfile(pdb):
-            return pdb
-        return None
-
-    def get_dump_syms_cmd(self, objpath, sympath = None):
-        # windows dumper can't dump public symbols from shared libs, need pdb to get anything
-        if not sympath:
-            debug("Skipping: {0} (no .pdb)".format(os.path.relpath(objpath, self.root_path)))
-            return None
-        cmd = [self.dump_syms]
-        cmd.append(sympath)
-        return cmd
-
-    def get_symbol_name(self, objname):
-        name, ext = os.path.splitext(objname)
-        return name + '.sym'
-
-
 class LinuxSymbolDump(GenericSymbolDump):
     def __init__(self, path):
         self.init(path)
@@ -260,8 +227,6 @@ def main():
         dumper = LinuxSymbolDump(args.binpath)
     elif platform.system() == "Darwin":
         dumper = MacOSSymbolDump(args.binpath)
-    elif platform.system() == "Windows":
-        dumper = WindowsSymbolDump(args.binpath)
     else:
         raise NotImplementedError("Unsupported OS")
 

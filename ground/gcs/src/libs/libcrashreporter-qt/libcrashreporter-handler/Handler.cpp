@@ -29,8 +29,6 @@
 
 #ifdef __APPLE__
 #   include <client/mac/handler/exception_handler.h>
-#elif defined _WIN32
-#   include <client/windows/handler/exception_handler.h>
 #elif defined __linux__
 #   include <client/linux/handler/exception_handler.h>
 #   include <client/linux/handler/minidump_descriptor.h>
@@ -54,54 +52,6 @@ Handler::isActive()
 {
     return s_active;
 }
-
-#ifdef Q_OS_WIN
-static bool
-LaunchUploader( const wchar_t* dump_dir, const wchar_t* minidump_id, void* context, EXCEPTION_POINTERS *exinfo, MDRawAssertionInfo *assertion, bool succeeded )
-{
-    if ( !succeeded )
-        return false;
-
-    // DON'T USE THE HEAP!!!
-    // So that indeed means, no QStrings, no qDebug(), no QAnything, seriously!
-
-
-    const wchar_t* crashReporter = static_cast<Handler*>(context)->crashReporterWChar();
-    if ( !s_active || wcslen( crashReporter ) == 0 )
-        return false;
-
-    wchar_t command[MAX_PATH * 3 + 6];
-    wcscpy( command, crashReporter);
-    wcscat( command, L" \"");
-    wcscat( command, dump_dir );
-    wcscat( command, L"/" );
-    wcscat( command, minidump_id );
-    wcscat( command, L".dmp\"" );
-
-
-
-    STARTUPINFO si;
-    PROCESS_INFORMATION pi;
-
-    ZeroMemory( &si, sizeof( si ) );
-    si.cb = sizeof(si);
-    si.dwFlags = STARTF_USESHOWWINDOW;
-    si.wShowWindow = SW_SHOWNORMAL;
-    ZeroMemory( &pi, sizeof(pi) );
-
-    if ( CreateProcess( NULL, command, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi ) )
-    {
-        CloseHandle( pi.hProcess );
-        CloseHandle( pi.hThread );
-        TerminateProcess( GetCurrentProcess(), 1 );
-    }
-
-    return succeeded;
-}
-
-
-#else
-
 
 #include <unistd.h>
 
@@ -164,9 +114,6 @@ LaunchUploader( const char* dump_dir, const char* minidump_id, void* context, bo
     }
 
 
-#endif
-
-
 Handler::Handler( const QString& dumpFolderPath, bool active, const QString& crashReporter  )
 {
     s_active = active;
@@ -175,9 +122,6 @@ Handler::Handler( const QString& dumpFolderPath, bool active, const QString& cra
     m_crash_handler =  new google_breakpad::ExceptionHandler( google_breakpad::MinidumpDescriptor(dumpFolderPath.toStdString()), NULL, LaunchUploader, this, true, -1 );
     #elif defined Q_OS_MAC
     m_crash_handler =  new google_breakpad::ExceptionHandler( dumpFolderPath.toStdString(), NULL, LaunchUploader, this, true, NULL);
-    #elif defined Q_OS_WIN
-//     m_crash_handler = new google_breakpad::ExceptionHandler( dumpFolderPath.toStdString(), 0, LaunchUploader, this, true, 0 );
-    m_crash_handler = new google_breakpad::ExceptionHandler( dumpFolderPath.toStdWString(), 0, LaunchUploader, this, true, 0 );
     #endif
 
     setCrashReporter( crashReporter );
@@ -208,12 +152,6 @@ Handler::setCrashReporter( const QString& crashReporter )
     strcpy( creporter, sreporter.c_str() );
     m_crashReporterChar = creporter;
 
-    // cache reporter path as wchart_t*
-    wchar_t* wreporter;
-    std::wstring wsreporter = crashReporterPath.toStdWString();
-    wreporter = new wchar_t[ wsreporter.size() + 10 ];
-    wcscpy( wreporter, wsreporter.c_str() );
-    m_crashReporterWChar = wreporter;
 }
 
 

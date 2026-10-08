@@ -330,10 +330,6 @@ LDFLAGS += $(patsubst %,-l%,$(EXTRA_LIBS))
 LDFLAGS += -lm
 LDFLAGS += -lpthread
 
-ifdef WINDOWS
-LDFLAGS += -lws2_32
-endif
-
 # Define programs and commands.
 REMOVE  = rm -f
 

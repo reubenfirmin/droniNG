@@ -29,7 +29,6 @@ namespace CrashReporter
 class Handler
 {
     const char* m_crashReporterChar; // yes! It MUST be const char[]
-    const wchar_t* m_crashReporterWChar;
 
 public:
     Handler(const QString& dumpFolderPath, bool active, const QString& crashReporter );
@@ -40,7 +39,6 @@ public:
 
     void setCrashReporter( const QString& crashReporter );
     const char* crashReporterChar() const { return m_crashReporterChar; }
-    const wchar_t* crashReporterWChar() const { return m_crashReporterWChar; }
 
 private:
     google_breakpad::ExceptionHandler* m_crash_handler;

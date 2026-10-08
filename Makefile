@@ -117,7 +117,6 @@ endif
 help:
 	@echo
 	@echo "   This Makefile is known to work on Linux and Mac in a standard shell environment."
-	@echo "   It also works on Windows by following the instructions in make/winx86/README.txt."
 	@echo
 	@echo "   Here is a summary of the available targets:"
 	@echo
@@ -132,11 +131,8 @@ help:
 	@echo "     android_sdk_install  - Install the Android SDK tools"
 	@echo "     gtest_install        - Install the google unit test suite"
 	@echo "     uncrustify_install   - Install the uncrustify code formatter"
-	@echo "     openssl_install      - Install the openssl libraries on windows machines"
 	@echo "     sdl_install          - Install the SDL libraries"
-ifndef WINDOWS
 	@echo "     depot_tools_install  - Install Google depot-tools for building breakpad tools"
-endif
 	@echo "     breakpad_install     - Install Google Breakpad tools for GCS crash symbol generation"
 
 	@echo
@@ -257,20 +253,13 @@ $(BUILD_DIR):
 #
 ##############################
 
-USE_MSVC ?= NO
-ifeq ($(USE_MSVC), YES)
-QT_SPEC=win32-msvc
-endif
 .PHONY: all_ground
 all_ground: gcs
 
-ifndef WINDOWS
-# unfortunately the silent linking command is broken on windows
 ifeq ($(V), 1)
 GCS_SILENT :=
 else
 GCS_SILENT := silent
-endif
 endif
 
 
@@ -287,11 +276,7 @@ $(GCS_QMAKE_MARKER): $(UAVOBJECT_MARKER) $(GCS_QMAKE_DEPS) $(SHAREDUSBIDDIR)/boa
 
 .PHONY: gcs
 gcs: $(GCS_QMAKE_MARKER) | tools_required_qt tools_required_breakpad
-ifeq ($(USE_MSVC), NO)
 	cd $(BUILD_DIR)/ground/gcs && $(MAKE) --no-print-directory -w
-else
-	cd $(BUILD_DIR)/ground/gcs && MAKEFLAGS= jom $(JOM_OPTIONS)
-endif
 
 .PHONY: gcs_clean
 gcs_clean:
@@ -319,28 +304,18 @@ gcs_clazy: $(UAVOBJECT_MARKER) | tools_required_qt
 	)
 
 
-ifndef WINDOWS
-# unfortunately the silent linking command is broken on windows
 ifeq ($(V), 1)
 UAVOGEN_SILENT :=
 else
 UAVOGEN_SILENT := silent
 endif
-endif
 .PHONY: uavobjgenerator
 uavobjgenerator:
 	$(V1) mkdir -p $(BUILD_DIR)/ground/$@
-ifeq ($(USE_MSVC), NO)
 	$(V1) ( cd $(BUILD_DIR)/ground/$@ && \
 	  $(QMAKE) $(ROOT_DIR)/ground/uavobjgenerator/uavobjgenerator.pro -spec $(QT_SPEC) -r CONFIG+="debug $(UAVOGEN_SILENT)" && \
 	  $(MAKE) --no-print-directory -w; \
 	)
-else
-	$(V1) ( cd $(BUILD_DIR)/ground/$@ && \
-	  $(QMAKE) $(ROOT_DIR)/ground/uavobjgenerator/uavobjgenerator.pro -spec $(QT_SPEC) -r CONFIG+="debug $(UAVOGEN_SILENT)" && \
-	  MAKEFLAGS= jom $(JOM_OPTIONS); \
-	)
-endif
 
 UAVOBJECT_DEPS := $(shell find $(UAVOBJ_XML_DIR))
 $(UAVOBJECT_DEPS): ;
@@ -920,10 +895,9 @@ flightlib_armhardfp_clean:
 	$(V1) [ ! -d "$(FLIGHTLIB_HARD_OUT_DIR)" ] || $(RM) -rf "$(FLIGHTLIB_HARD_OUT_DIR)"
 
 
-.PHONY: usb_id_header usb_id_udev usb_id_windriver
+.PHONY: usb_id_header usb_id_udev
 usb_id_header: $(SHAREDUSBIDDIR)/board_usb_ids.h
 usb_id_udev: $(SHAREDUSBIDDIR)/dronin.udev
-usb_id_windriver: $(SHAREDUSBIDDIR)/dronin_cdc.inf
 
 $(SHAREDUSBIDDIR):
 	$(V1) mkdir -p "$@"
@@ -935,10 +909,6 @@ $(SHAREDUSBIDDIR)/board_usb_ids.h: $(ROOT_DIR)/shared/usb_ids/usb_ids.json
 $(SHAREDUSBIDDIR)/dronin.udev: | $(SHAREDUSBIDDIR)
 $(SHAREDUSBIDDIR)/dronin.udev: $(ROOT_DIR)/shared/usb_ids/usb_ids.json
 	$(V1) $(ROOT_DIR)/shared/usb_ids/generate_usb_files.py -i "$<" -u "$@"
-
-$(SHAREDUSBIDDIR)/dronin_cdc.inf: | $(SHAREDUSBIDDIR)
-$(SHAREDUSBIDDIR)/dronin_cdc.inf: $(ROOT_DIR)/shared/usb_ids/usb_ids.json
-	$(V1) $(ROOT_DIR)/shared/usb_ids/generate_usb_files.py -i "$<" -d "$@"
 
 # $(1) = Canonical board name all in lower case (e.g. coptercontrol)
 define BOARD_PHONY_TEMPLATE
@@ -1130,8 +1100,6 @@ ifeq ($(DISPLAY)x,x)
 endif
 else ifeq ($(MACOSX),1)
   gcs_ut_test: GCS_BIN:="$(BUILD_DIR)/ground/gcs/bin/dRonin-GCS.app/Contents/MacOS/dRonin-GCS"
-else ifeq ($(WINDOWS),1)
-  gcs_ut_test: GCS_BIN:="$(BUILD_DIR)/ground/gcs/bin/drgcs.exe"
 endif
 
 gcs_ut_test:

@@ -32,7 +32,7 @@ CFLAGS += -DUSB_STR_PROD_LEN=$(USB_PROD_LEN)
 
 endif
 
-# Toolchain prefix (i.e arm-elf- -> arm-elf-gcc.exe)
+# Toolchain prefix (i.e arm-elf- -> arm-elf-gcc)
 TCHAIN_PREFIX ?= arm-none-eabi-
 
 CCACHE :=
@@ -204,7 +204,7 @@ endef
 #   $1 = elf file to produce
 #   $2 = list of object files that make up the elf file
 # Note: OSX doesn't have objcopy out-of-box so we can't use it native builds (e.g. sim)
-# Note: header include flags are filtered out to avoid Windows CreateProcess char limit (32768)
+# Omit preprocessing flags from the linker command line.
 define LINK_TEMPLATE
 .SECONDARY: $(1)
 .PRECIOUS: $(2)

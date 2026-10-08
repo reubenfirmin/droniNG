@@ -1934,10 +1934,10 @@ QString UploaderGadgetWidget::getImagePath(QString boardName, QString imageType)
     QStringList paths = QStringList()
         /* Relative paths first; try in application bundle or build dir */
         << "." // uh, right here?
-        << "../firmware" // windows installed path
+        << "../firmware" // portable package
         /* Added ../build to these to make sure our assumptions are right
          * about it being a build tree */
-        << "../../../../build" // windows / linux build
+        << "../../../../build" // Linux build
         << "../../../../../../../build" // OSX build
         << "../Resources/firmware" // OSX app bundle
         << "/usr/local/" GCS_PROJECT_BRANDING_PRETTY "/firmware"; // leenucks deb

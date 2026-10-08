@@ -96,7 +96,7 @@ static const char *uriListMimeFormatC = "text/uri-list";
 enum { debugMainWindow = 0 };
 
 MainWindow::MainWindow()
-    : EventFilteringMainWindow()
+    : QMainWindow()
     , m_coreImpl(new CoreImpl(this))
     , m_uniqueIDManager(new UniqueIDManager())
     , m_globalContext(QList<int>() << Constants::C_GLOBAL_ID)
@@ -429,10 +429,8 @@ void MainWindow::loadStyleSheet()
     QFile global(directory.absolutePath() + QDir::separator() + "global.qss");
 #ifdef Q_OS_MAC
     QFile data(directory.absolutePath() + QDir::separator() + "macos.qss");
-#elif defined(Q_OS_LINUX)
-    QFile data(directory.absolutePath() + QDir::separator() + "linux.qss");
 #else
-    QFile data(directory.absolutePath() + QDir::separator() + "windows.qss");
+    QFile data(directory.absolutePath() + QDir::separator() + "linux.qss");
 #endif
     QString style;
     /* ...to open the file */

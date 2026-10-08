@@ -13,7 +13,7 @@ TEMPLATE = lib
 TARGET = Qwt
 DEFINES += QWT_LIBRARY
 QT += printsupport
-!win32-msvc*:QMAKE_CXXFLAGS += -Wno-sign-compare
+QMAKE_CXXFLAGS += -Wno-sign-compare
 
 include(../../../gcslibrary.pri)
 include( ../qwtconfig.pri )
@@ -22,7 +22,7 @@ include( ../qwtconfig.pri )
 contains(QWT_CONFIG, QwtDll) {
 
     CONFIG += dll
-    win32|symbian: DEFINES += QT_DLL QWT_DLL QWT_MAKEDLL
+    symbian: DEFINES += QT_DLL QWT_DLL QWT_MAKEDLL
 }
 else {
     CONFIG += staticlib

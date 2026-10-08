@@ -263,17 +263,11 @@ int main(int argc, char *argv[])
     QDir dir(outputpath);
     QFileInfoList files = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
     foreach (QFileInfo file, files) {
-#ifdef Q_OS_WIN
-	QDir dir;
-        dir.rmpath(file.fileName());
-        dir.rename(file.absoluteFilePath(), file.fileName());
-#else
         if (QFile::symLinkTarget(file.fileName()) != file.absoluteFilePath()) {
             QFile::remove(file.fileName());
             QFile::link(file.absoluteFilePath(), file.fileName());
             changed = true;
         }
-#endif
     }
 
     /* If anything has changed, ensure flight stuff gets rebuilt */

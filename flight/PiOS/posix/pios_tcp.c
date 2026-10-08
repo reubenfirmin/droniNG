@@ -207,14 +207,7 @@ int32_t PIOS_TCP_Init(uintptr_t *tcp_id, const struct pios_tcp_cfg * cfg)
 	tcp_dev->socket = socket(PF_INET6, SOCK_STREAM, IPPROTO_TCP);
 	tcp_dev->socket_connection = INVALID_SOCKET;
 
-#if defined(_WIN32) || defined(WIN32) || defined(__MINGW32__)
-	char optval = 1;
-	char optoff = 0;
-
-	setsockopt(tcp_dev->socket, IPPROTO_IPV6, IPV6_V6ONLY, &optoff, sizeof(optoff));
-#else
 	int optval = 1;
-#endif
 
         /* Allow reuse of address if you restart. */
         setsockopt(tcp_dev->socket, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));

@@ -24,7 +24,6 @@ defineReplace(qtLibraryName) {
    CONFIG(debug, debug|release) {
       !debug_and_release|build_pass {
           mac:RET = $$member(LIBRARY_NAME, 0)_debug
-          win32:RET = $$member(LIBRARY_NAME, 0)d
       }
    }
    isEmpty(RET):RET = $$LIBRARY_NAME
@@ -53,9 +52,6 @@ equals(TEST, 1) {
     DEFINES += WITH_TESTS
 }
 
-#ideally, we would want a qmake.conf patch, but this does the trick...
-win32:!isEmpty(QMAKE_SH):QMAKE_COPY_DIR = cp -r -f
-
 GCS_SOURCE_TREE = $$PWD
 isEmpty(GCS_BUILD_TREE) {
     sub_dir = $$_PRO_FILE_PWD_
@@ -76,13 +72,8 @@ macx {
     QMAKE_MACOSX_DEPLOYMENT_TARGET=10.9
     copydata = 1
 } else {
-    win32 {
-        contains(TEMPLATE, vc.*)|contains(TEMPLATE_PREFIX, vc):vcproj = 1
-        GCS_APP_TARGET   = $${GCS_PROJECT_BRANDING}gcs
-    } else {
-        GCS_APP_WRAPPER  = $${GCS_PROJECT_BRANDING}gcs
-        GCS_APP_TARGET   = $${GCS_PROJECT_BRANDING}gcs.bin
-    }
+    GCS_APP_WRAPPER  = $${GCS_PROJECT_BRANDING}gcs
+    GCS_APP_TARGET   = $${GCS_PROJECT_BRANDING}gcs.bin
     GCS_LIBRARY_PATH = $$GCS_BUILD_TREE/$$GCS_LIBRARY_BASENAME/$$GCS_PROJECT_BRANDING
     GCS_PLUGIN_PATH  = $$GCS_LIBRARY_PATH/plugins
     GCS_LIBEXEC_PATH = $$GCS_APP_PATH # FIXME
@@ -130,13 +121,6 @@ linux {
     QMAKE_LFLAGS += -Wl,--allow-shlib-undefined -Wl,--no-undefined
 }
 
-win32 {
-    # http://gcc.gnu.org/bugzilla/show_bug.cgi?id=52991
-    !win32-msvc*:QMAKE_CXXFLAGS += -mno-ms-bitfields
-    # check unhandled enum cases in switch statements (if no default case), matches GCC/clang
-    win32-msvc*:QMAKE_CXXFLAGS_WARN_ON += /we4062
-}
-
 unix {
 	GEN_GCOV {
 		QMAKE_CXXFLAGS += -g -Wall -fprofile-arcs -ftest-coverage -O0
@@ -152,7 +136,7 @@ unix {
 # use ISO C++ (no GNU extensions) to ensure maximum portability
 CONFIG += c++11 strict_c++
 
-CONFIG(release, debug|release): unix | win32-msvc* {
+CONFIG(release, debug|release): unix {
     # generate debug info for:
     # a) debugging release builds with a native debugger
     # b) generating breakpad symbols for use with crashreporter

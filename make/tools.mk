@@ -24,7 +24,6 @@ endif
 # Change the Qt version here, format is e.g. 5.8.0, 5.8.0-1 or 5.8.0-beta etc.
 
 QT_VERSION := 5.9.2
-QT_MINGW_VERSION := 530
 
 # These bits are not user serviceable
 QT_VERSION_LONG := $(word 1, $(subst -, , $(QT_VERSION)))
@@ -60,17 +59,12 @@ ifdef IGNORE_MISSING_TOOLCHAIN
 tools_required_qt:
 	$(warning "Skipping Qt toolchain check!")
 else
-ifdef WINDOWS
-tools_required_qt:
-	$(V1) echo "*** Not checking Qt version on Windows ***"
-else
 tools_required_qt:
 ifeq ($(wildcard $(QT_SDK_DIR)/*),)
 	$(error "Qt SDK not found, please run `make qt_sdk_install`")
 else
 	$(info "Qt SDK found in $(QT_SDK_DIR)")
 endif
-endif # WINDOWS
 endif # IGNORE_MISSING_TOOLCHAIN
 
 ifdef LINUX
@@ -90,11 +84,6 @@ endif
 ifdef LINUX
   ANDROID_SDK_DIR := $(TOOLS_DIR)/android-sdk-linux
   ANDROID_SDK_URL := http://dl.google.com/android/android-sdk_r23.0.2-linux.tgz
-endif
-
-ifdef WINDOWS
-  ANDROID_SDK_DIR := $(TOOLS_DIR)/android-sdk-windows
-  ANDROID_SDK_URL := http://dl.google.com/android/android-sdk_r23.0.2-windows.zip
 endif
 
 # Build openocd without FTDI (yes | no)
@@ -141,15 +130,6 @@ ifdef MACOSX
   export QT_SDK_BIN_PATH := $(QT_SDK_DIR)/$(QT_VERSION_FULL)/clang_64/bin
 endif
 
-ifdef WINDOWS
-  qt_sdk_install: QT_SDK_URL  := $(QT_URL_PREFIX)windows-x86-$(QT_VERSION_FULL)$(QT_VERSION_EXTRA).exe
-  QT_SDK_QBS_PATH := $(QT_SDK_DIR)/Tools/QtCreator/bin/qbs
-  ifeq ($(USE_MSVC),YES)
-    QBS_PROFILE := MSVC2015-x86
-  endif
-  QT_SDK_QMAKE_PATH := $(QT_SDK_DIR)/$(QT_VERSION_FULL)/mingw$(QT_MINGW_VERSION)_32/bin/qmake
-endif
-
 qt_sdk_install: QT_SDK_FILE := $(notdir $(QT_SDK_URL))
 
 # order-only prereq on directory existance:
@@ -185,14 +165,6 @@ ifneq (,$(filter $(UNAME), Linux))
 		dr_packages="qtcharts,gcc_64"
 endif
 
-ifdef WINDOWS
-	$(V1) "$(DL_DIR)/$(QT_SDK_FILE)" \
-		--script $(ROOT_DIR)/make/scripts/qt-install.qs \
-		dr_qt_path="C:\\Qt\\Qt$(QT_VERSION_LONG)" \
-		dr_qt_ver=$(QT_PKG_VERSION) \
-		dr_packages="qtcharts,win32_msvc2015,qt.tools.win32_mingw530"
-endif
-
 .PHONY: qt_sdk_clean
 qt_sdk_clean:
 	$(V1) [ ! -d "$(QT_SDK_DIR)" ] || $(RM) -rf $(QT_SDK_DIR)
@@ -209,135 +181,22 @@ ifdef MACOSX
   arm_sdk_install: ARM_SDK_URL  := https://armkeil.blob.core.windows.net/developer/Files/downloads/gnu-rm/6-2017q2/gcc-arm-none-eabi-6-2017-q2-update-mac.tar.bz2
 endif
 
-ifdef WINDOWS
-  arm_sdk_install: ARM_SDK_URL  := https://armkeil.blob.core.windows.net/developer/Files/downloads/gnu-rm/6-2017q2/gcc-arm-none-eabi-6-2017-q2-update-win32.zip
-endif
-
 arm_sdk_install: ARM_SDK_FILE := $(notdir $(ARM_SDK_URL))
 # order-only prereq on directory existance:
 arm_sdk_install: | $(DL_DIR) $(TOOLS_DIR)
 arm_sdk_install: arm_sdk_clean
-ifneq ($(OSFAMILY), windows)
         # download the source only if it's newer than what we already have
 	$(V1) wget --no-check-certificate -N -P "$(DL_DIR)" "$(ARM_SDK_URL)"
 
         # binary only release so just extract it
 	$(V1) tar -C $(TOOLS_DIR) -xjf "$(DL_DIR)/$(ARM_SDK_FILE)"
-else
-	$(V1) curl -L -k -o "$(DL_DIR)/$(ARM_SDK_FILE)" "$(ARM_SDK_URL)"
-	$(V1) unzip -q -d $(ARM_SDK_DIR) "$(DL_DIR)/$(ARM_SDK_FILE)"
-endif
 
 .PHONY: arm_sdk_clean
 arm_sdk_clean:
 	$(V1) [ ! -d "$(ARM_SDK_DIR)" ] || $(RM) -r $(ARM_SDK_DIR)
 
-.PHONY: ftd2xx_install
-
-FTD2XX_DIR := $(DL_DIR)/ftd2xx
-
-ftd2xx_install: | $(DL_DIR)
-ftd2xx_install: FTD2XX_URL  := http://www.ftdichip.com/Drivers/CDM/Beta/CDM20817.zip
-ftd2xx_install: FTD2XX_FILE := CDM20817.zip
-ftd2xx_install: ftd2xx_clean
-        # download the file only if it's newer than what we already have
-	$(V0) @echo " DOWNLOAD     $(FTD2XX_URL)"
-	$(V1) wget -q -N -P "$(DL_DIR)" "$(FTD2XX_URL)"
-
-        # extract the source
-	$(V0) @echo " EXTRACT      $(FTD2XX_FILE) -> $(FTD2XX_DIR)"
-	$(V1) mkdir -p "$(FTD2XX_DIR)"
-	$(V1) unzip -q -d "$(FTD2XX_DIR)" "$(DL_DIR)/$(FTD2XX_FILE)"
-
-.PHONY: ftd2xx_clean
-ftd2xx_clean:
-	$(V0) @echo " CLEAN        $(FTD2XX_DIR)"
-	$(V1) [ ! -d "$(FTD2XX_DIR)" ] || $(RM) -r "$(FTD2XX_DIR)"
-
-.PHONY: ftd2xx_install
-
-LIBUSB_WIN_DIR := $(DL_DIR)/libusb-win32-bin-1.2.6.0
-
-libusb_win_install: | $(DL_DIR)
-libusb_win_install: LIBUSB_WIN_URL  := http://sourceforge.net/projects/libusb-win32/files/libusb-win32-releases/1.2.6.0/libusb-win32-bin-1.2.6.0.zip/download
-libusb_win_install: LIBUSB_WIN_FILE := libusb-win32-bin-1.2.6.0.zip
-libusb_win_install: libusb_win_clean
-        # download the file only if it's newer than what we already have
-	$(V0) @echo " DOWNLOAD     $(LIBUSB_WIN_URL)"
-	$(V1) wget -q -N -P "$(DL_DIR)" --trust-server-name "$(LIBUSB_WIN_URL)"
-
-        # extract the source
-	$(V0) @echo " EXTRACT      $(LIBUSB_WIN_FILE) -> $(LIBUSB_WIN_DIR)"
-	$(V1) mkdir -p "$(LIBUSB_WIN_DIR)"
-	$(V1) unzip -q -d "$(DL_DIR)" "$(DL_DIR)/$(LIBUSB_WIN_FILE)"
-
-        # fixup .h file needed by openocd build
-	$(V0) @echo " FIXUP        $(LIBUSB_WIN_DIR)"
-	$(V1) ln -s "$(LIBUSB_WIN_DIR)/include/lusb0_usb.h" "$(LIBUSB_WIN_DIR)/include/usb.h"
-
-.PHONY: libusb_win_clean
-libusb_win_clean:
-	$(V0) @echo " CLEAN        $(LIBUSB_WIN_DIR)"
-	$(V1) [ ! -d "$(LIBUSB_WIN_DIR)" ] || $(RM) -r "$(LIBUSB_WIN_DIR)"
-
-.PHONY: openocd_win_install
-
-openocd_win_install: | $(DL_DIR) $(TOOLS_DIR)
-openocd_win_install: OPENOCD_URL  := git://git.code.sf.net/p/openocd/code
-openocd_win_install: OPENOCD_REV  := cf1418e9a85013bbf8dbcc2d2e9985695993d9f4
-openocd_win_install: OPENOCD_OPTIONS :=
-
-ifeq ($(OPENOCD_FTDI), yes)
-openocd_win_install: OPENOCD_OPTIONS := $(OPENOCD_OPTIONS) --enable-ft2232_ftd2xx --with-ftd2xx-win32-zipdir=$(FTD2XX_DIR)
-endif
-
-openocd_win_install: openocd_win_clean libusb_win_install ftd2xx_install
-        # download the source
-	$(V0) @echo " DOWNLOAD     $(OPENOCD_URL) @ $(OPENOCD_REV)"
-	$(V1) [ ! -d "$(OPENOCD_BUILD_DIR)" ] || $(RM) -rf "$(OPENOCD_BUILD_DIR)"
-	$(V1) mkdir -p "$(OPENOCD_BUILD_DIR)"
-	$(V1) git clone --no-checkout $(OPENOCD_URL) "$(DL_DIR)/openocd-build"
-	$(V1) ( \
-	  cd $(OPENOCD_BUILD_DIR) ; \
-	  git checkout -q $(OPENOCD_REV) ; \
-	)
-
-        # apply patches
-	$(V0) @echo " PATCH        $(OPENOCD_BUILD_DIR)"
-	$(V1) ( \
-	  cd $(OPENOCD_BUILD_DIR) ; \
-	  git apply < $(ROOT_DIR)/flight/Project/OpenOCD/0003-freertos-cm4f-fpu-support.patch ; \
-	  git apply < $(ROOT_DIR)/flight/Project/OpenOCD/0004-st-icdi-disable.patch ; \
-	)
-
-        # build and install
-	$(V0) @echo " BUILD        $(OPENOCD_WIN_DIR)"
-	$(V1) mkdir -p "$(OPENOCD_WIN_DIR)"
-	$(V1) ( \
-	  cd $(OPENOCD_BUILD_DIR) ; \
-	  ./bootstrap ; \
-	  ./configure --enable-maintainer-mode --prefix="$(OPENOCD_WIN_DIR)" \
-		--build=i686-pc-linux-gnu --host=i586-mingw32msvc \
-		CPPFLAGS=-I$(LIBUSB_WIN_DIR)/include \
-		LDFLAGS=-L$(LIBUSB_WIN_DIR)/lib/gcc \
-		$(OPENOCD_OPTIONS) \
-		--disable-werror \
-		--enable-stlink ; \
-	  $(MAKE) ; \
-	  $(MAKE) install ; \
-	)
-
-        # delete the extracted source when we're done
-	$(V1) [ ! -d "$(OPENOCD_BUILD_DIR)" ] || $(RM) -rf "$(OPENOCD_BUILD_DIR)"
-
-.PHONY: openocd_win_clean
-openocd_win_clean:
-	$(V0) @echo " CLEAN        $(OPENOCD_WIN_DIR)"
-	$(V1) [ ! -d "$(OPENOCD_WIN_DIR)" ] || $(RM) -r "$(OPENOCD_WIN_DIR)"
-
 # Set up openocd tools
 OPENOCD_DIR       := $(TOOLS_DIR)/openocd
-OPENOCD_WIN_DIR   := $(TOOLS_DIR)/openocd_win
 OPENOCD_BUILD_DIR := $(DL_DIR)/openocd-build
 
 .PHONY: openocd_install
@@ -494,12 +353,8 @@ uncrustify_install: UNCRUSTIFY_URL := http://downloads.sourceforge.net/project/u
 uncrustify_install: UNCRUSTIFY_FILE := uncrustify-0.61.tar.gz
 uncrustify_install: UNCRUSTIFY_OPTIONS := prefix=$(UNCRUSTIFY_DIR)
 uncrustify_install: uncrustify_clean
-ifneq ($(OSFAMILY), windows)
 	$(V0) @echo " DOWNLOAD     $(UNCRUSTIFY_URL)"
 	$(V1) wget --no-check-certificate -N -P "$(DL_DIR)" "$(UNCRUSTIFY_URL)"
-else
-	$(V1) curl -L -k -o "$(DL_DIR)/$(UNCRUSTIFY_FILE)" "$(UNCRUSTIFY_URL)"
-endif
         # extract the src
 	$(V0) @echo " EXTRACT      $(UNCRUSTIFY_FILE)"
 	$(V1) tar -C $(TOOLS_DIR) -xf "$(DL_DIR)/$(UNCRUSTIFY_FILE)"
@@ -574,11 +429,7 @@ zip_install : | $(DL_DIR) $(TOOLS_DIR)
 zip_install: zip_clean
 	$(V1) curl -L -k -o "$(DL_DIR)/$(ZIP_FILE)" "$(ZIP_URL)"
 	$(V1) tar --force-local -C $(TOOLS_DIR) -xzf "$(DL_DIR)/$(ZIP_FILE)"
-ifneq ($(OSFAMILY), windows)
 	$(V1) cd "$(ZIP_DIR)" && $(MAKE) -f unix/Makefile generic_gcc
-else
-	$(V1) cd "$(ZIP_DIR)" && $(MAKE) -f win32/makefile.gcc
-endif
 
 .PHONY: zip_clean
 zip_clean:
@@ -651,7 +502,7 @@ ifeq (,$(shell $(QBS) config --settings-dir "$(QBS_SETTINGS_DIR)" --list profile
 # empty profile config, detect toolchains
 	$(V1) $(QBS) setup-toolchains --settings-dir "$(QBS_SETTINGS_DIR)" --detect
 else ifeq (,$(shell $(QBS) config --settings-dir "$(QBS_SETTINGS_DIR)" --list | grep "profiles\.$(QBS_PROFILE)\.qbs"))
-# profile we want is missing. let user know so they can decide if they want to overwrite their config (needed since we don't own Qt install on Windows)
+# Report a missing profile so the toolchains can be detected explicitly.
 	$(error "QBS profile '$(QBS_PROFILE)' not found. Try running '$(QBS) setup-toolchains --settings-dir "$(QBS_SETTINGS_DIR)" --detect'")
 endif
 
@@ -715,33 +566,6 @@ else
   endif
   DUMP_SYMBOLS_TOOL := dump_syms
 endif
-
-.PHONY: openssl_install
-
-# OPENSSL download URL
-ifdef WINDOWS
-  openssl_install: OPENSSL_URL  = https://slproweb.com$(shell \
-          curl -s https://slproweb.com/products/Win32OpenSSL.html \
-          | grep -P 'Win32OpenSSL-1_0_[0-9]*[A-Za-z].exe' \
-          | head -1 \
-          | sed 's|.*\(/download/Win32OpenSSL.*\.exe\).*|\1|g'\
-  )
-
-openssl_install: OPENSSL_FILE = $(notdir $(OPENSSL_URL))
-OPENSSL_DIR = $(TOOLS_DIR)/win32openssl
-# order-only prereq on directory existance:
-openssl_install : | $(DL_DIR) $(TOOLS_DIR)
-openssl_install: openssl_clean
-	$(V1) curl -L -k -o "$(DL_DIR)/$(OPENSSL_FILE)" "$(OPENSSL_URL)"
-	$(V1) ./downloads/$(OPENSSL_FILE) /DIR=$(OPENSSL_DIR) /silent
-else
-openssl_install:
-	$(V1) $(error THIS IS A WINDOWS ONLY TARGET)
-endif
-
-.PHONY: openssl_clean
-openssl_clean:
-	$(V1) [ ! -d "$(OPENSSL_DIR)" ] || $(RM) -rf $(OPENSSL_DIR)
 
 .PHONY: sdl_install
 

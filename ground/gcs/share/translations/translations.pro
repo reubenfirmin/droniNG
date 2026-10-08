@@ -19,10 +19,7 @@ wd = $$replace(GCS_SOURCE_TREE, /, $$QMAKE_DIR_SEP)
 
 TRANSLATIONS = $$prependAll(LANGUAGES, $$PWD/dronin_,.ts)
 
-win32: \
-    PREFIX = "file:///"
-else: \
-    PREFIX = "file://"
+PREFIX = "file://"
 
 plugin_sources = $$files($$GCS_SOURCE_TREE/src/plugins/*)
 plugin_sources ~= s,^$$re_escape($$GCS_SOURCE_TREE/),,g$$i_flag
@@ -49,7 +46,7 @@ QMAKE_EXTRA_TARGETS += ts
 
 updateqm.input = TRANSLATIONS
 updateqm.output = $$GCS_BUILD_TREE/share/translations/${QMAKE_FILE_BASE}.qm
-isEmpty(vcproj):updateqm.variable_out = PRE_TARGETDEPS
+updateqm.variable_out = PRE_TARGETDEPS
 updateqm.commands = $$LRELEASE ${QMAKE_FILE_IN} -qm ${QMAKE_FILE_OUT}
 updateqm.name = LRELEASE ${QMAKE_FILE_IN}
 updateqm.CONFIG += no_link

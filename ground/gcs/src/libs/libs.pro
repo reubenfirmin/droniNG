@@ -11,10 +11,6 @@ SUBDIRS   = \
     libcrashreporter-qt \
     runguard
 
-win32 {
-SUBDIRS   += \
-    zlib
-}
 SUBDIRS   += \
     quazip
 SDL {

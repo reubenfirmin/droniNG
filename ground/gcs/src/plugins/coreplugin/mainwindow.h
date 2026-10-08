@@ -31,7 +31,7 @@
 
 #include "core_global.h"
 
-#include "eventfilteringmainwindow.h"
+#include <QMainWindow>
 
 #include <QtCore/QMap>
 #include <QSettings>
@@ -75,7 +75,7 @@ namespace Internal {
     class VersionDialog;
     class AuthorsDialog;
 
-    class CORE_EXPORT MainWindow : public EventFilteringMainWindow
+    class CORE_EXPORT MainWindow : public QMainWindow
     {
         Q_OBJECT
 

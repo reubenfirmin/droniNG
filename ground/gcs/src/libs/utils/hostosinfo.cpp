@@ -32,10 +32,6 @@
 
 #include <QDebug>
 
-#ifdef Q_OS_WIN
-#include <windows.h>
-#endif
-
 #ifdef Q_OS_MAC
 #   include <sys/sysctl.h>
 #   include <sys/types.h>
@@ -46,24 +42,7 @@ using namespace Utils;
 
 HostOsInfo::HostArchitecture HostOsInfo::hostArchitecture()
 {
-#ifdef Q_OS_WIN
-    SYSTEM_INFO info;
-    GetNativeSystemInfo(&info);
-    switch (info.wProcessorArchitecture) {
-    case PROCESSOR_ARCHITECTURE_AMD64:
-        return HostOsInfo::HostArchitectureAMD64;
-    case PROCESSOR_ARCHITECTURE_INTEL:
-        return HostOsInfo::HostArchitectureX86;
-    case PROCESSOR_ARCHITECTURE_IA64:
-        return HostOsInfo::HostArchitectureItanium;
-    case PROCESSOR_ARCHITECTURE_ARM:
-        return HostOsInfo::HostArchitectureArm;
-    default:
-        return HostOsInfo::HostArchitectureUnknown;
-    }
-#else
     return HostOsInfo::HostArchitectureUnknown;
-#endif
 }
 
 bool HostOsInfo::debuggerPresent()
@@ -85,8 +64,6 @@ bool HostOsInfo::debuggerPresent()
     }
 
     return (info.kp_proc.p_flag & P_TRACED) != 0;
-#elif defined(Q_OS_WIN)
-    return IsDebuggerPresent();
 #else
     qWarning() << "debuggerPresent not implemented!";
     return false;

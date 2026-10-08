@@ -29,9 +29,3 @@ FORMS += modelviewoptionspage.ui
 
 RESOURCES += \
     modelview.qrc
-
-win32-msvc* {
-    LIBS += opengl32.lib
-} else:win32 {
-    LIBS += -lopengl32
-}
