@@ -2,6 +2,8 @@ TEMPLATE = lib
 CONFIG += staticlib create_prl link_prl
 TARGET = crashreporter
 include(../../gcslibrary.pri)
+# The pinned upstream client exposes C++17 allocation alignment in its headers.
+CONFIG += c++17
 QT += core
 
 INCLUDEPATH *= $$BREAKPAD/include/breakpad

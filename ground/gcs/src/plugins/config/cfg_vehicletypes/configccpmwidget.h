@@ -33,7 +33,7 @@
 #include "uavobjects/uavobjectmanager.h"
 #include "uavobjects/uavobject.h"
 #include <QtSvg/QSvgRenderer>
-#include <QtSvg/QGraphicsSvgItem>
+#include <QGraphicsSvgItem>
 #include <QGraphicsEllipseItem>
 #include <QWidget>
 #include <QList>

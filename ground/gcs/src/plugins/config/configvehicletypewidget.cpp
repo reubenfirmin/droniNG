@@ -26,6 +26,7 @@
  * with this program; if not, see <http://www.gnu.org/licenses/>
  */
 #include "configvehicletypewidget.h"
+#include <QRegularExpression>
 
 #include <QDebug>
 #include <QStringList>
@@ -162,7 +163,7 @@ ConfigVehicleTypeWidget::ConfigVehicleTypeWidget(QWidget *parent)
     //  The upshot of this is that ALL new ComboBox widgets for selecting the output channel must
     //  have "ChannelBox" in their name
     foreach (QComboBox *combobox,
-             this->findChildren<QComboBox *>(QRegExp("\\S+ChannelBo\\S+"))) // FOR WHATEVER REASON,
+             this->findChildren<QComboBox *>(QRegularExpression("\\S+ChannelBo\\S+"))) // FOR WHATEVER REASON,
                                                                             // THIS DOES NOT WORK
                                                                             // WITH ChannelBox.
                                                                             // ChannelBo is

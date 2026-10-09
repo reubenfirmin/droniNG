@@ -340,7 +340,7 @@ void HistogramScopeConfig::setGuiConfiguration(Ui::ScopeGadgetOptionsPage *optio
 
         QColor color = QColor(rgbColor);
         listWidgetItem->setText(listItemDisplayText);
-        listWidgetItem->setTextColor(color);
+        listWidgetItem->setForeground(color);
 
         // Store some additional data for the plot curve on the list item
         // Store some additional data for the plot curve on the list item

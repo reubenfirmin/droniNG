@@ -1,16 +1,17 @@
 import QtQuick 2.0
 
 Item {
-    property alias sourceSize: background.sourceSize
-    width: sourceSize.width
+    SystemPalette { id: appPalette }
+    width: 900
     height: 300
 
-    BorderImage {
+    Rectangle {
         id: background
         anchors.fill: parent
 
-        border { left: 30; top: 30; right: 30; bottom: 30 }
-        source: "images/welcome-news-bg.png"
+        radius: 6
+        color: appPalette.button
+        border.color: appPalette.mid
     }
 
     NewsPanel {
@@ -39,7 +40,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         anchors.left: autoTunePanel.right
         anchors.margins: 16
-        color: "#A0A0A0"
+        color: appPalette.mid
     }
     SitesPanel {
         transformOrigin: Item.Center

@@ -41,10 +41,8 @@
 #include <unistd.h>
 #include <ctype.h>
 
-#ifndef __APPLE__
 #include <sys/mman.h>
 #include <sched.h>
-#endif
 
 #include "pios.h"
 
@@ -730,14 +728,8 @@ void PIOS_SYS_Init(void)
 
 		// Underflow is fairly harmless, do we even care in debug
 		// mode?
-#ifndef __APPLE__
 		feenableexcept(FE_DIVBYZERO | FE_UNDERFLOW | FE_OVERFLOW |
 			FE_INVALID);
-#else
-		// XXX need the right magic
-		printf("UNABLE TO DBEUG FPE ON OSX!\n");
-		exit(1);
-#endif
 	}
 }
 

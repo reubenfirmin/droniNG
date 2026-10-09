@@ -50,7 +50,7 @@ void AlarmsMonitorWidget::init(QSvgRenderer *renderer, QGraphicsSvgItem *graph)
     error_txt->setPlainText("0");
 
     QRectF orig = renderer->boundsOnElement("error_sym");
-    QMatrix Matrix = renderer->matrixForElement("error_sym");
+    QTransform Matrix = renderer->transformForElement("error_sym");
     orig = Matrix.mapRect(orig);
     QTransform trans;
     trans.translate(orig.x(), orig.y());
@@ -71,7 +71,7 @@ void AlarmsMonitorWidget::init(QSvgRenderer *renderer, QGraphicsSvgItem *graph)
     info_txt->setParentItem(graph);
     info_txt->setPlainText("0");
     orig = renderer->boundsOnElement("info_sym");
-    Matrix = renderer->matrixForElement("info_sym");
+    Matrix = renderer->transformForElement("info_sym");
     orig = Matrix.mapRect(orig);
     trans.translate(orig.x(), orig.y());
     info_sym->setTransform(trans, false);
@@ -90,7 +90,7 @@ void AlarmsMonitorWidget::init(QSvgRenderer *renderer, QGraphicsSvgItem *graph)
     warning_txt->setParentItem(graph);
     warning_txt->setPlainText("0");
     orig = renderer->boundsOnElement("warning_sym");
-    Matrix = renderer->matrixForElement("warning_sym");
+    Matrix = renderer->transformForElement("warning_sym");
     orig = Matrix.mapRect(orig);
     trans.translate(orig.x(), orig.y());
     warning_sym->setTransform(trans, false);

@@ -33,8 +33,8 @@ ExpoCurve::ExpoCurve(QWidget *parent)
 {
     QPalette palette = parent->palette();
 
-    palette.setColor(QPalette::Foreground, palette.color(QPalette::Dark));
-    palette.setColor(QPalette::Background, palette.color(QPalette::Light));
+    palette.setColor(QPalette::WindowText, palette.color(QPalette::Dark));
+    palette.setColor(QPalette::Window, palette.color(QPalette::Light));
 
     QwtPainter::setPolylineSplitting(false);
     QwtPainter::setRoundingAlignment(false);

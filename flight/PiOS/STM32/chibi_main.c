@@ -59,7 +59,7 @@ void boardInit(void) {
 }
 
 /**
-* dRonin Main function:
+* droniNG Main function:
 *
 * Initialize PiOS<BR>
 * Create the "System" task (SystemModInitializein Modules/System/systemmod.c) <BR>

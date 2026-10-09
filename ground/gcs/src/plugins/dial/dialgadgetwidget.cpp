@@ -92,7 +92,7 @@ void DialGadgetWidget::connectNeedles(QString object1, QString nfield1, QString 
             // qDebug() << "Connected Object 1 (" << object1 << ").";
             connect(obj1, &UAVObject::objectUpdated, this, &DialGadgetWidget::updateNeedle1);
             if (nfield1.contains("-")) {
-                QStringList fieldSubfield = nfield1.split("-", QString::SkipEmptyParts);
+                QStringList fieldSubfield = nfield1.split("-", Qt::SkipEmptyParts);
                 field1 = fieldSubfield.at(0);
                 subfield1 = fieldSubfield.at(1);
                 haveSubField1 = true;
@@ -112,7 +112,7 @@ void DialGadgetWidget::connectNeedles(QString object1, QString nfield1, QString 
             // qDebug() << "Connected Object 2 (" << object2 << ").";
             connect(obj2, &UAVObject::objectUpdated, this, &DialGadgetWidget::updateNeedle2);
             if (nfield2.contains("-")) {
-                QStringList fieldSubfield = nfield2.split("-", QString::SkipEmptyParts);
+                QStringList fieldSubfield = nfield2.split("-", Qt::SkipEmptyParts);
                 field2 = fieldSubfield.at(0);
                 subfield2 = fieldSubfield.at(1);
                 haveSubField2 = true;
@@ -132,7 +132,7 @@ void DialGadgetWidget::connectNeedles(QString object1, QString nfield1, QString 
             // qDebug() << "Connected Object 3 (" << object3 << ").";
             connect(obj3, &UAVObject::objectUpdated, this, &DialGadgetWidget::updateNeedle3);
             if (nfield3.contains("-")) {
-                QStringList fieldSubfield = nfield3.split("-", QString::SkipEmptyParts);
+                QStringList fieldSubfield = nfield3.split("-", Qt::SkipEmptyParts);
                 field3 = fieldSubfield.at(0);
                 subfield3 = fieldSubfield.at(1);
                 haveSubField3 = true;
@@ -156,8 +156,7 @@ void DialGadgetWidget::updateNeedle1(UAVObject *object1)
     UAVObjectField *field = object1->getField(field1);
     if (field) {
         if (haveSubField1) {
-            int indexOfSubField = field->getElementNames().indexOf(
-                QRegExp(subfield1, Qt::CaseSensitive, QRegExp::FixedString));
+            int indexOfSubField = field->getElementNames().indexOf(subfield1);
             value = field->getDouble(indexOfSubField);
         } else
             value = field->getDouble();
@@ -180,8 +179,7 @@ void DialGadgetWidget::updateNeedle2(UAVObject *object2)
     UAVObjectField *field = object2->getField(field2);
     if (field) {
         if (haveSubField2) {
-            int indexOfSubField = field->getElementNames().indexOf(
-                QRegExp(subfield2, Qt::CaseSensitive, QRegExp::FixedString));
+            int indexOfSubField = field->getElementNames().indexOf(subfield2);
             value = field->getDouble(indexOfSubField);
         } else
             value = field->getDouble();
@@ -204,8 +202,7 @@ void DialGadgetWidget::updateNeedle3(UAVObject *object3)
     UAVObjectField *field = object3->getField(field3);
     if (field) {
         if (haveSubField3) {
-            int indexOfSubField = field->getElementNames().indexOf(
-                QRegExp(subfield3, Qt::CaseSensitive, QRegExp::FixedString));
+            int indexOfSubField = field->getElementNames().indexOf(subfield3);
             value = field->getDouble(indexOfSubField);
         } else
             value = field->getDouble();
@@ -343,7 +340,7 @@ void DialGadgetWidget::setDialFile(QString dfn, QString bg, QString fg, QString 
 
         // Check whether the dial also wants display the numeric value:
         if (m_renderer->elementExists(n1 + "-text")) {
-            QMatrix textMatrix = m_renderer->matrixForElement(n1 + "-text");
+            QTransform textMatrix = m_renderer->transformForElement(n1 + "-text");
             qreal startX = textMatrix.mapRect(m_renderer->boundsOnElement(n1 + "-text")).x();
             qreal startY = textMatrix.mapRect(m_renderer->boundsOnElement(n1 + "-text")).y();
             QTransform matrix;
@@ -364,7 +361,7 @@ void DialGadgetWidget::setDialFile(QString dfn, QString bg, QString fg, QString 
             m_needle2->setTransformOriginPoint(rectN.width() / 2, rectN.height() / 2);
             // Check whether the dial also wants display the numeric value:
             if (m_renderer->elementExists(n2 + "-text")) {
-                QMatrix textMatrix = m_renderer->matrixForElement(n2 + "-text");
+                QTransform textMatrix = m_renderer->transformForElement(n2 + "-text");
                 qreal startX = textMatrix.mapRect(m_renderer->boundsOnElement(n2 + "-text")).x();
                 qreal startY = textMatrix.mapRect(m_renderer->boundsOnElement(n2 + "-text")).y();
                 QTransform matrix;
@@ -384,7 +381,7 @@ void DialGadgetWidget::setDialFile(QString dfn, QString bg, QString fg, QString 
             m_needle3->setTransformOriginPoint(rectN.width() / 2, rectN.height() / 2);
             // Check whether the dial also wants display the numeric value:
             if (m_renderer->elementExists(n3 + "-text")) {
-                QMatrix textMatrix = m_renderer->matrixForElement(n3 + "-text");
+                QTransform textMatrix = m_renderer->transformForElement(n3 + "-text");
                 qreal startX = textMatrix.mapRect(m_renderer->boundsOnElement(n3 + "-text")).x();
                 qreal startY = textMatrix.mapRect(m_renderer->boundsOnElement(n3 + "-text")).y();
                 QTransform matrix;
@@ -476,7 +473,7 @@ void DialGadgetWidget::setNeedle1(double value)
         dialTimer.start();
     if (m_text1) {
         QString s;
-        s.sprintf("%.2f", value * n1Factor);
+        s = QString::asprintf("%.2f", value * n1Factor);
         m_text1->setPlainText(s);
     }
 }
@@ -496,7 +493,7 @@ void DialGadgetWidget::setNeedle2(double value)
         dialTimer.start();
     if (m_text2) {
         QString s;
-        s.sprintf("%.2f", value * n2Factor);
+        s = QString::asprintf("%.2f", value * n2Factor);
         m_text2->setPlainText(s);
     }
 }
@@ -516,7 +513,7 @@ void DialGadgetWidget::setNeedle3(double value)
         dialTimer.start();
     if (m_text3) {
         QString s;
-        s.sprintf("%.2f", value * n3Factor);
+        s = QString::asprintf("%.2f", value * n3Factor);
         m_text3->setPlainText(s);
     }
 }

@@ -2,6 +2,7 @@ import QtQuick 2.0
 
 Rectangle {
     id: scrollDecorator
+    SystemPalette { id: appPalette }
 
     property Flickable flickableItem: null
 
@@ -20,8 +21,8 @@ Rectangle {
 
             smooth: true
             radius: 2
-            color: "gray"
-            border.color: "lightgray"
+            color: appPalette.midlight
+            border.color: appPalette.mid
             border.width: 1.0
             opacity: flickable.moving ? 0.8 : 0.4
 

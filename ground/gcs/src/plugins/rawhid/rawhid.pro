@@ -23,12 +23,7 @@ SOURCES += rawhidplugin.cpp \
 
 OTHER_FILES += RawHID.pluginspec
 
-# Platform Specific USB HID Stuff
-macx { 
-    SOURCES += hidapi/hidapi_mac.c
-    LIBS += -framework IOKit \
-        -framework CoreFoundation
-}
+# Linux USB HID backend
 linux {
     SOURCES += hidapi/hidapi_linux.c
     LIBS += -ludev -lrt

@@ -41,7 +41,7 @@ namespace Internal {
     class CorePlugin : public ExtensionSystem::IPlugin
     {
         Q_OBJECT
-        Q_PLUGIN_METADATA(IID "org.dronin.plugins.Core")
+        Q_PLUGIN_METADATA(IID "org.droning.plugins.Core")
 
     public:
         CorePlugin();

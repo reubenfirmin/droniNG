@@ -41,7 +41,7 @@ class ConfigGadgetFactory;
 class CONFIG_EXPORT ConfigPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.Config")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.Config")
 
 public:
     ConfigPlugin();

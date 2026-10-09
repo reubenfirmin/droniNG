@@ -23,7 +23,7 @@ class PfdQmlGadgetFactory;
 class PfdQmlPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.PfdQml")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.PfdQml")
 public:
     PfdQmlPlugin();
     ~PfdQmlPlugin();

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>droniNG flight mark</title>
+  <desc>Four teal rotors surround an amber heading arrow on a navy field.</desc>
+  <rect x="8" y="8" width="240" height="240" rx="52" fill="#142532"/>
+  <path d="M78 78L178 178M178 78L78 178" fill="none" stroke="#6b8d9c" stroke-width="16" stroke-linecap="round"/>
+  <g fill="#142532" stroke="#20c8b5" stroke-width="13">
+    <circle cx="78" cy="78" r="29"/>
+    <circle cx="178" cy="78" r="29"/>
+    <circle cx="78" cy="178" r="29"/>
+    <circle cx="178" cy="178" r="29"/>
+  </g>
+  <path d="M128 84L157 150L128 136L99 150Z" fill="#f4bd50" stroke="#142532" stroke-width="7" stroke-linejoin="round"/>
+</svg>

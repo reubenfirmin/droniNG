@@ -23,6 +23,7 @@
  * with this program; if not, see <http://www.gnu.org/licenses/>
  */
 #include "telemetryschedulergadgetwidget.h"
+#include <QRegularExpression>
 #include "metadata_dialog.h"
 #include "ui_telemetryscheduler.h"
 #include "ui_metadata_dialog.h"
@@ -944,7 +945,7 @@ void QFrozenTableViewWithCopyPaste::paste()
     QModelIndexList indexes = selection->selectedIndexes();
 
     QString selected_text = qApp->clipboard()->text();
-    QStringList cells = selected_text.split(QRegExp(QLatin1String("\\n|\\t")));
+    QStringList cells = selected_text.split(QRegularExpression(QLatin1String("\\n|\\t")));
     while (!cells.empty() && cells.back().size() == 0) {
         cells.pop_back(); // strip empty trailing tokens
     }

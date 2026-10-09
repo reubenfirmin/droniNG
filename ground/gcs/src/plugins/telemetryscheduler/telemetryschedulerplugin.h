@@ -33,7 +33,7 @@ class TelemetrySchedulerGadgetFactory;
 class TelemetrySchedulerPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.TelemetryScheduler")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.TelemetryScheduler")
 
 public:
     TelemetrySchedulerPlugin();

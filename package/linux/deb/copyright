@@ -8,11 +8,11 @@ It was downloaded from:
 
 Upstream Author(s):
 
-    Copyright (C) 2015 <BRANDING_PACKAGE_HOME_PAGE> <<BRANDING_PACKAGE_COPYRIGHT_EMAIL>>
+    Copyright (C) 2015 dRonin contributors, http://dronin.org
 
 Copyright:
 
-    Copyright (C) 2015 <BRANDING_PACKAGE_HOME_PAGE> <<BRANDING_PACKAGE_COPYRIGHT_EMAIL>>
+    Copyright (C) 2015 dRonin contributors, http://dronin.org
 
 License:
 
@@ -30,9 +30,9 @@ License:
     see "/usr/share/common-licenses/GPL-3".
 
     This program contains software and images under other (GPL compatible)
-    licenses.  Please see LICENSE.txt as included in the package for details
+    licenses.  Please see LICENSE.md as included in the package for details
     on these licenses.
 
 The Debian packaging is:
 
-    Copyright (C) 2015 <BRANDING_PACKAGE_HOME_PAGE> <<BRANDING_PACKAGE_COPYRIGHT_EMAIL>> and is licensed under the GPL version 3, see "/usr/share/common-licenses/GPL-3".
+    Copyright (C) 2015 dRonin contributors, http://dronin.org, and is licensed under the GPL version 3, see "/usr/share/common-licenses/GPL-3".

@@ -80,7 +80,7 @@ private:
 class RAWHID_EXPORT RawHIDPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.RawHID")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.RawHID")
 
 public:
     RawHIDPlugin();

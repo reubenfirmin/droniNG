@@ -80,10 +80,10 @@ signals:
 private:
     static const quint32 MAX_INSTANCES = 1000;
     QHash<quint32, QMap<quint32, UAVObject *>> objects;
-    QHash<QString, QMap<quint32, UAVObject *>> objectsByName;
+    QHash<QString, quint32> objectsByName;
 
     void addObject(UAVObject *obj);
-    UAVObject *getObject(const QString &name, quint32 objId, quint32 instId);
+    UAVObject *getObject(const QString *name, quint32 objId, quint32 instId);
     QVector<UAVObject *> getObjectInstancesVector(const QString *name, quint32 objId);
     qint32 getNumInstances(const QString *name, quint32 objId);
 };

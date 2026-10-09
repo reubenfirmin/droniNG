@@ -3,6 +3,7 @@ TARGET = Core
 DEFINES += CORE_LIBRARY
 
 QT += widgets
+greaterThan(QT_MAJOR_VERSION, 5):QT += svgwidgets
 QT += xml \
     network \
     svg \
@@ -129,9 +130,8 @@ FORMS += dialogs/settingsdialog.ui \
 
 RESOURCES += core.qrc
 
-unix:!macx { 
-    images.files = $${GCS_PROJECT_BRANDING_PRETTY}/gcs_logo_*.png
-    images.files = images/qtcreator_logo_*.png
+linux {
+    images.files = $$BRANDING_PATH/gcs_logo_*.png
     images.path = /share/pixmaps
     INSTALLS += images
 }

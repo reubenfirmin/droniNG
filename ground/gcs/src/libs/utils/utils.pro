@@ -33,7 +33,7 @@ SOURCES += \
     scaledpixmaplabel.cpp \
     longlongspinbox.cpp
 
-SOURCES += xmlconfig.cpp
+SOURCES += xmlconfig.cpp settingsxml.cpp darktheme.cpp
 
 HEADERS += utils_global.h \
     pathchooser.h \
@@ -54,7 +54,7 @@ HEADERS += utils_global.h \
     longlongspinbox.h
 
 
-HEADERS += xmlconfig.h
+HEADERS += xmlconfig.h settingsxml.h darktheme.h
 
 FORMS +=
 

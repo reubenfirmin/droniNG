@@ -24,9 +24,6 @@
  * with this program; if not, see <http://www.gnu.org/licenses/>
  */
 #include "QtDebug"
-#ifdef __APPLE__
-#include "OpenGL/OpenGL.h"
-#endif
 #include "modelviewgadgetwidget.h"
 #include "extensionsystem/pluginmanager.h"
 #include "glc_lib/glc_context.h"
@@ -114,12 +111,6 @@ void ModelViewGadgetWidget::reloadScene()
 //// Private functions ////
 void ModelViewGadgetWidget::initializeGL()
 {
-// For VSYNC problem under Mac OS X
-#if defined(Q_OS_MAC)
-    const GLint swapInterval = 1;
-    CGLSetParameter(CGLGetCurrentContext(), kCGLCPSwapInterval, &swapInterval);
-#endif
-
     // OpenGL initialization
     m_GlView.initGl();
     // Reframe the scene

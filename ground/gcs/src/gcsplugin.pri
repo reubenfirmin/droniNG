@@ -4,7 +4,7 @@ include(../gcs.pri)
 include(libs/extensionsystem/extensionsystem.pri)
 
 isEmpty(PROVIDER) {
-    PROVIDER = dRonin
+    PROVIDER = droniNG
 }
 CONFIG       += plugin
 QT += widgets
@@ -43,9 +43,7 @@ QMAKE_EXTRA_COMPILERS += copy2build
 
 TARGET = $$qtLibraryName($$TARGET)
 
-macx {
-        QMAKE_LFLAGS_SONAME = -Wl,-install_name,@executable_path/../Plugins/$${PROVIDER}/
-} else:linux-* {
+linux {
     #do the rpath by hand since it's not possible to use ORIGIN in QMAKE_RPATHDIR
     QMAKE_RPATHDIR += \$\$ORIGIN
     QMAKE_RPATHDIR += \$\$ORIGIN/..
@@ -61,9 +59,9 @@ contains(QT_CONFIG, reduce_exports):CONFIG += hide_symbols
 CONFIG += plugin plugin_with_soname
 linux*:QMAKE_LFLAGS += $$QMAKE_LFLAGS_NOUNDEF
 
-!macx {
+linux {
     target.path = /$$GCS_LIBRARY_BASENAME/$$GCS_PROJECT_BRANDING/plugins/$$PROVIDER
     pluginspec.files += $${TARGET}.pluginspec
-    pluginspec.path = /$$GCS_LIBRARY_BASENAME/dronin/plugins/$$PROVIDER
+    pluginspec.path = /$$GCS_LIBRARY_BASENAME/droning/plugins/$$PROVIDER
     INSTALLS += target pluginspec
 }

@@ -289,12 +289,12 @@ OPMapGadgetWidget::OPMapGadgetWidget(QWidget *parent)
     // **************
     // create the desired timers
 
-    m_updateTimer = new QTimer();
+    m_updateTimer = new QTimer(this);
     m_updateTimer->setInterval(m_maxUpdateRate);
     connect(m_updateTimer, &QTimer::timeout, this, &OPMapGadgetWidget::updatePosition);
     m_updateTimer->start();
 
-    m_statusUpdateTimer = new QTimer();
+    m_statusUpdateTimer = new QTimer(this);
     m_statusUpdateTimer->setInterval(200);
     connect(m_statusUpdateTimer, &QTimer::timeout, this, &OPMapGadgetWidget::updateMousePos);
     m_statusUpdateTimer->start();
@@ -311,8 +311,11 @@ OPMapGadgetWidget::OPMapGadgetWidget(QWidget *parent)
 // destructor
 OPMapGadgetWidget::~OPMapGadgetWidget()
 {
+    // The proxy reads map items while handling model/selection signals.
+    // Destroy it before those items, leaving the map's own cleanup connections intact.
+    delete mapProxy;
     if (m_map) {
-        disconnect(m_map, nullptr, nullptr, nullptr);
+        disconnect(m_map, nullptr, this, nullptr);
         m_map->SetShowHome(false); // doing this appears to stop the map lib crashing on exit
         m_map->SetShowUAV(false); //   "          "
     }
@@ -322,8 +325,6 @@ OPMapGadgetWidget::~OPMapGadgetWidget()
         m_map = NULL;
     }
 
-    if (!mapProxy.isNull())
-        delete mapProxy;
 }
 
 // *************************************************************************************

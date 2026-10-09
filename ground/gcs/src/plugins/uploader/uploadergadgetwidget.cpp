@@ -34,6 +34,7 @@
 #include <QDesktopServices>
 #include <QHttpPart>
 #include <QHttpMultiPart>
+#include <QRegularExpression>
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
 #include <QNetworkReply>
@@ -180,8 +181,7 @@ UploaderGadgetWidget::~UploaderGadgetWidget()
  */
 void UploaderGadgetWidget::FirmwareOnDeviceClear(bool clear)
 {
-    QRegExp rx("*OD_lbl");
-    rx.setPatternSyntax(QRegExp::Wildcard);
+    const QRegularExpression rx(QRegularExpression::wildcardToRegularExpression("*OD_lbl"));
     foreach (QLabel *l, findChildren<QLabel *>(rx)) {
         if (clear)
             l->clear();
@@ -199,8 +199,7 @@ void UploaderGadgetWidget::FirmwareOnDeviceClear(bool clear)
  */
 void UploaderGadgetWidget::FirmwareLoadedClear(bool clear)
 {
-    QRegExp rx("*LD_lbl");
-    rx.setPatternSyntax(QRegExp::Wildcard);
+    const QRegularExpression rx(QRegularExpression::wildcardToRegularExpression("*LD_lbl"));
     foreach (QLabel *l, findChildren<QLabel *>(rx)) {
         if (clear)
             l->clear();
@@ -1270,7 +1269,7 @@ void UploaderGadgetWidget::onExportButtonClick()
     /* get confirmation from user that using the cloud service is OK */
     QMessageBox msgBox(this);
     msgBox.setText(tr("Do you wish to export the settings partition as an XML settings file?"));
-    msgBox.setInformativeText(tr("This will send the raw configuration information to a dRonin "
+    msgBox.setInformativeText(tr("This will send the raw configuration information to a droniNG "
                                  "cloud service for translation."));
     msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
     msgBox.setDefaultButton(QMessageBox::Yes);
@@ -1932,14 +1931,12 @@ QString UploaderGadgetWidget::getImagePath(QString boardName, QString imageType)
     QString imageNameWithSuffix = QString("%1.tlfw").arg(imageName);
 
     QStringList paths = QStringList()
-        /* Relative paths first; try in application bundle or build dir */
+        /* Relative paths first; try the portable package or build dir */
         << "." // uh, right here?
         << "../firmware" // portable package
         /* Added ../build to these to make sure our assumptions are right
          * about it being a build tree */
         << "../../../../build" // Linux build
-        << "../../../../../../../build" // OSX build
-        << "../Resources/firmware" // OSX app bundle
         << "/usr/local/" GCS_PROJECT_BRANDING_PRETTY "/firmware"; // leenucks deb
 
     foreach (QString path, paths) {

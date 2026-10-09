@@ -24,12 +24,14 @@
  */
 
 #include "mainwindow.h"
+#include <utils/darktheme.h>
 #include <QApplication>
 #include <QDebug>
 
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
+    Utils::applyDarkTheme();
     MainWindow w;
     if(a.arguments().length() > 1)
         w.setDumpFile(a.arguments().at(1));

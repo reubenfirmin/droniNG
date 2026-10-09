@@ -57,12 +57,12 @@ GCSControlGadgetConfiguration::GCSControlGadgetConfiguration(QString classId, QS
 
         for (unsigned int i = 0; i < 8; i++) {
             buttonSettings[i].ActionID =
-                qSettings->value(QString().sprintf("button%dAction", i)).toInt();
+                qSettings->value(QString::asprintf("button%dAction", i)).toInt();
             buttonSettings[i].FunctionID =
-                qSettings->value(QString().sprintf("button%dFunction", i)).toInt();
+                qSettings->value(QString::asprintf("button%dFunction", i)).toInt();
             buttonSettings[i].Amount =
-                qSettings->value(QString().sprintf("button%dAmount", i)).toDouble();
-            channelReverse[i] = qSettings->value(QString().sprintf("channel%dReverse", i)).toBool();
+                qSettings->value(QString::asprintf("button%dAmount", i)).toDouble();
+            channelReverse[i] = qSettings->value(QString::asprintf("channel%dReverse", i)).toBool();
         }
     }
 }
@@ -143,9 +143,9 @@ void GCSControlGadgetConfiguration::saveConfig(QSettings *settings) const
     settings->setValue("gcsReceiverMode", gcsReceiverMode);
 
     for (unsigned int i = 0; i < 8; i++) {
-        settings->setValue(QString().sprintf("button%dAction", i), buttonSettings[i].ActionID);
-        settings->setValue(QString().sprintf("button%dFunction", i), buttonSettings[i].FunctionID);
-        settings->setValue(QString().sprintf("button%dAmount", i), buttonSettings[i].Amount);
-        settings->setValue(QString().sprintf("channel%dReverse", i), channelReverse[i]);
+        settings->setValue(QString::asprintf("button%dAction", i), buttonSettings[i].ActionID);
+        settings->setValue(QString::asprintf("button%dFunction", i), buttonSettings[i].FunctionID);
+        settings->setValue(QString::asprintf("button%dAmount", i), buttonSettings[i].Amount);
+        settings->setValue(QString::asprintf("channel%dReverse", i), channelReverse[i]);
     }
 }

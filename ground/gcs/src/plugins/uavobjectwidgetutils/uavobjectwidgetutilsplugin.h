@@ -36,7 +36,7 @@
 class UAVOBJECTWIDGETUTILS_EXPORT UAVObjectWidgetUtilsPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.UAVObjectWidgetUtils")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.UAVObjectWidgetUtils")
 
 public:
     UAVObjectWidgetUtilsPlugin();

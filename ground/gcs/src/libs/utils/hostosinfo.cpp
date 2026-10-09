@@ -30,42 +30,9 @@
 
 #include "hostosinfo.h"
 
-#include <QDebug>
-
-#ifdef Q_OS_MAC
-#   include <sys/sysctl.h>
-#   include <sys/types.h>
-#   include <unistd.h>
-#endif
-
 using namespace Utils;
 
 HostOsInfo::HostArchitecture HostOsInfo::hostArchitecture()
 {
     return HostOsInfo::HostArchitectureUnknown;
-}
-
-bool HostOsInfo::debuggerPresent()
-{
-#ifdef Q_OS_MAC
-    /*
-     * Based on Apple example "How do I determine if I'm being run under the debugger?"
-     * https://developer.apple.com/library/content/qa/qa1361/_index.html
-     */
-    int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()};
-    struct kinfo_proc info;
-    memset(&info, 0, sizeof(info));
-
-    // tell sysctl how much it has to play with
-    size_t size = sizeof(info);
-    if (sysctl(mib, sizeof(mib) / sizeof(*mib), &info, &size, NULL, 0) != 0) {
-        qWarning() << "sysctl failed!";
-        return false;
-    }
-
-    return (info.kp_proc.p_flag & P_TRACED) != 0;
-#else
-    qWarning() << "debuggerPresent not implemented!";
-    return false;
-#endif
 }

@@ -81,7 +81,7 @@ public:
     {
         quint32 objid;
         quint32 objinstid;
-        bool operator==(const temphelper &lhs)
+        bool operator==(const temphelper &lhs) const
         {
             return (lhs.objid == this->objid && lhs.objinstid == this->objinstid);
         }

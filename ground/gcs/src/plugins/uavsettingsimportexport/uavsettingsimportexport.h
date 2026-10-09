@@ -38,7 +38,7 @@
 class UAVSETTINGSIMPORTEXPORT_EXPORT UAVSettingsImportExportPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.uavsettingsimportexport")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.uavsettingsimportexport")
 
 public:
     UAVSettingsImportExportPlugin();

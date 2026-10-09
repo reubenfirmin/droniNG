@@ -35,7 +35,7 @@
 Edge::Edge(MixerNode *sourceNode, MixerNode *destNode)
     : arrowSize(10)
 {
-    setAcceptedMouseButtons(nullptr);
+    setAcceptedMouseButtons(Qt::NoButton);
     source = sourceNode;
     dest = destNode;
     source->addEdge(this);

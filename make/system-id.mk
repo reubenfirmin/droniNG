@@ -1,6 +1,6 @@
 # shared.mk
 #
-# environment variables common to all operating systems supported by the make system
+# Environment variables for the Linux build host.
 
 # Make sure we know a few things about the architecture 
 UNAME := $(shell uname)
@@ -17,20 +17,9 @@ endif
 # configure some variables dependent upon what type of system this is
 
 # Linux
-ifeq ($(UNAME), Linux)
-  OSFAMILY := linux
-  export LINUX := 1
+# Reject unsupported hosts before selecting tools or creating build output.
+ifneq ($(UNAME), Linux)
+  $(error Unsupported build host $(UNAME); droniNG supports Linux only)
 endif
-
-# Mac OSX
-ifeq ($(UNAME), Darwin)
-  OSFAMILY := macosx
-  export MACOSX := 1
-endif
-
-# report an error if we couldn't work out what OS this is running on
-ifndef OSFAMILY
-  $(info uname reports $(UNAME))
-  $(info uname -m reports $(ARCH))
-  $(error failed to detect operating system)  
-endif
+OSFAMILY := linux
+export LINUX := 1

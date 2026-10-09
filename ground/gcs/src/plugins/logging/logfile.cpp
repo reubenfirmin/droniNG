@@ -50,7 +50,7 @@ bool LogFile::open(OpenMode mode)
 {
 
     // start a timer for playback
-    myTime.restart();
+    myTime.start();
     if (file.isOpen()) {
         // We end up here when doing a replay, because the connection
         // manager will also try to open the QIODevice, even though we just
@@ -89,7 +89,7 @@ bool LogFile::open(OpenMode mode)
                                .replace("0x", "");
         QTextStream out(&file);
 
-        out << "dRonin git hash:\n" << gitHash << "\n" << uavoHash << "\n##\n";
+        out << "droniNG git hash:\n" << gitHash << "\n" << uavoHash << "\n##\n";
     } else if (mode == QIODevice::ReadOnly) {
         file.readLine(); // Read first line of log file. This assumes that the logfile is of the new
                          // format.
@@ -255,7 +255,7 @@ void LogFile::timerFired()
 bool LogFile::startReplay()
 {
     dataBuffer.clear();
-    myTime.restart();
+    myTime.start();
     lastPlayTimeOffset = 0;
     lastPlayTime = 0;
     playbackSpeed = 1;

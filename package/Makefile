@@ -15,20 +15,14 @@ include $(ROOT_DIR)/make/tools.mk
 
 # Set up some macros
 BUILD_DIR    := $(ROOT_DIR)/build
-VERSION_CMD  := $(PYTHON) $(ROOT_DIR)/make/scripts/version-info.py --path="$(ROOT_DIR)"
+VERSION_CMD  := $(HOST_PYTHON) $(ROOT_DIR)/make/scripts/version-info.py --path="$(ROOT_DIR)"
 MACHINE_TYPE := $(shell uname -m)
 ifeq ($(MACHINE_TYPE), x86_64)
 PLATFORM_NAME:=amd64
 else
 PLATFORM_NAME:=i386
 endif
-UNAME := $(shell uname)
-ifeq ($(UNAME), Linux)
-  PLATFORM := linux
-endif
-ifeq ($(UNAME), Darwin)
-  PLATFORM := macos
-endif
+PLATFORM := linux
 # Clean build options (recommended for package testing only)
 ifeq ($(CLEAN_BUILD), NO)
 CLEAN_GROUND := NO
@@ -60,12 +54,13 @@ else
 	EXTRACT_FIRMWARE_DEPENDENCIES =
 endif
 
-GCS_PACKAGE_NAME:= dronin_$(PACKAGE_LBL)
+GCS_PACKAGE_NAME:= droning_$(PACKAGE_LBL)
 GCS_PACKAGE_ROOT := $(GCS_PACKAGE_NAME)
+GCS_PACKAGE_STAGE := $(PACKAGE_DIR)/$(GCS_PACKAGE_NAME).staging
 
 help:
 	@echo "   This Makefile is intended to be executed by the toplevel makefile"
-	@echo " Type make help in the top of the dRonin tree for help."
+	@echo " Type make help in the top of the droniNG tree for help."
 	@echo
 
 $(PACKAGE_DIR):
@@ -88,9 +83,9 @@ extract_firmware: $(EXTRACT_FIRMWARE_DEPENDENCIES)
 package_info:
 	$(shell $(VERSION_CMD) --uavodir=$(ROOT_DIR)/shared/uavobjectdefinition --template=$(ROOT_DIR)/make/templates/packageversioninfo.json --outfile=$(PACKAGE_DIR)/packageversioninfo.json)
 
-package_ground_symbols:
+package_ground_symbols: ground_package
 	@echo Gathering GCS debug symbols
-	$(V1)$(PYTHON) "$(ROOT_DIR)/package/package_symbols.py" -m -d "$(DUMP_SYMBOLS_TOOL)" -p "$(PACKAGE_DIR)" "$(PACKAGE_DIR)/$(GCS_PACKAGE_ROOT)"
+	$(V1)$(HOST_PYTHON) "$(ROOT_DIR)/package/package_symbols.py" -m -d "$(DUMP_SYMBOLS_TOOL)" -p "$(PACKAGE_DIR)" "$(PACKAGE_DIR)/$(GCS_PACKAGE_ROOT)"
 
 package_flight_symbols: extract_firmware
 	$(V1)$(RM) -rf "$(PACKAGE_DIR)-symbols/flight"
@@ -119,14 +114,12 @@ endif
 
 ground_package_common: standalone
 	@echo $@ starting
-	$(V1) mkdir -p $(PACKAGE_DIR)/$(GCS_PACKAGE_NAME)/bin
-	$(V1) mkdir -p $(PACKAGE_DIR)/$(GCS_PACKAGE_NAME)/share
-	$(V1) mkdir -p $(PACKAGE_DIR)/$(GCS_PACKAGE_NAME)/lib
-	$(V1) cp -v -R $(BUILD_DIR)/ground/gcs/bin $(PACKAGE_DIR)/$(GCS_PACKAGE_NAME)
-	$(V1) cp -v -R $(BUILD_DIR)/ground/gcs/share $(PACKAGE_DIR)/$(GCS_PACKAGE_NAME)
-	$(V1) cp -v -R $(BUILD_DIR)/ground/gcs/lib $(PACKAGE_DIR)/$(GCS_PACKAGE_NAME)
-	$(V1) cp -v $(ROOT_DIR)/CREDITS.txt $(PACKAGE_DIR)/$(GCS_PACKAGE_NAME)
-	$(V1) cp -v $(ROOT_DIR)/LICENSE.txt $(PACKAGE_DIR)/$(GCS_PACKAGE_NAME)
+	$(V1) cp -v $(ROOT_DIR)/CREDITS.txt $(GCS_PACKAGE_STAGE)
+	$(V1) cp -v $(ROOT_DIR)/LICENSE.md $(GCS_PACKAGE_STAGE)
+	$(V1) if [ -d "$(PACKAGE_DIR)/$(GCS_PACKAGE_NAME)" ]; then \
+	  rm -rf "$(PACKAGE_DIR)/$(GCS_PACKAGE_NAME).previous" && \
+	  mv "$(PACKAGE_DIR)/$(GCS_PACKAGE_NAME)" "$(PACKAGE_DIR)/$(GCS_PACKAGE_NAME).previous"; fi
+	$(V1) mv "$(GCS_PACKAGE_STAGE)" "$(PACKAGE_DIR)/$(GCS_PACKAGE_NAME)"
 	$(V1) find $(PACKAGE_DIR)/$(GCS_PACKAGE_NAME) -type f -name "*Makefile" -exec rm -f {} \;
 	$(V1) find $(PACKAGE_DIR)/$(GCS_PACKAGE_NAME) -type f -name "*qmake.cache" -exec rm -f {} \;
 	$(V1) find $(PACKAGE_DIR)/$(GCS_PACKAGE_NAME) -type f -name "*udp_test" -exec rm -f {} \;
@@ -138,4 +131,4 @@ package_flight: $(FLIGHTPKGNAME)
 $(FLIGHTPKGNAME): $(PACKAGE_DIR) $(FW_FILES)
 	$(ZIPBIN) -j --must-match $@ $(FW_FILES)
 
-include $(WHEREAMI)/Makefile.$(PLATFORM)
+include $(WHEREAMI)/Makefile.linux

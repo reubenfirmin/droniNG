@@ -90,16 +90,20 @@ class GenericSymbolDump(object):
             mkdir_if_not_exist(self.breakpad_path)
             with open(os.path.join(self.breakpad_path, 'breakpad.map'), 'w') as fp:
                 print('binary|uuid', file=fp)
-                self._generate_breakpad_symbols(fp)
+                return self._generate_breakpad_symbols(fp)
         else:
-            self._generate_breakpad_symbols()
+            return self._generate_breakpad_symbols()
 
     def _generate_breakpad_symbols(self, mapfile = None):
+        success = True
         for t in self.targets:
             info("Processing breakpad symbols for: " + os.path.basename(self.targets[t]["source_file"]))
             cmd = self.get_dump_syms_cmd(self.targets[t]["source_file"], self.targets[t]["debug_symbols"])
             if cmd:
-                self.process_dump_syms(cmd, self.targets[t]["source_file"], mapfile)
+                success = self.process_dump_syms(cmd, self.targets[t]["source_file"], mapfile) and success
+            else:
+                success = False
+        return success
 
     def process_dump_syms(self, cmd, objpath, mapfile = None):
         syms = ""
@@ -108,23 +112,25 @@ class GenericSymbolDump(object):
         except OSError as e:
             error("Cannot execute dump_syms, is it installed? (try make breakpad_install)")
             error(str(e))
-            return
+            return False
         syms, err = proc.communicate()
 
         if proc.returncode != 0:
             warning("Invalid symbols [{0}]: {1}".format(proc.returncode, objpath))
             warning("Command: " + " ".join(cmd))
             warning(err)
-            return
+            return False
         elif err:
             debug(err)
 
         lines = syms.decode('utf-8').splitlines()
-        assert(len(lines) > 0)
+        if not lines:
+            warning("Empty symbol dump: %s", objpath)
+            return False
         module = lines[0].split(" ")
         if len(module) != 5 or module[0] != "MODULE":
-            warning("Invalid symbol dump: {1}".format(cmd[-1]))
-            return
+            warning("Invalid symbol dump: %s", objpath)
+            return False
         osys, arch, uuid, name = module[1:]
 
         out_path = os.path.join(self.breakpad_path, name, uuid, self.get_symbol_name(name))
@@ -134,6 +140,7 @@ class GenericSymbolDump(object):
 
         if mapfile:
             self._add_map_entry(mapfile, os.path.relpath(objpath, self.root_path), uuid)
+        return True
 
     def move_debug_syms(self):
         for t in self.targets:
@@ -146,36 +153,6 @@ class GenericSymbolDump(object):
 
     def _add_map_entry(self, fp, bin_name, uuid):
         print('{}|{}'.format(bin_name, uuid), file=fp)
-
-class MacOSSymbolDump(GenericSymbolDump):
-    def __init__(self, path):
-        self.init(path)
-
-    def is_object_file(self, file, sig):
-        if len(sig) < 3:
-            return False
-        # avoids catching DWARF info inside .dSYM directories
-        return sig[0] == "Mach-O" and sig[2] != "dSYM"
-
-    def find_debug_symbols(self, file):
-        # TODO: make this prettier
-        dsym = os.path.join(self.debug_path, "dRonin-GCS.app", os.path.relpath(file, self.root_path) + ".dSYM")
-        debug("Looking for .dSYM: " + dsym)
-        if os.path.isdir(dsym):
-            info("Found symbol file: " + os.path.relpath(dsym, self.debug_path))
-            return os.path.realpath(dsym)
-        return None
-
-    def get_dump_syms_cmd(self, objpath, sympath = None):
-        cmd = [self.dump_syms]
-        if sympath != None:
-            cmd.append('-g')
-            cmd.append(sympath)
-        cmd.append(objpath)
-        return cmd
-
-    def get_symbol_name(self, objname):
-        return objname + '.sym'
 
 class LinuxSymbolDump(GenericSymbolDump):
     def __init__(self, path):
@@ -225,10 +202,8 @@ def main():
 
     if platform.system() == "Linux":
         dumper = LinuxSymbolDump(args.binpath)
-    elif platform.system() == "Darwin":
-        dumper = MacOSSymbolDump(args.binpath)
     else:
-        raise NotImplementedError("Unsupported OS")
+        raise NotImplementedError("Symbol packaging supports Linux only")
 
     # dumpers expect these to exist
     mkdir_if_not_exist(breakpad_dir)
@@ -247,11 +222,11 @@ def main():
 
     if args.dumpsyms:
         dumper.set_dump_syms_path(args.dumpsyms)
-    dumper.generate_map(args.map > 0)
-    dumper.generate_breakpad_symbols()
-    # this is done earlier in build process to work around macdeployqt bug
-    if platform.system() != "Darwin":
-        dumper.move_debug_syms()
+    dumper.generate_map(bool(args.map))
+    if not dumper.generate_breakpad_symbols():
+        error("Symbol extraction failed; debug files were left in the package")
+        return 1
+    dumper.move_debug_syms()
 
     return 0
 

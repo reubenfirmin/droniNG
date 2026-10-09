@@ -8,6 +8,7 @@
  *****************************************************************************/
 
 #include "qwt_magnifier.h"
+#include "qwt_qt_compat.h"
 #include "qwt_math.h"
 #include <qevent.h>
 #include <qwidget.h>
@@ -438,9 +439,9 @@ void QwtMagnifier::widgetWheelEvent( QWheelEvent *wheelEvent )
             of 120 (== 15 * 8).
          */
         double f = qPow( d_data->wheelFactor, 
-            qAbs( wheelEvent->delta() / 120.0 ) );
+            qAbs( qwtWheelDelta( wheelEvent ) / 120.0 ) );
 
-        if ( wheelEvent->delta() > 0 )
+        if ( qwtWheelDelta( wheelEvent ) > 0 )
             f = 1 / f;
 
         rescale( f );

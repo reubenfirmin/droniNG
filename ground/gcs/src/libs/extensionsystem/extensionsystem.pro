@@ -5,7 +5,7 @@ DEFINES += EXTENSIONSYSTEM_LIBRARY
 include(../../gcslibrary.pri)
 include(extensionsystem_dependencies.pri)
 
-unix:!macx:!freebsd*:LIBS += -ldl
+linux:LIBS += -ldl
 
 DEFINES += GCS_TEST_DIR=\\\"$$GCS_BUILD_TREE\\\"
 

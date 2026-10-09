@@ -123,7 +123,7 @@ QWidget *DialGadgetOptionsPage::createPage(QWidget *parent)
         }
     }
     connect(options_page->uavObject1,
-            QOverload<const QString &>::of(&QComboBox::currentIndexChanged), this,
+            &QComboBox::currentTextChanged, this,
             [this](const QString &val) { uavoChanged(options_page->objectField1, val); });
 
     if (options_page->uavObject2->findText(m_config->getN2DataObject()) != -1) {
@@ -139,7 +139,7 @@ QWidget *DialGadgetOptionsPage::createPage(QWidget *parent)
         }
     }
     connect(options_page->uavObject2,
-            QOverload<const QString &>::of(&QComboBox::currentIndexChanged), this,
+            &QComboBox::currentTextChanged, this,
             [this](const QString &val) { uavoChanged(options_page->objectField2, val); });
 
     if (options_page->uavObject3->findText(m_config->getN3DataObject()) != -1) {
@@ -155,7 +155,7 @@ QWidget *DialGadgetOptionsPage::createPage(QWidget *parent)
         }
     }
     connect(options_page->uavObject3,
-            QOverload<const QString &>::of(&QComboBox::currentIndexChanged), this,
+            &QComboBox::currentTextChanged, this,
             [this](const QString &val) { uavoChanged(options_page->objectField3, val); });
 
     connect(options_page->fontPicker, &QAbstractButton::clicked, this,

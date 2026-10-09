@@ -8,7 +8,6 @@ SOURCES += tst_pluginspec.cpp
 include(../../extensionsystem_test.pri)
 
 LIBS += -L$${PWD}/testplugin -ltest
-macx {
-} else:unix {
+linux {
     QMAKE_RPATHDIR += $${PWD}/testplugin
 }

@@ -25,7 +25,6 @@
  */
 
 #include "customsplash.h"
-#include <QStyleOptionProgressBarV2>
 #include <QPainter>
 #include <QCoreApplication>
 #include <QDebug>
@@ -44,7 +43,7 @@
 CustomSplash::CustomSplash(const QPixmap &pixmap, Qt::WindowFlags f)
     : QSplashScreen(pixmap, f)
     , m_progress(0)
-    , m_progress_bar_color(QColor(217, 118, 0, 255))
+    , m_progress_bar_color(QColor(32, 200, 181, 255))
     , message_number(0)
 {
     QPixmap original_scaled = pixmap.scaledToHeight(180, Qt::SmoothTransformation);

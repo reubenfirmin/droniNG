@@ -449,9 +449,9 @@ QImage QwtPlotSpectrogram::renderImage(
         }
         else
         {
-            futures += QtConcurrent::run(
-                this, &QwtPlotSpectrogram::renderTile,
-                xMap, yMap, tile, &image );
+            futures += QtConcurrent::run( [this, xMap, yMap, tile, &image]() {
+                renderTile( xMap, yMap, tile, &image );
+            } );
         }
     }
     for ( int i = 0; i < futures.size(); i++ )

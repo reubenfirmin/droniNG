@@ -136,7 +136,7 @@ class RAWHID_EXPORT RawHID : public QIODevice
     Q_OBJECT
 
 public:
-    RawHID();
+    RawHID() = delete;
     RawHID(USBDevice *deviceName);
     virtual ~RawHID();
 

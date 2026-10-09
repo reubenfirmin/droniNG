@@ -8,7 +8,7 @@ TARGET = $$qtLibraryName($$TARGET)
 
 contains(QT_CONFIG, reduce_exports):CONFIG += hGCS_symbols
 
-!macx {
-    target.path = /$$GCS_LIBRARY_BASENAME/dronin
+linux {
+    target.path = /$$GCS_LIBRARY_BASENAME/droning
     INSTALLS += target
 }

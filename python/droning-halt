@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+
+from __future__ import print_function
+
+import sys, time
+from droning import telemetry
+
+def main():
+    t = telemetry.get_telemetry_by_args(service_in_iter=False)
+    t.start_thread()
+
+    from droning.uavo import UAVO_FirmwareIAPObj
+
+    t.wait_connection()
+
+    for i in (1122,2233,3344):
+        time.sleep(0.9)
+
+        f=UAVO_FirmwareIAPObj._make_to_send(Command=i)
+
+        t.send_object(f, req_ack=True)
+
+#    expire = time.time() + 3
+
+#    for i in t:
+#        if time.time() > expire:
+#            raise Exception("Didn't reset in time")
+#
+#    print("Flight controller successfully reset")
+
+
+#-------------------------------------------------------------------------------
+if __name__ == "__main__":
+    main()

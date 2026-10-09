@@ -359,7 +359,7 @@ void Scatterplot2dScopeConfig::setGuiConfiguration(Ui::ScopeGadgetOptionsPage *o
 
         QColor color = QColor(rgbColor);
         listWidgetItem->setText(listItemDisplayText);
-        listWidgetItem->setTextColor(color);
+        listWidgetItem->setForeground(color);
 
         // Store some additional data for the plot curve on the list item
         listWidgetItem->setData(Qt::UserRole + ScopeGadgetOptionsPage::UR_UAVOBJECT,
@@ -418,7 +418,7 @@ void Scatterplot2dScopeConfig::configureAxes(ScopeGadgetWidget *scopeGadgetWidge
     case TIMESERIES2D: {
         // Configure axes
         scopeGadgetWidget->setAxisScaleDraw(QwtPlot::xBottom, new TimeScaleDraw());
-        uint NOW = QDateTime::currentDateTime().toTime_t();
+        qint64 NOW = QDateTime::currentDateTime().toSecsSinceEpoch();
         scopeGadgetWidget->setAxisScale(QwtPlot::xBottom, NOW - timeHorizon / 1000, NOW);
         break;
     }
@@ -458,8 +458,8 @@ void Scatterplot2dScopeConfig::configureAxes(ScopeGadgetWidget *scopeGadgetWidge
     const int fmh = QFontMetrics(scaleWidget->font()).height();
     scaleWidget->setMinBorderDist(0, fmh / 2);
 
-    const int fmw = QFontMetrics(scaleWidget->font()).width(" 00:00:00 ");
-    const int fmw = QFontMetrics(scaleWidget->font()).width(" ");
+    const int fmw = QFontMetrics(scaleWidget->font()).horizontalAdvance(" 00:00:00 ");
+    const int fmw = QFontMetrics(scaleWidget->font()).horizontalAdvance(" ");
     scaleWidget->setMinBorderDist(0, fmw);
     */
 }

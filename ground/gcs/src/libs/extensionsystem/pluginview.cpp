@@ -126,7 +126,7 @@ void PluginView::updateList()
             << QDir::toNativeSeparators(spec->filePath()));
         item->setToolTip(4, QDir::toNativeSeparators(spec->filePath()));
         item->setIcon(0, spec->hasError() ? errorIcon : okIcon);
-        item->setData(0, Qt::UserRole, qVariantFromValue(spec));
+        item->setData(0, Qt::UserRole, QVariant::fromValue(spec));
         items.append(item);
         if (currPlugin == spec)
             currentItem = item;

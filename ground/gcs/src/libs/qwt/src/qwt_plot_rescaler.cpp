@@ -330,10 +330,9 @@ bool QwtPlotRescaler::eventFilter( QObject *object, QEvent *event )
 */
 void QwtPlotRescaler::canvasResizeEvent( QResizeEvent* event )
 {
-    int left, top, right, bottom;
-    canvas()->getContentsMargins( &left, &top, &right, &bottom );
-
-    const QSize marginSize( left + right, top + bottom );
+    const QMargins margins = canvas()->contentsMargins();
+    const QSize marginSize( margins.left() + margins.right(),
+                            margins.top() + margins.bottom() );
 
     const QSize newSize = event->size() - marginSize;
     const QSize oldSize = event->oldSize() - marginSize;

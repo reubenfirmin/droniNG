@@ -8,6 +8,7 @@
  *****************************************************************************/
 
 #include "qwt_compass_rose.h"
+#include <qpainterpath.h>
 #include "qwt_point_polar.h"
 #include "qwt_painter.h"
 #include <qpainter.h>
@@ -19,7 +20,7 @@ static QPointF qwtIntersection(
     const QLineF line2( p21, p22 );
 
     QPointF pos;
-    if ( line1.intersect( line2, &pos ) == QLineF::NoIntersection )
+    if ( line1.intersects( line2, &pos ) == QLineF::NoIntersection )
         return QPointF();
 
     return pos;

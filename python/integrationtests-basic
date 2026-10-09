@@ -15,7 +15,7 @@ class SimulationTestCase(unittest.TestCase):
 
         signal.alarm(self.timeout)
 
-        from dronin import telemetry
+        from droning import telemetry
 
         if self.should_wipe_first():
             import os
@@ -79,7 +79,7 @@ class AAConfTests(SimulationTestCase):
         return True
 
     def test_do_config(self):
-        from dronin import uavofile
+        from droning import uavofile
 
         t_stream = self.t_stream
 

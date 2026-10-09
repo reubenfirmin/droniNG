@@ -213,10 +213,6 @@ namespace Internal {
 
         QString m_config_description;
         QString m_config_details;
-#ifdef Q_OS_MAC
-        QAction *m_minimizeAction;
-        QAction *m_zoomAction;
-#endif
         QAction *m_toggleFullScreenAction;
     };
 

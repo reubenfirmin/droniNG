@@ -111,7 +111,7 @@ QList<int> IBoardType::getVendorIDs()
     for (const auto &info : qAsConst(m_bootloaderUSBInfo))
         vids.insert(info.vendorID);
     vids.remove(0);
-    return vids.toList();
+    return vids.values();
 }
 
 } // Core

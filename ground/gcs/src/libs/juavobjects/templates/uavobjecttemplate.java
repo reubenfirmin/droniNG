@@ -26,17 +26,17 @@
  * with this program; if not, see <http://www.gnu.org/licenses/>
  */
 
-package org.dronin.uavtalk.uavobjects;
+package org.droning.uavtalk.uavobjects;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.ListIterator;
 
-import org.dronin.uavtalk.UAVObjectManager;
-import org.dronin.uavtalk.UAVObject;
-import org.dronin.uavtalk.UAVDataObject;
-import org.dronin.uavtalk.UAVObjectField;
+import org.droning.uavtalk.UAVObjectManager;
+import org.droning.uavtalk.UAVObject;
+import org.droning.uavtalk.UAVDataObject;
+import org.droning.uavtalk.UAVObjectField;
 
 /**
 $(DESCRIPTION)

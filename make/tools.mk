@@ -21,9 +21,9 @@ ifdef OPENOCD_FTDI
   endif
 endif
 
-# Change the Qt version here, format is e.g. 5.8.0, 5.8.0-1 or 5.8.0-beta etc.
-
-QT_VERSION := 5.9.2
+# The release SDK is Qt 6.12.0. Use an explicit QMAKE and a separate BUILD_DIR
+# for the Qt 5.15 reference or a different development SDK.
+QT_VERSION ?= 6.12.0
 
 # These bits are not user serviceable
 QT_VERSION_LONG := $(word 1, $(subst -, , $(QT_VERSION)))
@@ -55,32 +55,26 @@ QT_SDK_DIR := $(TOOLS_DIR)/Qt$(QT_VERSION_FULL)
 
 
 .PHONY: tools_required_qt
-ifdef IGNORE_MISSING_TOOLCHAIN
 tools_required_qt:
-	$(warning "Skipping Qt toolchain check!")
-else
-tools_required_qt:
-ifeq ($(wildcard $(QT_SDK_DIR)/*),)
-	$(error "Qt SDK not found, please run `make qt_sdk_install`")
-else
-	$(info "Qt SDK found in $(QT_SDK_DIR)")
-endif
-endif # IGNORE_MISSING_TOOLCHAIN
-
-ifdef LINUX
-  ifdef AMD64
-    QT_PLUGINS_DIR = $(QT_SDK_DIR)/$(QT_VERSION_FULL)/gcc_64/plugins
-  else
-    QT_PLUGINS_DIR = $(QT_SDK_DIR)/$(QT_VERSION_FULL)/gcc/plugins
-  endif
-endif
+	$(V1) qt_selected_version="$$("$(QMAKE)" -query QT_VERSION)" && \
+	  case "$$qt_selected_version" in \
+	    5.15.*) [ "$${qt_selected_version##*.}" -ge 2 ] ;; \
+	    6.*) qt_selected_minor="$${qt_selected_version#6.}"; [ "$${qt_selected_minor%%.*}" -ge 10 ] ;; \
+	    *) false ;; \
+	  esac || { echo "Select Qt 5.15.2+ or Qt 6.10+ using QMAKE; release target is Qt 6.12.0" >&2; exit 1; }; \
+	  qt_selected_qmake="$$(command -v "$(QMAKE)")"; \
+	  for qt_build_makefile in "$(BUILD_DIR)/ground/gcs/Makefile" "$(BUILD_DIR)/ground/uavobjgenerator/Makefile"; do \
+	    [ -f "$$qt_build_makefile" ] || continue; \
+	    qt_build_version="$$(sed -n 's/^# Generated .* (Qt \(.*\))$$/\1/p' "$$qt_build_makefile")"; \
+	    qt_build_qmake="$$(sed -n 's/^QMAKE[[:space:]]*=[[:space:]]*//p' "$$qt_build_makefile")"; \
+	    if [ "$$qt_build_version" != "$$qt_selected_version" ] || [ ! "$$qt_build_qmake" -ef "$$qt_selected_qmake" ]; then \
+	      echo "Existing build uses Qt $$qt_build_version ($$qt_build_qmake): $$qt_build_makefile" >&2; \
+	      echo "Select a separate BUILD_DIR for Qt $$qt_selected_version ($$qt_selected_qmake)." >&2; \
+	      exit 1; \
+	    fi; \
+	  done
 
 # Set variables for Android SDK
-ifdef MACOSX
-  ANDROID_SDK_DIR := $(TOOLS_DIR)/android-sdk-macosx
-  ANDROID_SDK_URL := http://dl.google.com/android/android-sdk_r23.0.2-macosx.zip
-endif
-
 ifdef LINUX
   ANDROID_SDK_DIR := $(TOOLS_DIR)/android-sdk-linux
   ANDROID_SDK_URL := http://dl.google.com/android/android-sdk_r23.0.2-linux.tgz
@@ -106,64 +100,12 @@ endef
 
 .PHONY: qt_sdk_install
 
-# QT SDK download URL
-# QT_URL_PREFIX := http://download.qt.io/$(QT_VERSION_SOURCE)_releases/qt/$(QT_VERSION_SHORT)/$(QT_VERSION_FULL)/qt-opensource-
-QT_URL_PREFIX := https://download.qt.io/archive/qt/$(QT_VERSION_SHORT)/$(QT_VERSION_FULL)/qt-opensource-
-$(info $$QT_URL_PREFIX is [${QT_URL_PREFIX}])
-ifdef LINUX
-  ifdef AMD64
-    # Linux 64-bit
-    qt_sdk_install: QT_SDK_URL := $(QT_URL_PREFIX)linux-x64-$(QT_VERSION_FULL)$(QT_VERSION_EXTRA).run
-    QT_SDK_QMAKE_PATH := $(QT_SDK_DIR)/$(QT_VERSION_FULL)/gcc_64/bin/qmake
-    QT_SDK_QBS_PATH := $(QT_SDK_DIR)/Tools/QtCreator/bin/qbs
-    QBS_PROFILE := gcc
-  else
-    $(warning Build is only supported on 64-bit Linux)
-  endif
+# Use distribution packages or an independently installed SDK.
+ifneq (,$(filter qt_sdk_install,$(MAKECMDGOALS)))
+  $(error The legacy qt_sdk_install recipe is retired. Install Qt 5.15 development packages or a separate SDK, then set QMAKE to its qmake executable)
 endif
 
-ifdef MACOSX
-  qt_sdk_install: QT_SDK_URL  := $(QT_URL_PREFIX)mac-x64-$(QT_VERSION_FULL)$(QT_VERSION_EXTRA).dmg
-  QT_SDK_QMAKE_PATH := $(QT_SDK_DIR)/$(QT_VERSION_FULL)/clang_64/bin/qmake
-  QT_SDK_QBS_PATH := $(QT_SDK_DIR)/Qt\ Creator.app/Contents/MacOS/qbs
-  QBS_PROFILE := clang
-  export QT_SDK_BIN_PATH := $(QT_SDK_DIR)/$(QT_VERSION_FULL)/clang_64/bin
-endif
-
-qt_sdk_install: QT_SDK_FILE := $(notdir $(QT_SDK_URL))
-
-# order-only prereq on directory existance:
-qt_sdk_install : | $(DL_DIR) $(TOOLS_DIR)
-qt_sdk_install: qt_sdk_clean
-        # download the source only if it's newer than what we already have
-	$(call DOWNLOAD_template,$(QT_SDK_URL),$(DL_DIR),$(QT_SDK_FILE))
-        # tell the user exactly which path they should select in the GUI
-	$(V1) echo "*** NOTE NOTE NOTE ***"
-	$(V1) echo "*"
-	$(V1) echo "*  In the GUI, please use exactly this path as the installation path:"
-	$(V1) echo "*        $(QT_SDK_DIR)"
-	$(V1) echo "*"
-	$(V1) echo "*** NOTE NOTE NOTE ***"
-
-ifneq (,$(filter $(UNAME), Darwin))
-	$(V1) hdiutil attach -quiet -private -mountpoint /tmp/qt-installer "$(DL_DIR)/$(QT_SDK_FILE)"
-	$(V1) /tmp/qt-installer/qt-opensource-mac-x64-$(QT_VERSION_LONG).app/Contents/MacOS/qt-opensource-mac-x64-$(QT_VERSION_LONG) \
-		--script $(ROOT_DIR)/make/scripts/qt-install.qs \
-		dr_qt_path="$(QT_SDK_DIR)" \
-		dr_qt_ver=$(QT_PKG_VERSION) \
-		dr_packages="qtcharts,clang_64"
-	$(V1) hdiutil detach -quiet /tmp/qt-installer
-endif
-
-ifneq (,$(filter $(UNAME), Linux))
-        #installer is an executable, make it executable and run it
-	$(V1) chmod u+x "$(DL_DIR)/$(QT_SDK_FILE)"
-	$(V1) "$(DL_DIR)/$(QT_SDK_FILE)" \
-		--script $(ROOT_DIR)/make/scripts/qt-install.qs \
-		dr_qt_path="$(QT_SDK_DIR)" \
-		dr_qt_ver=$(QT_PKG_VERSION) \
-		dr_packages="qtcharts,gcc_64"
-endif
+QT_SDK_QMAKE_PATH := $(QT_SDK_DIR)/$(QT_VERSION_FULL)/gcc_64/bin/qmake
 
 .PHONY: qt_sdk_clean
 qt_sdk_clean:
@@ -175,10 +117,6 @@ ARM_SDK_DIR := $(TOOLS_DIR)/gcc-arm-none-eabi-6-2017-q2-update
 .PHONY: arm_sdk_install
 ifdef LINUX
   arm_sdk_install: ARM_SDK_URL  := https://armkeil.blob.core.windows.net/developer/Files/downloads/gnu-rm/6-2017q2/gcc-arm-none-eabi-6-2017-q2-update-linux.tar.bz2
-endif
-
-ifdef MACOSX
-  arm_sdk_install: ARM_SDK_URL  := https://armkeil.blob.core.windows.net/developer/Files/downloads/gnu-rm/6-2017q2/gcc-arm-none-eabi-6-2017-q2-update-mac.tar.bz2
 endif
 
 arm_sdk_install: ARM_SDK_FILE := $(notdir $(ARM_SDK_URL))
@@ -208,10 +146,6 @@ openocd_install: OPENOCD_OPTIONS := --enable-maintainer-mode --prefix="$(OPENOCD
 
 ifeq ($(OPENOCD_FTDI), yes)
 openocd_install: OPENOCD_OPTIONS := $(OPENOCD_OPTIONS) --enable-ftdi
-endif
-
-ifeq ($(UNAME), Darwin)
-openocd_install: OPENOCD_OPTIONS := $(OPENOCD_OPTIONS) --disable-option-checking
 endif
 
 openocd_install: openocd_clean
@@ -436,35 +370,64 @@ zip_clean:
 	$(V1) [ ! -d "$(ZIP_DIR)" ] || $(RM) -rf $(ZIP_DIR)
 
 
+# Qt 6 graphics candidate. The Qt 5 build continues to use bundled GLC.
+# Must match ground/gcs/src/libs/glc_lib/qt6.pri.
+GLC6_REV := b292ccf7851576d71ee9bed7ced4c340b910159a
+GLC6_REPO := https://github.com/laumaya/GLC_lib.git
+GLC6_SOURCE_DIR := $(DL_DIR)/glc-qt6
+
+.PHONY: glc6_download tools_required_glc6
+glc6_download: | $(DL_DIR)
+	$(V0) @echo " DOWNLOAD     $(GLC6_REPO) @ $(GLC6_REV)"
+	$(V1) mkdir -p "$(GLC6_SOURCE_DIR)"
+	$(V1) ( \
+	  cd "$(GLC6_SOURCE_DIR)" && \
+	  git init -q && \
+	  (git cat-file -e "$(GLC6_REV)^{commit}" 2>/dev/null || git fetch --depth=1 "$(GLC6_REPO)" "$(GLC6_REV)") && \
+	  git checkout -q --detach "$(GLC6_REV)" && \
+	  test -f src/lib/lib.pro \
+	)
+
+tools_required_glc6:
+	$(V1) test -f "$(GLC6_SOURCE_DIR)/src/lib/lib.pro" && \
+	  test "$$(git -C "$(GLC6_SOURCE_DIR)" rev-parse HEAD 2>/dev/null)" = "$(GLC6_REV)" || \
+	  { echo "Pinned Qt 6 GLC missing; run make glc6_download" >&2; exit 1; }
+
 # Google breakpad
 # Must match ground/tools.pri
-BREAKPAD_REV := 20170922
-BREAKPAD_REPO := https://github.com/d-ronin/breakpad.git
+BREAKPAD_REV := 6598c9c33fc02da7805401f3b0f1a733e6a24071
+BREAKPAD_REPO := https://github.com/google/breakpad.git
+BREAKPAD_LSS_REV := 29164a80da4d41134950d76d55199ea33fbb9613
+BREAKPAD_LSS_REPO := https://chromium.googlesource.com/linux-syscall-support
 BREAKPAD_DIR := $(TOOLS_DIR)/breakpad/$(BREAKPAD_REV)
-BREAKPAD_BUILD_DIR := $(DL_DIR)/breakpad
+BREAKPAD_SOURCE_DIR := $(DL_DIR)/breakpad-linux
+BREAKPAD_BUILD_DIR := $(BUILD_DIR)/breakpad/$(BREAKPAD_REV)
 
-.PHONY: breakpad_install breakpad_clean tools_required_breakpad
+.PHONY: breakpad_install breakpad_clean breakpad_test tools_required_breakpad
 
-breakpad_install: | tools_required_qbs
 breakpad_install: | $(DL_DIR) $(TOOLS_DIR)
-breakpad_install: | breakpad_clean
 	$(V0) @echo " DOWNLOAD     $(BREAKPAD_REPO) @ $(BREAKPAD_REV)"
-	$(V1) [ ! -d "$(BREAKPAD_BUILD_DIR)" ] || $(RM) -rf "$(BREAKPAD_BUILD_DIR)"
-	$(V1) mkdir -p "$(BREAKPAD_BUILD_DIR)"
+	$(V1) mkdir -p "$(BREAKPAD_SOURCE_DIR)"
 	$(V1) ( \
-	  cd $(BREAKPAD_BUILD_DIR) ; \
-	  git init -q ; \
-	  git remote add upstream "$(BREAKPAD_REPO)" ; \
-	  git fetch -q --tags --depth=1 --recurse-submodules upstream $(BREAKPAD_REV) ; \
-	  git checkout -q $(BREAKPAD_REV) ; \
-	  git submodule -q update --init ; \
+	  cd "$(BREAKPAD_SOURCE_DIR)" && \
+	  git init -q && \
+	  (git cat-file -e "$(BREAKPAD_REV)^{commit}" 2>/dev/null || git fetch --depth=1 "$(BREAKPAD_REPO)" "$(BREAKPAD_REV)") && \
+	  git checkout -q --detach "$(BREAKPAD_REV)" && \
+	  mkdir -p src/third_party/lss && \
+	  cd src/third_party/lss && \
+	  git init -q && \
+	  (git cat-file -e "$(BREAKPAD_LSS_REV)^{commit}" 2>/dev/null || git fetch --depth=1 "$(BREAKPAD_LSS_REPO)" "$(BREAKPAD_LSS_REV)") && \
+	  git checkout -q --detach "$(BREAKPAD_LSS_REV)" \
 	)
 
 	$(V0) @echo " BUILDING     $(BREAKPAD_REPO) @ $(BREAKPAD_REV)"
+	$(V1) mkdir -p "$(BREAKPAD_BUILD_DIR)"
 	$(V1) ( \
-	  cd $(BREAKPAD_BUILD_DIR) ; \
-	  $(QBS) install --settings-dir "$(QBS_SETTINGS_DIR)" --install-root $(BREAKPAD_DIR) profile:$(QBS_PROFILE) release ; \
-	  $(QBS) install --settings-dir "$(QBS_SETTINGS_DIR)" --install-root $(BREAKPAD_DIR) -p breakpad_client profile:$(QBS_PROFILE) debug ; \
+	  cd "$(BREAKPAD_BUILD_DIR)" && \
+	  "$(BREAKPAD_SOURCE_DIR)/configure" --prefix="$(BREAKPAD_DIR)" --disable-selftest CXXFLAGS="-O2 -g -fPIC" CFLAGS="-O2 -g -fPIC" && \
+	  $(MAKE) && \
+	  $(MAKE) install && \
+	  touch "$(BREAKPAD_DIR)/.install_marker" \
 	)
 
 breakpad_clean:
@@ -472,11 +435,21 @@ breakpad_clean:
 	$(V1) [ ! -d "$(BREAKPAD_DIR)" ] || $(RM) -rf $(BREAKPAD_DIR)
 
 tools_required_breakpad:
-ifeq ($(wildcard $(BREAKPAD_DIR)/*),)
-	$(error "Breakpad not found, please run `make breakpad_install`")
-else
+ifeq ($(words $(wildcard $(BREAKPAD_DIR)/.install_marker $(BREAKPAD_DIR)/lib/libbreakpad_client.a $(BREAKPAD_DIR)/include/breakpad/client/linux/handler/exception_handler.h $(BREAKPAD_DIR)/bin/dump_syms)),4)
 	$(info "Breakpad found in $(BREAKPAD_DIR)")
+else
+	$(error "Breakpad not found, please run `make breakpad_install`")
 endif
+
+HOST_CXX ?= g++
+HOST_PYTHON ?= python3
+breakpad_test: | tools_required_breakpad
+	$(V1) mkdir -p "$(BUILD_DIR)/breakpad-smoke"
+	$(V1) $(HOST_CXX) -std=c++17 -g -O0 -I"$(BREAKPAD_DIR)/include/breakpad" \
+	  "$(ROOT_DIR)/ground/tests/breakpad_smoke.cpp" "$(BREAKPAD_DIR)/lib/libbreakpad_client.a" \
+	  -pthread -o "$(BUILD_DIR)/breakpad-smoke/smoke"
+	$(V1) $(HOST_PYTHON) "$(ROOT_DIR)/ground/tests/breakpad_smoke.py" \
+	  "$(BUILD_DIR)/breakpad-smoke/smoke" "$(BREAKPAD_DIR)/bin" "$(BUILD_DIR)/breakpad-smoke"
 
 
 ##############################
@@ -485,33 +458,29 @@ endif
 #
 ##############################
 
-QBS_SETTINGS_DIR := $(TOOLS_DIR)/qbs
-ifeq ($(shell [ -d "$(QT_SDK_DIR)" ] && echo "exists"), exists)
-  QMAKE = $(QT_SDK_QMAKE_PATH)
-  QBS = $(QT_SDK_QBS_PATH)
+ifneq ($(wildcard $(QT_SDK_QMAKE_PATH)),)
+  QMAKE ?= $(QT_SDK_QMAKE_PATH)
 else
-  # not installed, hope it's in the path...
-  QMAKE = qmake
-  QBS = qbs
+  ifneq ($(filter 6.%,$(QT_VERSION)),)
+    QMAKE ?= $(or $(shell command -v qmake6 2>/dev/null),qmake)
+  else
+    QMAKE ?= $(or $(shell command -v qmake-qt5 2>/dev/null),qmake)
+  endif
 endif
-
-.PHONY: tools_required_qbs
-
-tools_required_qbs: | tools_required_qt
-ifeq (,$(shell $(QBS) config --settings-dir "$(QBS_SETTINGS_DIR)" --list profiles))
-# empty profile config, detect toolchains
-	$(V1) $(QBS) setup-toolchains --settings-dir "$(QBS_SETTINGS_DIR)" --detect
-else ifeq (,$(shell $(QBS) config --settings-dir "$(QBS_SETTINGS_DIR)" --list | grep "profiles\.$(QBS_PROFILE)\.qbs"))
-# Report a missing profile so the toolchains can be detected explicitly.
-	$(error "QBS profile '$(QBS_PROFILE)' not found. Try running '$(QBS) setup-toolchains --settings-dir "$(QBS_SETTINGS_DIR)" --detect'")
-endif
+QT_PLUGINS_DIR := $(shell $(QMAKE) -query QT_INSTALL_PLUGINS 2>/dev/null)
+export QT_SDK_BIN_PATH := $(shell $(QMAKE) -query QT_INSTALL_BINS 2>/dev/null)
 
 ifeq ($(shell [ -d "$(ARM_SDK_DIR)" ] && echo "exists"), exists)
   ARM_SDK_PREFIX := $(ARM_SDK_DIR)/bin/arm-none-eabi-
 else
   ifndef IGNORE_MISSING_TOOLCHAIN
     ifeq (,$(findstring _install,$(MAKECMDGOALS)))
-      $(error **WARNING** ARM-SDK not in $(ARM_SDK_DIR)  Please run 'make arm_sdk_install')
+      # Desktop-only goals do not compile firmware or require an ARM SDK.
+      GROUND_ONLY_GOALS := help gcs gcs_clean gcs_ts gcs_clazy gcs_ut_test uavobjgenerator uavobjects uavobjects_test breakpad_test glc6_download tools_required_glc6 tools_required_qt
+      GROUND_ONLY_GOALS += package_ground package_ground_compress package_ground_symbols ground_package standalone usb_id_udev
+      ifneq (,$(filter-out $(GROUND_ONLY_GOALS),$(or $(MAKECMDGOALS),help)))
+        $(error **WARNING** ARM-SDK not in $(ARM_SDK_DIR)  Please run 'make arm_sdk_install')
+      endif
     endif
   endif
   # not installed, hope it's in the path...
@@ -565,21 +534,4 @@ else
     endif
   endif
   DUMP_SYMBOLS_TOOL := dump_syms
-endif
-
-.PHONY: sdl_install
-
-# SDL download URL
-SDL_DIR  := $(TOOLS_DIR)/SDL.framework
-SDL_URL  := https://www.libsdl.org/release/SDL-1.2.15.dmg
-SDL_FILE := SDL-1.2.15.dmg
-
-ifdef MACOSX
-sdl_install:
-	$(V0) @echo " DOWNLOAD $(SDL_URL) "
-	$(V1) curl -L -k -o "$(DL_DIR)/$(SDL_FILE)" "$(SDL_URL)"
-	$(V1) hdiutil attach $(DL_DIR)/$(SDL_FILE);
-	$(V1) cp -r /Volumes/SDL/SDL.framework $(TOOLS_DIR);
-	$(V1) hdiutil detach /Volumes/SDL;
-	$(V1) rm $(DL_DIR)/$(SDL_FILE);
 endif

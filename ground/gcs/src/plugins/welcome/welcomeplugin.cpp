@@ -29,6 +29,7 @@
 #include "welcomeplugin.h"
 
 #include "welcomemode.h"
+#include "atomfeedmodel.h"
 
 #include <coreplugin/actionmanager/actionmanager.h>
 #include <coreplugin/basemode.h>
@@ -42,6 +43,7 @@
 #include <QAction>
 #include <QMenu>
 #include <QPushButton>
+#include <qqml.h>
 
 using namespace Welcome::Internal;
 
@@ -69,6 +71,7 @@ bool WelcomePlugin::initialize(const QStringList &arguments, QString *error_mess
     Q_UNUSED(arguments)
     Q_UNUSED(error_message)
 
+    qmlRegisterType<Welcome::AtomFeedModel>("DroniNG.Welcome", 1, 0, "AtomFeedModel");
     QSettings *qSettings = Core::ICore::instance()->settings();
 
     QString instUUID =

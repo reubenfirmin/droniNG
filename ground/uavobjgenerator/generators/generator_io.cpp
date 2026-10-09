@@ -24,6 +24,18 @@
  */
 
 #include "generator_io.h"
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QStringConverter>
+#endif
+
+static void useUtf8(QTextStream &stream)
+{
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    stream.setEncoding(QStringConverter::Utf8);
+#else
+    stream.setCodec("UTF-8");
+#endif
+}
 
 using namespace std;
 
@@ -40,6 +52,7 @@ QString readFile(QString name,bool do_warn)
     }
 
     QTextStream fileStr(&file);
+    useUtf8(fileStr);
     QString str = fileStr.readAll();
     file.close();
     return str;
@@ -62,9 +75,12 @@ bool writeFile(QString name, QString& str)
     if (!file.open(QFile::WriteOnly))
         return false;
     QTextStream fileStr(&file);
+    useUtf8(fileStr);
     fileStr << str;
+    fileStr.flush();
+    const bool success = fileStr.status() == QTextStream::Ok && file.error() == QFile::NoError;
     file.close();
-    return true;
+    return success;
 }
 
 /**

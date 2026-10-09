@@ -79,7 +79,7 @@ WelcomeMode::WelcomeMode(QString instUUID)
 
     m_d->quickView->engine()->rootContext()->setContextProperty("welcomePlugin", this);
     m_d->quickView->engine()->rootContext()->setContextProperty("instHash",
-                                                                QVariant(qHash(instUUID)));
+                                                                QVariant::fromValue(qulonglong(qHash(instUUID))));
     m_d->quickView->engine()->rootContext()->setContextProperty(
         "gitHash", QVariant(Core::Constants::GCS_REVISION_SHORT_STR));
 
@@ -153,7 +153,12 @@ void WelcomeMode::modesChanged()
     foreach (IMode *mode, modes)
         modeNames.append(mode->name());
 
-    auto buttons = m_d->quickView->rootObject()->findChild<QObject *>("modeButtons");
+    auto root = m_d->quickView->rootObject();
+    if (!root) {
+        qWarning() << "[WelcomeMode::modesChanged] Welcome QML did not load";
+        return;
+    }
+    auto buttons = root->findChild<QObject *>("modeButtons");
     if (buttons)
         buttons->setProperty("modeNames", modeNames);
     else

@@ -112,7 +112,7 @@ UAVGadgetManager::UAVGadgetManager(ICore *core, QString name, QIcon icon, int pr
     setCurrentGadget(m_splitterOrView->view()->gadget());
 
     QHBoxLayout *layout = new QHBoxLayout(m_widget);
-    layout->setMargin(0);
+    layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
     layout->addWidget(m_splitterOrView);
 

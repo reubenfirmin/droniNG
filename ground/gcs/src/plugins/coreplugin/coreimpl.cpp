@@ -99,11 +99,7 @@ QSettings *CoreImpl::settings(QSettings::Scope scope) const
     return m_mainwindow->settings(scope);
 }
 
-#ifdef Q_OS_MAC
-#define SHARE_PATH "/../Resources"
-#else
 #define SHARE_PATH "/../share"
-#endif
 
 QString CoreImpl::resourcePath() const
 {

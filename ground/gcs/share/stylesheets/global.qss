@@ -1,11 +1,7 @@
-/* Guess what. */
-QMainWindow {
-}
-
 #MainContentFrame {
-	background: palette(Midlight);
+	background: palette(Window);
 	padding-bottom: 5px;
-	border-top: 1px solid #606060;
+	border-top: 1px solid palette(Mid);
 }
 
 MyTabWidget::pane > QFrame {
@@ -34,51 +30,52 @@ MyTabWidget > QTabBar::tab {
 }
 
 SystemHealthGadgetWidget, PfdQmlGadgetWidget, LineardialGadgetWidget, ModelViewGadgetWidget > *, OPMapGadgetWidget, DialGadgetWidget {
-	background: #303030;
-	border: 1px solid #505050;
+	background: palette(Base);
+	border: 1px solid palette(Mid);
 }
 
 #frameStatusBar, #frameTopBar, #frameMapControls {
-	background: #303030;
+	background: palette(Window);
 }
 
 #frameTopBar > QLabel, #frameStatusBar > QLabel {
-	color: white;
+	color: palette(WindowText);
 }
 
 #OPMap_Widget > QLabel {
-	color: #ffffff;
+	color: palette(WindowText);
 }
 
 #frameTopBar > QToolButton, #frameMapControls > QToolButton {
-	background: #505050;
-	color: white;
-	border: 1px solid #606060;
+	background: palette(Button);
+	color: palette(ButtonText);
+	border: 1px solid palette(Mid);
 }
 
 #frameTopBar > QToolButton:disabled, #frameMapControls > QToolButton:disabled {
-	background: #303030;
-	color: #505050;
-	border: 1px solid #505050;
+	background: palette(Window);
+	color: palette(Text);
+	border: 1px solid palette(Mid);
 }
 
 #frameTopBar > QToolButton:hover, #frameMapControls > QToolButton:hover {
+	border: 1px solid palette(Highlight);
 }
 
 #frameTopBar > QToolButton:pressed, #frameMapControls > QToolButton:pressed {
-	background: #e67e22;
-	color: black;
-	border: 1px solid #f39c12;
+	background: palette(Highlight);
+	color: palette(HighlightedText);
+	border: 1px solid palette(Highlight);
 }
 
 #frameTopBar > QToolButton:checked, #frameMapControls > QToolButton:checked {
-	background: #f39c12;
-	color: black;
-	border: 1px solid #f1c40f;
+	background: palette(Highlight);
+	color: palette(HighlightedText);
+	border: 1px solid palette(Highlight);
 }
 
 Utils--StyledBar {
-	background: #505050;
+	background: palette(Button);
 	min-height: 24px;
 	max-height: 24px;
 }
@@ -86,16 +83,12 @@ Utils--StyledBar {
 Utils--StyledBar QComboBox {
 	border: 0px;
 	background: transparent;
-	color: white;
+	color: palette(ButtonText);
 	height: 22px;
 }
 
-Utils--StyledBar QComboBox:!editable {
-	color: #808080;
-}
-
 Utils--StyledBar QComboBox:hover {
-	background: #707070;
+	background: palette(Midlight);
 }
 
 Utils--StyledBar QComboBox::drop-down {
@@ -116,15 +109,15 @@ Utils--StyledBar QComboBox::down-arrow:disabled {
 
 /* Close button for Edit gadgets */
 Utils--StyledBar > QToolButton {
-	background: #505050;
+	background: palette(Button);
 }
 
 Utils--StyledBar > QToolButton:hover {
-	background: #707070;
+	background: palette(Midlight);
 	border: 0px;
 }
 
 Utils--StyledBar > QToolButton:pressed {
-	background: #606060;
+	background: palette(Highlight);
 	border: 0px;
 }

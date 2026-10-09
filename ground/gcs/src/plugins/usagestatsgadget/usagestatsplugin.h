@@ -72,7 +72,7 @@ typedef struct debugMessageStruct
 class UsageStatsPlugin : public Core::IConfigurablePlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.UsageStats")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.UsageStats")
 
 public:
     UsageStatsPlugin();

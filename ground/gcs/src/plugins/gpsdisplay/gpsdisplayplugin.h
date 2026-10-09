@@ -34,7 +34,7 @@ class GpsDisplayGadgetFactory;
 class GpsDisplayPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.GpsDisplay")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.GpsDisplay")
 
 public:
     GpsDisplayPlugin();

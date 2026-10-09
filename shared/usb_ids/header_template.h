@@ -6,7 +6,7 @@
  * @{
  * @addtogroup USB_ID USB Identifiers
  * @{
- * @brief USB VID/PIDs used in dRonin
+ * @brief USB VID/PIDs used in droniNG
  *****************************************************************************/
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -35,11 +35,11 @@
 extern "C" {
 #endif
 
-enum dronin_usb_vids {
+enum droning_usb_vids {
 ${VIDS}
 };
 
-enum dronin_usb_pids {
+enum droning_usb_pids {
 ${PIDS}
 };
 

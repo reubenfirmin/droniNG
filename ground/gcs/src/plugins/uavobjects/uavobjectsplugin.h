@@ -35,7 +35,7 @@
 class UAVOBJECTS_EXPORT UAVObjectsPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.UAVObjects")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.UAVObjects")
 
 public:
     UAVObjectsPlugin();
@@ -49,6 +49,7 @@ public:
 private Q_SLOTS:
     void testEnumFields();
     void testIntFields();
+    void testObjectLookup();
 #endif
 };
 

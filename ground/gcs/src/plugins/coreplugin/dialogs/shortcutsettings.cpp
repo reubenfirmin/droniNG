@@ -42,6 +42,7 @@
 #include <utils/treewidgetcolumnstretcher.h>
 
 #include <QKeyEvent>
+#include <QRegularExpression>
 #include <QShortcut>
 #include <QHeaderView>
 #include <QtDebug>
@@ -258,7 +259,7 @@ void ShortcutSettings::initialize()
             QString text = c->hasAttribute(Command::CA_UpdateText) && !c->defaultText().isNull()
                 ? c->defaultText()
                 : c->action()->text();
-            text.remove(QRegExp("&(?!&)"));
+            text.remove(QRegularExpression("&(?!&)"));
             s->m_key = c->action()->shortcut();
             item->setText(1, text);
         } else {
@@ -267,7 +268,7 @@ void ShortcutSettings::initialize()
         }
 
         item->setText(2, s->m_key.toString());
-        item->setData(0, Qt::UserRole, qVariantFromValue(s));
+        item->setData(0, Qt::UserRole, QVariant::fromValue(s));
     }
 }
 

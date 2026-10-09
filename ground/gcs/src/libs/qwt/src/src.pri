@@ -20,6 +20,7 @@ HEADERS += \
     qwt_date_scale_engine.h \
     qwt_dyngrid_layout.h \
     qwt_global.h \
+    qwt_qt_compat.h \
     qwt_graphic.h \
     qwt_interval.h \
     qwt_interval_symbol.h \

@@ -12,10 +12,12 @@ include(../../libs/utils/utils.pri)
 
 HEADERS += welcomeplugin.h \
     welcomemode.h \
+    atomfeedmodel.h \
     welcome_global.h
 
 SOURCES += welcomeplugin.cpp \
     welcomemode.cpp \
+    atomfeedmodel.cpp
 
 OTHER_FILES += Welcome.pluginspec
 

@@ -9,16 +9,6 @@ ALL_LOAD_ARG := -Wl,-whole-archive
 NO_ALL_LOAD_ARG := -Wl,-no-whole-archive
 SED_EXTARG:=-r
 
-ifdef MACOSX
-SED_EXTARG := -E
-
-ifeq ($(TCHAIN_PREFIX),)
-ALL_LOAD_ARG := -Wl,-all_load
-NO_ALL_LOAD_ARG :=
-endif
-
-endif
-
 USB_VEND_EXPAND := $(shell env echo -n "$(USB_VEND)" | sed $(SED_EXTARG) -e "s/(.)/'\1',/g" -e 's/,$$//')
 USB_VEND_LEN := $(shell env echo -n "$(USB_VEND)" | wc -c | tr -d ' ')
 
@@ -63,7 +53,7 @@ INSTALL = install
 
 THUMB   = -mthumb
 
-CFLAGS += '-DDRONIN_TARGET="$(BOARD_NAME)"'
+CFLAGS += '-DDRONING_TARGET="$(BOARD_NAME)"'
 
 # Test if quotes are needed for the echo-command
 result = ${shell echo "test"}
@@ -203,7 +193,6 @@ endef
 # Link: create ELF output file from object files.
 #   $1 = elf file to produce
 #   $2 = list of object files that make up the elf file
-# Note: OSX doesn't have objcopy out-of-box so we can't use it native builds (e.g. sim)
 # Omit preprocessing flags from the linker command line.
 define LINK_TEMPLATE
 .SECONDARY: $(1)
@@ -229,7 +218,6 @@ endef
 # Link: create ELF output file from object files.
 #   $1 = elf file to produce
 #   $2 = list of object files that make up the elf file
-# Note: OSX doesn't have objcopy out-of-box so we can't use it native builds (e.g. sim)
 define LINK_CXX_TEMPLATE
 .SECONDARY : $(1)
 .PRECIOUS : $(2)

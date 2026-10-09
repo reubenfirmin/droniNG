@@ -38,7 +38,7 @@
 class UAVTALK_EXPORT UAVTalkPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.UAVTalk")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.UAVTalk")
 
 public:
     UAVTalkPlugin();

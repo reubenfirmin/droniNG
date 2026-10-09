@@ -122,7 +122,7 @@ void TextBubbleSlider::setMaxPixelWidth()
 
     // Calculate maximum possible pixel width for string.
     QFontMetrics fontMetrics(font);
-    maximumFontWidth = fontMetrics.width(QString("%1").arg(maximumWidthString));
+    maximumFontWidth = fontMetrics.horizontalAdvance(QString("%1").arg(maximumWidthString));
     maximumFontHeight = fontMetrics.height();
 
     // Override stylesheet slider handle width
@@ -219,7 +219,7 @@ void TextBubbleSlider::paintEvent(QPaintEvent *paintEvent)
     painter.setPen(Qt::SolidLine);
     QString neutralStringWidth = QString("%1").arg(value());
     QFontMetrics fontMetrics(font);
-    int textWidth = fontMetrics.width(neutralStringWidth);
+    int textWidth = fontMetrics.horizontalAdvance(neutralStringWidth);
     painter.drawText(QRectF(valuePos + maximumFontWidth - textWidth,
                             ceil((sliderHeight - maximumFontHeight) / 2.0), textWidth,
                             maximumFontHeight),

@@ -5,7 +5,7 @@
  ******************************************************************************
  * @file       encode_fonts.py
  * @author     dRonin, http://dRonin.org/, Copyright (C) 2016
- * @addtogroup dRonin Modules
+ * @addtogroup droniNG Modules
  * @{
  * @addtogroup OnScreenDisplay Module
  * @{
@@ -47,7 +47,7 @@ file_header = Template("""
  * @author     dRonin, http://dRonin.org/, Copyright (C) 2016
  * @author     The OpenPilot Team, http://www.openpilot.org, Copyright (C) 2012
  * @author     Thomas Oldbury Copyright (C) 2010
- * @addtogroup dRonin Modules
+ * @addtogroup droniNG Modules
  * @{
  * @addtogroup OnScreenDisplay Module
  * @{

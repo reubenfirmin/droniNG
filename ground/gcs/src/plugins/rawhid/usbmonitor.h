@@ -53,7 +53,7 @@ struct USBPortInfo
 
     unsigned char getRunState() { return bcdDevice & 0x00ff; }
 
-    bool operator==(USBPortInfo const &port)
+    bool operator==(USBPortInfo const &port) const
     {
         if (port.vendorID != vendorID)
             return false;

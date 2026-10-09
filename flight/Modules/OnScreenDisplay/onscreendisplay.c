@@ -1030,16 +1030,16 @@ void introGraphics(int16_t x, int16_t y)
 #ifdef OSD_USE_BRAINFPV_LOGO
 	/* logo */
 	draw_image(x - image_brainfpv.width - 10, y - image_brainfpv.height / 2, &image_brainfpv);
-	draw_image(x + 10, y - image_dronin.height / 2, &image_dronin);
+	draw_image(x + 10, y - image_droning.height / 2, &image_droning);
 #else
-	draw_image(x - image_droninbig.width / 2, y - image_droninbig.height / 2,
-			&image_droninbig);
+	draw_image(x - image_droningbig.width / 2, y - image_droningbig.height / 2,
+			&image_droningbig);
 #endif
 }
 
 void introText(int16_t x, int16_t y)
 {
-	write_string("dRonin/" DRONIN_TARGET, x, y, 0, 0, TEXT_VA_TOP, TEXT_HA_CENTER, 0, FONT12X18);
+	write_string("droniNG/" DRONING_TARGET, x, y, 0, 0, TEXT_VA_TOP, TEXT_HA_CENTER, 0, FONT12X18);
 }
 
 void printFWVersion(int16_t x, int16_t y)

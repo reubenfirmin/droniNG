@@ -8,6 +8,7 @@
  *****************************************************************************/
 
 #include "qwt_abstract_slider.h"
+#include "qwt_qt_compat.h"
 #include "qwt_abstract_scale_draw.h"
 #include "qwt_math.h"
 #include "qwt_scale_map.h"
@@ -314,12 +315,12 @@ void QwtAbstractSlider::wheelEvent( QWheelEvent *event )
     {
         // one page regardless of delta
         numSteps = d_data->pageSteps;
-        if ( event->delta() < 0 )
+        if ( qwtWheelDelta( event ) < 0 )
             numSteps = -numSteps;
     }
     else
     {
-        const int numTurns = ( event->delta() / 120 );
+        const int numTurns = ( qwtWheelDelta( event ) / 120 );
         numSteps = numTurns * d_data->singleSteps;
     }
 

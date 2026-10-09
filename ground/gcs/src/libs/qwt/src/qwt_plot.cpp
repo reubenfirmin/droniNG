@@ -771,8 +771,6 @@ void QwtPlot::drawItems( QPainter *painter, const QRectF &canvasRect,
 
             painter->setRenderHint( QPainter::Antialiasing,
                 item->testRenderHint( QwtPlotItem::RenderAntialiased ) );
-            painter->setRenderHint( QPainter::HighQualityAntialiasing,
-                item->testRenderHint( QwtPlotItem::RenderAntialiased ) );
 
             item->draw( painter,
                 maps[item->xAxis()], maps[item->yAxis()],
@@ -1144,10 +1142,7 @@ void QwtPlot::attachItem( QwtPlotItem *plotItem, bool on )
  */
 QVariant QwtPlot::itemToInfo( QwtPlotItem *plotItem ) const
 {
-    QVariant itemInfo;
-    qVariantSetValue( itemInfo, plotItem );
-
-    return itemInfo;
+    return QVariant::fromValue( plotItem );
 }
 
 /*!

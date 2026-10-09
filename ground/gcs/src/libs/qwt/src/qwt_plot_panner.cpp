@@ -8,6 +8,7 @@
  *****************************************************************************/
 
 #include "qwt_plot_panner.h"
+#include <qpainterpath.h>
 #include "qwt_scale_div.h"
 #include "qwt_plot.h"
 #include "qwt_painter.h"

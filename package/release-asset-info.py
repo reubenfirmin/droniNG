@@ -12,7 +12,7 @@ DESC  = """
   Display/fix-up the 'label' names for downloadable assets attached to a release.\
 """
 
-GITHUB_API_BASE = "https://api.github.com/repos/d-ronin/dRonin"
+GITHUB_API_BASE = "https://api.github.com/repos/reubenfirmin/droniNG"
 
 #-------------------------------------------------------------------------------
 def main():
@@ -78,8 +78,6 @@ def main():
             label = "Linux 64-bit portable"
         elif name.endswith('.deb'):
             label = "Ubuntu 64-bit package"
-        elif name.endswith('.dmg'):
-            label = "macOS"
         else:
             label = name
         asset['new_label'] = label

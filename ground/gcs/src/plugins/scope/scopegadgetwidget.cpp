@@ -234,7 +234,7 @@ void ScopeGadgetWidget::wheelEvent(QWheelEvent *e)
         // the value returned by Qt includes the legend, whereas the value transformed by Qwt
         // does *not*. Thus, when zooming with a legend, there will always be a small bias error.
         // In practice, this seems not to be a UI problem.
-        QPoint mouse_pos = e->pos(); // Get the mouse coordinate in the frame
+        QPoint mouse_pos = e->position().toPoint(); // Mouse coordinate in the frame.
         double zoomLine = invTransform(
             QwtPlot::yLeft, mouse_pos.y()); // Transform the y mouse coordinate into a frame value.
 
@@ -242,7 +242,7 @@ void ScopeGadgetWidget::wheelEvent(QWheelEvent *e)
                                 // INSTEAD OF BURIED HERE
 
         // Set the scale
-        if (e->delta() < 0) {
+        if (e->angleDelta().y() < 0) {
             setAxisScale(QwtPlot::yLeft, (yInterval.minValue() - zoomLine) * zoomScale + zoomLine,
                          (yInterval.maxValue() - zoomLine) * zoomScale + zoomLine);
         } else {

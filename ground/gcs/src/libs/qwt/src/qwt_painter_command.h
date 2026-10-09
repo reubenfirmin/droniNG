@@ -12,11 +12,10 @@
 
 #include "qwt_global.h"
 #include <qpaintengine.h>
+#include <qpainterpath.h>
 #include <qpixmap.h>
 #include <qimage.h>
 #include <qpolygon.h>
-
-class QPainterPath;
 
 /*!
   QwtPainterCommand represents the attributes of a paint operation
@@ -77,7 +76,9 @@ public:
         QBrush backgroundBrush;
         Qt::BGMode backgroundMode;
         QFont font;
+#if QT_VERSION < 0x060000
         QMatrix matrix;
+#endif
         QTransform transform;
 
         Qt::ClipOperation clipOperation;

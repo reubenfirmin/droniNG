@@ -61,6 +61,7 @@
 #include <QFileDialog>
 #include <QList>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QStringList>
 #include <QTextEdit>
 #include <QUrl>
@@ -824,9 +825,6 @@ AutotuneFinalPage::AutotuneFinalPage(QWidget *parent)
 {
     setupUi(this);
 
-#ifdef Q_OS_MAC
-    lblCongrats->setText(lblCongrats->text().replace(tr("\"Finish\""), tr("\"Done\"")));
-#endif
 }
 
 AutotuneBeginningPage::AutotuneBeginningPage(QWidget *parent,
@@ -885,7 +883,7 @@ QString AutotuneBeginningPage::tuneValid(bool *okToContinue) const
         *okToContinue = false;
     }
 
-    retVal.replace(QRegExp("(\\w+:)"), "<span style=\"color: red\"><b>\\1</b></span>");
+    retVal.replace(QRegularExpression("(\\w+:)"), "<span style=\"color: red\"><b>\\1</b></span>");
 
     if (*okToContinue) {
         if (retVal.isEmpty()) {

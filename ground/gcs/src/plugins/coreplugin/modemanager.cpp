@@ -69,7 +69,7 @@ ModeManager::ModeManager(Internal::MainWindow *mainWindow, MyTabWidget *modeStac
     //    SLOT(currentTabAboutToChange(int)));
     connect(m_modeStack, SIGNAL(currentChanged(int)), this, SLOT(currentTabChanged(int)));
     connect(m_modeStack, SIGNAL(tabMoved(int, int)), this, SLOT(tabMoved(int, int)));
-    connect(m_signalMapper, SIGNAL(mapped(QString)), this, SLOT(activateMode(QString)));
+    connect(m_signalMapper, &QSignalMapper::mappedString, this, &ModeManager::activateMode);
 }
 
 void ModeManager::init()
@@ -177,11 +177,7 @@ void ModeManager::setDefaultKeyshortcuts()
         Command *currentCmd = m_modeShortcuts.at(i);
         bool currentlyHasDefaultSequence =
             (currentCmd->keySequence() == currentCmd->defaultKeySequence());
-#ifdef Q_OS_MAC
-        currentCmd->setDefaultKeySequence(QKeySequence(QString("Meta+%1").arg(i + 1)));
-#else
         currentCmd->setDefaultKeySequence(QKeySequence(QString("Ctrl+%1").arg(i + 1)));
-#endif
         if (currentlyHasDefaultSequence)
             currentCmd->setKeySequence(currentCmd->defaultKeySequence());
     }

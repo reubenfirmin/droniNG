@@ -20,8 +20,13 @@ SOURCES += modelviewplugin.cpp \
     modelviewgadgetconfiguration.cpp \
     modelviewgadget.cpp \
     modelviewgadgetfactory.cpp \
-    modelviewgadgetwidget.cpp \
     modelviewgadgetoptionspage.cpp
+
+greaterThan(QT_MAJOR_VERSION, 5) {
+    SOURCES += modelviewgadgetwidgetqt6.cpp
+} else {
+    SOURCES += modelviewgadgetwidget.cpp
+}
 
 OTHER_FILES += ModelViewGadget.pluginspec
 

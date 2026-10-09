@@ -41,6 +41,7 @@
 #include <systemsettings.h>
 
 #include <QDebug>
+#include <QRegularExpression>
 #include <QFile>
 #include <QFileDialog>
 #include <QMessageBox>
@@ -151,7 +152,7 @@ void ConnectionDiagram::setupGraphicsSceneItems(QStringList elementsToShow)
             element->setZValue(z++);
             element->setOpacity(1.0);
 
-            QMatrix matrix = m_renderer->matrixForElement(elementId);
+            QTransform matrix = m_renderer->transformForElement(elementId);
             QRectF orig = matrix.mapRect(m_renderer->boundsOnElement(elementId));
             element->setPos(orig.x(), orig.y());
 
@@ -216,20 +217,20 @@ void ConnectionDiagram::addUavoFieldElements(QStringList &elements, UAVObject *o
             for (quint32 i = 0; i < nelements; i++) {
                 QString val = field->getValue(i)
                                   .toString()
-                                  .replace(QRegExp(ENUM_SPECIAL_CHARS), "")
+                                  .replace(QRegularExpression(ENUM_SPECIAL_CHARS), "")
                                   .toLower();
                 elements << QString("%0%1-%2-%3-%4")
                                 .arg(prefix)
                                 .arg(obj->getName().toLower())
                                 .arg(field->getName().toLower())
                                 .arg(field->getElementName(i)
-                                         .replace(QRegExp(ENUM_SPECIAL_CHARS), "")
+                                         .replace(QRegularExpression(ENUM_SPECIAL_CHARS), "")
                                          .toLower())
                                 .arg(val);
             }
         } else {
             QString val =
-                field->getValue().toString().replace(QRegExp(ENUM_SPECIAL_CHARS), "").toLower();
+                field->getValue().toString().replace(QRegularExpression(ENUM_SPECIAL_CHARS), "").toLower();
             elements << QString("%0%1-%2-%3")
                             .arg(prefix)
                             .arg(obj->getName().toLower())

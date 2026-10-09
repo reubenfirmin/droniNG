@@ -15,28 +15,27 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
     long_description = f.read()
 
 long_description = """
-This is the dRonin UAVTalk API.  With these modules, it is possible to
-communicate with dRonin flight controllers and interpret log files and
+This is the droniNG UAVTalk API.  With these modules, it is possible to
+communicate with droniNG flight controllers and interpret log files and
 settings partitions.
 """
 
 setup(
-    name='dronin',
+    name='droning',
 
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
     version='20170305',
 
-    description='dRonin Python API',
+    description='droniNG Python API',
     long_description=long_description,
 
     # The project's main homepage.
-    url='http://dronin.org/',
+    url='https://github.com/reubenfirmin/droniNG',
 
     # Author details
-    author='dronin',
-    author_email='info@dronin.org',
+    author='droniNG contributors',
 
     # Choose your license
     license='LGPLv2+',
@@ -68,11 +67,11 @@ setup(
     ],
 
     # What does your project relate to?
-    keywords='dronin flight controller quadcopter',
+    keywords='droning flight controller quadcopter',
 
     # You can just specify the packages manually here if your project is
     # simple. Or you can use find_packages().
-    packages = ['dronin', 'dronin.logviewer'],
+    packages = ['droning', 'droning.logviewer'],
 
     # Just requires the base python system to run
     install_requires=[],
@@ -83,9 +82,9 @@ setup(
         'all': ['pyserial', 'numpy', 'matplotlib', 'dronin-pyqtgraph', 'PyQt5'],
     },
 
-    scripts = [ 'dronin-dumplog', 'dronin-halt',
-        'dronin-getconfig', 'dronin-logfsimport',
-        'dronin-shell' ],
+    scripts = [ 'droning-dumplog', 'droning-halt',
+        'droning-getconfig', 'droning-logfsimport',
+        'droning-shell' ],
 #    package_data={
 #        'sample': ['package_data.dat'],
 #    },
@@ -97,7 +96,7 @@ setup(
     # pip to create the appropriate form of executable for the target platform.
     entry_points={
         'gui_scripts': [
-            'dronin-logview=dronin.logviewer.logviewer:main',
+            'droning-logview=droning.logviewer.logviewer:main',
         ],
     },
 )

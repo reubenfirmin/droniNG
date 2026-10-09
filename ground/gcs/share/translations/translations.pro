@@ -17,7 +17,7 @@ LCONVERT = $$targetPath($$[QT_INSTALL_BINS]/lconvert)
 
 wd = $$replace(GCS_SOURCE_TREE, /, $$QMAKE_DIR_SEP)
 
-TRANSLATIONS = $$prependAll(LANGUAGES, $$PWD/dronin_,.ts)
+TRANSLATIONS = $$prependAll(LANGUAGES, $$PWD/droning_,.ts)
 
 PREFIX = "file://"
 
@@ -28,7 +28,7 @@ sources = src/app src/libs $$plugin_sources share/welcome
 
 for(path, INCLUDEPATH): include_options *= -I$$shell_quote($$path)
 
-files = $$files($$PWD/*_??.ts) $$PWD/dronin_untranslated.ts
+files = $$files($$PWD/*_??.ts) $$PWD/droning_untranslated.ts
 for(file, files) {
     lang = $$replace(file, .*_([^/]*)\\.ts, \\1)
     v = ts-$${lang}.commands
@@ -52,7 +52,7 @@ updateqm.name = LRELEASE ${QMAKE_FILE_IN}
 updateqm.CONFIG += no_link
 QMAKE_EXTRA_COMPILERS += updateqm
 
-qmfiles.files = $$prependAll(LANGUAGES, $$GCS_BUILD_TREE/share/translations/dronin_,.qm)
+qmfiles.files = $$prependAll(LANGUAGES, $$GCS_BUILD_TREE/share/translations/droning_,.qm)
 qmfiles.path = $$INSTALL_DATA_PATH/translations
 qmfiles.CONFIG += no_check_exist
 INSTALLS += qmfiles

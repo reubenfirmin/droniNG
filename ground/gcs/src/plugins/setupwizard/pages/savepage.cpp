@@ -59,8 +59,8 @@ void SavePage::writeToController()
 {
     if (!getWizard()->getConnectionManager()->isConnected()) {
         QMessageBox msgBox(this);
-        msgBox.setText(tr("An OpenPilot controller must be connected to your computer to save the "
-                          "configuration.\nPlease connect your OpenPilot controller to your "
+        msgBox.setText(tr("A droniNG controller must be connected to your computer to save the "
+                          "configuration.\nPlease connect your droniNG controller to your "
                           "computer and try again."));
         msgBox.setStandardButtons(QMessageBox::Ok);
         msgBox.setDefaultButton(QMessageBox::Ok);

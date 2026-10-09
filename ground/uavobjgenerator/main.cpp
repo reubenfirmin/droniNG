@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
 {
     QCoreApplication a(argc, argv);
 
-    cout << "- dRonin UAVObject Generator -" << endl;
+    cout << "- droniNG UAVObject Generator -" << endl;
 
     QString inputpath;
     QString templatepath;
@@ -226,35 +226,40 @@ int main(int argc, char *argv[])
     if (do_flight|do_all) {
         cout << "generating flight code" << endl ;
         UAVObjectGeneratorFlight flightgen;
-        flightgen.generate(parser,templatepath,outputpath);
+        if (!flightgen.generate(parser,templatepath,outputpath))
+            return RETURN_ERR_INTERNAL;
     }
 
     // generate gcs code if wanted
     if (do_gcs|do_all) {
         cout << "generating gcs code" << endl ;
         UAVObjectGeneratorGCS gcsgen;
-        gcsgen.generate(parser,templatepath,outputpath);
+        if (!gcsgen.generate(parser,templatepath,outputpath))
+            return RETURN_ERR_INTERNAL;
     }
 
     // generate java code if wanted
     if (do_java|do_all) {
         cout << "generating java code" << endl ;
         UAVObjectGeneratorJava javagen;
-        javagen.generate(parser,templatepath,outputpath);
+        if (!javagen.generate(parser,templatepath,outputpath))
+            return RETURN_ERR_INTERNAL;
     }
 
     // generate matlab code if wanted
     if (do_matlab|do_all) {
         cout << "generating matlab code" << endl ;
         UAVObjectGeneratorMatlab matlabgen;
-        matlabgen.generate(parser,templatepath,outputpath);
+        if (!matlabgen.generate(parser,templatepath,outputpath))
+            return RETURN_ERR_INTERNAL;
     }
 
     // generate wireshark plugin if wanted
     if (do_wireshark|do_all) {
         cout << "generating wireshark code" << endl ;
         UAVObjectGeneratorWireshark wiresharkgen;
-        wiresharkgen.generate(parser,templatepath,outputpath);
+        if (!wiresharkgen.generate(parser,templatepath,outputpath))
+            return RETURN_ERR_INTERNAL;
     }
 
     bool changed = false;

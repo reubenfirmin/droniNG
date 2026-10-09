@@ -43,15 +43,15 @@ void customMessageHandler(QtMsgType type, const QMessageLogContext &context, con
         break;
     case QtWarningMsg:
         level = DebugEngine::WARNING;
-        QTextStream(stderr) << "[Warning] " << msg << endl;
+        QTextStream(stderr) << "[Warning] " << msg << Qt::endl;
         break;
     case QtCriticalMsg:
         level = DebugEngine::CRITICAL;
-        QTextStream(stderr) << "[Critical] " << msg << endl;
+        QTextStream(stderr) << "[Critical] " << msg << Qt::endl;
         break;
     case QtFatalMsg:
         level = DebugEngine::FATAL;
-        QTextStream(stderr) << "[FATAL] " << msg << endl;
+        QTextStream(stderr) << "[FATAL] " << msg << Qt::endl;
         break;
     }
     DebugEngine::getInstance()->message(level, msg, QString(context.file), context.line,

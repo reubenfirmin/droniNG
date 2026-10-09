@@ -19,15 +19,7 @@ defineReplace(addNewline) {
 }
 
 defineReplace(qtLibraryName) {
-   unset(LIBRARY_NAME)
-   LIBRARY_NAME = $$1
-   CONFIG(debug, debug|release) {
-      !debug_and_release|build_pass {
-          mac:RET = $$member(LIBRARY_NAME, 0)_debug
-      }
-   }
-   isEmpty(RET):RET = $$LIBRARY_NAME
-   return($$RET)
+   return($$1)
 }
 
 # For use in custom compilers which just copy files
@@ -60,20 +52,9 @@ isEmpty(GCS_BUILD_TREE) {
     GCS_BUILD_TREE ~= s,$$re_escape($$sub_dir)$,,
 }
 GCS_APP_PATH = $$GCS_BUILD_TREE/bin
-macx {
-    GCS_APP_TARGET   = "$${GCS_PROJECT_BRANDING_PRETTY}-GCS"
-    GCS_LIBRARY_PATH = $$GCS_APP_PATH/$${GCS_APP_TARGET}.app/Contents/Plugins
-    GCS_PLUGIN_PATH  = $$GCS_LIBRARY_PATH
-    GCS_LIBEXEC_PATH = $$GCS_APP_PATH/$${GCS_APP_TARGET}.app/Contents/Resources
-    GCS_DATA_PATH    = $$GCS_APP_PATH/$${GCS_APP_TARGET}.app/Contents/Resources
-    GCS_DATA_BASENAME = Resources
-    GCS_DOC_PATH     = $$GCS_DATA_PATH/doc
-    GCS_BIN_PATH     = $$GCS_APP_PATH/$${GCS_APP_TARGET}.app/Contents/MacOS
-    QMAKE_MACOSX_DEPLOYMENT_TARGET=10.9
-    copydata = 1
-} else {
-    GCS_APP_WRAPPER  = $${GCS_PROJECT_BRANDING}gcs
-    GCS_APP_TARGET   = $${GCS_PROJECT_BRANDING}gcs.bin
+linux {
+    GCS_APP_WRAPPER  = $${GCS_PROJECT_BRANDING}-gcs
+    GCS_APP_TARGET   = $${GCS_PROJECT_BRANDING}-gcs.bin
     GCS_LIBRARY_PATH = $$GCS_BUILD_TREE/$$GCS_LIBRARY_BASENAME/$$GCS_PROJECT_BRANDING
     GCS_PLUGIN_PATH  = $$GCS_LIBRARY_PATH/plugins
     GCS_LIBEXEC_PATH = $$GCS_APP_PATH # FIXME
@@ -89,6 +70,7 @@ INCLUDEPATH *= \
 
 INCLUDEPATH *= \
     $$GCS_SOURCE_TREE/src/libs
+INCLUDEPATH *= $$GCS_BUILD_TREE
 
 DEPENDPATH += \
     $$GCS_SOURCE_TREE/src/libs
@@ -117,7 +99,7 @@ unix {
 
 linux {
     # Bail out on non-selfcontained libraries. Just a security measure
-    # to prevent checking in code that does not compile on other platforms.
+    # to catch unresolved dependencies during the build.
     QMAKE_LFLAGS += -Wl,--allow-shlib-undefined -Wl,--no-undefined
 }
 
@@ -134,7 +116,7 @@ unix {
 }
 
 # use ISO C++ (no GNU extensions) to ensure maximum portability
-CONFIG += c++11 strict_c++
+CONFIG += c++17 strict_c++
 
 CONFIG(release, debug|release): unix {
     # generate debug info for:

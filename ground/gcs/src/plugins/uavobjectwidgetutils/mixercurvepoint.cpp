@@ -81,7 +81,7 @@ QPainterPath MixerNode::shape() const
 
 void MixerNode::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *)
 {
-    QString text = cmdNode ? cmdText : QString().sprintf("%.2f", value());
+    QString text = cmdNode ? cmdText : QString::asprintf("%.2f", value());
     painter->setFont(graph->font());
     if (drawNode) {
         QRadialGradient gradient(-3, -3, 10);

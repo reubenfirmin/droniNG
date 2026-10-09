@@ -100,7 +100,7 @@ TelemetryMonitor::TelemetryMonitor(UAVObjectManager *objMngr, Telemetry *tel)
     , queue(decltype(queue)(queueCompare))
     , requestsInFlight(0)
 {
-    this->connectionTimer = new QTime();
+    connectionTimer.start();
     // Get stats objects
     gcsStatsObj = GCSTelemetryStats::GetInstance(objMngr);
     flightStatsObj = FlightTelemetryStats::GetInstance(objMngr);
@@ -390,9 +390,9 @@ void TelemetryMonitor::processStatsUpdates()
     // Check for a connection timeout
     bool connectionTimeout;
     if (telStats.rxObjects > 0) {
-        connectionTimer->start();
+        connectionTimer.start();
     }
-    if (connectionTimer->elapsed() > CONNECTION_TIMEOUT_MS) {
+    if (connectionTimer.elapsed() > CONNECTION_TIMEOUT_MS) {
         connectionTimeout = true;
     } else {
         connectionTimeout = false;

@@ -65,6 +65,16 @@ public:
 
     virtual uint columnsForWidth( int width ) const;
 
+#if QT_VERSION >= 0x060000
+    // QLayout::margin() returned the smallest of the four contents margins.
+    int margin() const
+    {
+        const QMargins margins = contentsMargins();
+        return qMin( qMin( margins.left(), margins.right() ),
+                     qMin( margins.top(), margins.bottom() ) );
+    }
+#endif
+
 protected:
 
     void layoutGrid( uint numCols,

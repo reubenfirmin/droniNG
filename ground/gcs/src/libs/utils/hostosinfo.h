@@ -40,7 +40,7 @@ class QTCREATOR_UTILS_EXPORT HostOsInfo
 {
 public:
     // Add more as needed.
-    enum HostOs { HostOsLinux, HostOsMac, HostOsOtherUnix, HostOsOther };
+    enum HostOs { HostOsLinux };
     static inline HostOs hostOs();
 
     enum HostArchitecture { HostArchitectureX86, HostArchitectureAMD64, HostArchitectureItanium,
@@ -48,7 +48,6 @@ public:
     static HostArchitecture hostArchitecture();
 
     static bool isLinuxHost() { return hostOs() == HostOsLinux; }
-    static bool isMacHost() { return hostOs() == HostOsMac; }
     static inline bool isAnyUnixHost();
 
     static QString appendExecutableSuffix(const QString &executable)
@@ -68,36 +67,19 @@ public:
 
     static Qt::KeyboardModifier controlModifier()
     {
-        return isMacHost() ? Qt::MetaModifier : Qt::ControlModifier;
+        return Qt::ControlModifier;
     }
 
-    /**
-     * @brief Is debugger connected to this process?
-     * @return true if debugger connected
-     */
-    static bool debuggerPresent();
 };
 
 HostOsInfo::HostOs HostOsInfo::hostOs()
 {
-#if defined(Q_OS_LINUX)
     return HostOsLinux;
-#elif defined(Q_OS_MAC)
-    return HostOsMac;
-#elif defined(Q_OS_UNIX)
-    return HostOsOtherUnix;
-#else
-    return HostOsOther;
-#endif
 }
 
 bool HostOsInfo::isAnyUnixHost()
 {
-#ifdef Q_OS_UNIX
     return true;
-#else
-    return false;
-#endif
 }
 
 } // namespace Utils

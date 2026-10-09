@@ -227,7 +227,7 @@ void OutputChannelForm::setAssignment(const QString &assignment)
 {
     ui.actuatorName->setText(assignment);
     QFontMetrics metrics(ui.actuatorName->font());
-    int width = metrics.width(assignment) + 1;
+    int width = metrics.horizontalAdvance(assignment) + 1;
     foreach (OutputChannelForm *form, parent()->findChildren<OutputChannelForm *>()) {
         if (form == this)
             continue;

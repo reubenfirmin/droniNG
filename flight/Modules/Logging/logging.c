@@ -677,7 +677,7 @@ static void writeHeader()
 	DateTimeT date_time;
 
 	// Header
-	#define LOG_HEADER "dRonin git hash:\n"
+	#define LOG_HEADER "droniNG git hash:\n"
 	send_data((uint8_t *)LOG_HEADER, strlen(LOG_HEADER));
 
 	// Commit tag name

@@ -74,9 +74,9 @@ NotificationItem::NotificationItem(QObject *parent)
     NotificationItem::sayOrderValues.insert(afterSecond, QString(tr("After second")));
 
     NotificationItem::retryValues.clear();
-    NotificationItem::retryValues.insert(repeatOnce, QString(tr("Repeat Once")));
     NotificationItem::retryValues.insert(repeatOncePerUpdate,
                                          QString(tr("Repeat Once per update")));
+    NotificationItem::retryValues.insert(repeatOnce, QString(tr("Repeat Once")));
     NotificationItem::retryValues.insert(repeatInstantly, QString(tr("Repeat Instantly")));
     NotificationItem::retryValues.insert(repeat10seconds, QString(tr("Repeat 10 seconds")));
     NotificationItem::retryValues.insert(repeat30seconds, QString(tr("Repeat 30 seconds")));

@@ -5,6 +5,7 @@
 #
 
 TEMPLATE  = subdirs
+!linux:error("droniNG desktop builds support Linux only")
 
 # Some handy defines
 defineReplace(addNewline) {
@@ -13,7 +14,6 @@ defineReplace(addNewline) {
 
 # QMAKESPEC should be defined by qmake but sometimes it is not
 isEmpty(QMAKESPEC) {
-    macx-g++:SPEC = macx-g++
     linux-g++:SPEC = linux-g++
     linux-g++-32:SPEC = linux-g++
     linux-g++-64:SPEC = linux-g++-64

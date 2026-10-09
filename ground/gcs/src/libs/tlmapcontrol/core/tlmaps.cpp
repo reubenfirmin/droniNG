@@ -29,6 +29,7 @@
 #include "utils/coordinateconversions.h"
 #include "QDebug"
 #include "QPainter"
+#include <QElapsedTimer>
 
 //#define DEBUG_Q_TILES
 
@@ -75,8 +76,8 @@ namespace core {
 
 
 #ifdef DEBUG_TIMINGS
-        QTime time;
-        time.restart();
+        QElapsedTimer time;
+        time.start();
 #endif
 #ifdef DEBUG_GMAPS
         qDebug()<<"Entered GetImageFrom";
@@ -306,8 +307,8 @@ namespace core {
     {
         QMutexLocker locker(&settingsProtect);
 #ifdef DEBUG_TIMINGS
-        QTime time;
-        time.restart();
+        QElapsedTimer time;
+        time.start();
 #endif
 #ifdef DEBUG_GMAPS
         qDebug()<<"Entered GetImageFrom";

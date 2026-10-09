@@ -1590,6 +1590,9 @@ margin:1px;</string>
 	background-position: center left;
 	background-origin: content;
 }
+QFrame[hasWarning=&quot;true&quot;] QLabel {
+    color: #202326;
+}
 </string>
          </property>
          <property name="frameShape">

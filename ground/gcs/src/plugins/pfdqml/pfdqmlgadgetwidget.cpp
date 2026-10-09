@@ -97,6 +97,8 @@ void PfdQmlGadgetWidget::setQmlFile(QString fn)
 {
     m_qmlFileName = fn;
 
+    // Destroy bindings to the old provider before the engine deletes it.
+    setSource(QUrl());
     engine()->removeImageProvider("svg");
     SvgImageProvider *svgProvider = new SvgImageProvider(fn);
     engine()->addImageProvider("svg", svgProvider);

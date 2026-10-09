@@ -168,7 +168,7 @@ bool UAVObjectGeneratorWireshark::process_object(ObjectInfo* info, QDir outputpa
 	for (int m = 0; m < options.length(); ++m) {
 	  enums.append ( QString("\t{ %1, \"%2\" },\r\n")
 			 .arg(m)
-			 .arg(options[m].replace(QRegExp(ENUM_SPECIAL_CHARS), "") ) );
+			 .arg(options[m].replace(QRegularExpression(ENUM_SPECIAL_CHARS, QRegularExpression::UseUnicodePropertiesOption), "") ) );
 	}
 	enums.append( QString("\t{ 0, NULL }\r\n") );
 	enums.append( QString("};\r\n") );

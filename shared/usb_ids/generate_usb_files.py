@@ -47,11 +47,11 @@ def generate_header(fp, defs):
                 else:
                     comment = '/* {} - {} */'.format(group['name'], dev['name'])
                 vids += '\t{}\n'.format(comment)
-                vids += '\tDRONIN_VID_{}_{} = 0x{:04x},\n'.format(
+                vids += '\tDRONING_VID_{}_{} = 0x{:04x},\n'.format(
                     _sanitize_name(group['name']), _sanitize_name(dev['name']), dev['vid']
                 )
                 pids += '\t{}\n'.format(comment)
-                pids += '\tDRONIN_PID_{}_{} = 0x{:04x},\n'.format(
+                pids += '\tDRONING_PID_{}_{} = 0x{:04x},\n'.format(
                     _sanitize_name(group['name']), _sanitize_name(dev['name']), dev['pid']
                 )
 
@@ -64,7 +64,7 @@ def generate_header(fp, defs):
         print(templ.substitute(subs), file=fp, end='')
 
 def main():
-    parser = argparse.ArgumentParser(description='dRonin USB ID Code Generator')
+    parser = argparse.ArgumentParser(description='droniNG USB ID Code Generator')
     parser.add_argument('-i', '--input', type=str, default='./usb_ids.json', help='Default is ./usb_ids.json')
     parser.add_argument('-c', '--c', type=argparse.FileType('w'), default=None, help='File to write C header')
     parser.add_argument('-u', '--udev', type=argparse.FileType('w'), default=None, help='File to write udev rules')

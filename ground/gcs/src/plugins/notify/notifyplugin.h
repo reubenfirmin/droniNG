@@ -35,24 +35,16 @@
 #include "uavobjects/uavobjectmanager.h"
 #include "uavobjects/uavobject.h"
 #include "notificationitem.h"
+#include "soundsequenceplayer.h"
 
 #include <QSettings>
-#include <QMediaPlayer>
-#include <QMediaPlaylist>
 
 class NotifyPluginOptionsPage;
-
-typedef struct
-{
-    QMediaPlayer *mo;
-    NotificationItem *notify;
-    bool firstPlay;
-} PhononObject, *pPhononObject;
 
 class SoundNotifyPlugin : public Core::IConfigurablePlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.NotifyPlugin")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.NotifyPlugin")
 public:
     SoundNotifyPlugin();
     ~SoundNotifyPlugin();
@@ -87,7 +79,7 @@ private slots:
     void on_arrived_Notification(UAVObject *object);
     void on_timerRepeated_Notification(void);
     void on_expiredTimer_Notification(void);
-    void stateChanged(QMediaPlayer::State newstate);
+    void soundFinished();
 
 private:
     bool enableSound;
@@ -100,10 +92,9 @@ private:
     NotificationItem currentNotification;
     NotificationItem *_nowPlayingNotification;
 
-    PhononObject phonon;
+    SoundSequencePlayer *soundPlayer;
     NotifyPluginOptionsPage *mop;
     TelemetryManager *telMngr;
-    QMediaPlaylist *playlist;
 };
 
 #endif // SOUNDNOTIFYPLUGIN_H

@@ -1,6 +1,8 @@
 TEMPLATE = lib
 CONFIG += qt warn_on
 QT -= gui
+# Preserve the existing ZIP filename/comment codecs during the Qt 6 port.
+greaterThan(QT_MAJOR_VERSION, 5):QT += core5compat
 
 # The ABI version.
 

@@ -58,7 +58,7 @@ FlightLogDownload::FlightLogDownload(QWidget *parent)
 
     // Create default file name
     QString fileName =
-        tr("dRonin-%0.drlog").arg(QDateTime::currentDateTime().toString("yyyy-MM-dd_hh-mm-ss"));
+        tr("droniNG-%0.drlog").arg(QDateTime::currentDateTime().toString("yyyy-MM-dd_hh-mm-ss"));
     ui->fileName->setText(QDir::current().relativeFilePath(fileName));
 
     // Get the current status
@@ -76,7 +76,7 @@ void FlightLogDownload::getFilename()
 {
     QString fileName = QFileDialog::getSaveFileName(
         this, tr("Save log as..."),
-        tr("dRonin-%0.drlog").arg(QDateTime::currentDateTime().toString("yyyy-MM-dd_hh-mm-ss")),
+        tr("droniNG-%0.drlog").arg(QDateTime::currentDateTime().toString("yyyy-MM-dd_hh-mm-ss")),
         tr("Log (*.drlog)"));
     if (!fileName.isEmpty())
         ui->fileName->setText(fileName);

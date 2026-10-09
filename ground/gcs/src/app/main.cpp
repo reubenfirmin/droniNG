@@ -34,9 +34,9 @@
 #define COMMAND_LINE_MULTIPLE_OK "multiple-ok"
 #define COMMAND_LINE_PLUGIN_OPTION "plugin-option"
 
-#include "utils/hostosinfo.h"
 #include "utils/xmlconfig.h"
 #include "utils/pathutils.h"
+#include "utils/darktheme.h"
 #include <runguard/runguard.h>
 
 #include <extensionsystem/pluginmanager.h>
@@ -122,14 +122,14 @@ static inline QStringList getPluginPaths()
     QDir rootDir = QApplication::applicationDirPath();
     rootDir.cdUp();
     const QString rootDirPath = rootDir.canonicalPath();
-    // 1) "plugins" (Win/Linux)
+    // 1) "plugins" in an installed Linux tree
     QString pluginPath = rootDirPath;
     pluginPath += QLatin1Char('/');
     pluginPath += QLatin1String(GCS_LIBRARY_BASENAME);
     pluginPath += QLatin1Char('/');
     pluginPath += QLatin1String("plugins");
     rc.push_back(pluginPath);
-    // 2) "plugins" in build tree (Win/Linux)
+    // 2) "plugins" in the Linux build tree
     pluginPath = rootDirPath;
     pluginPath += QLatin1Char('/');
     pluginPath += QLatin1String(GCS_LIBRARY_BASENAME);
@@ -138,29 +138,21 @@ static inline QStringList getPluginPaths()
     pluginPath += QLatin1Char('/');
     pluginPath += QLatin1String("plugins");
     rc.push_back(pluginPath);
-    // 3) "PlugIns" (OS X)
-    pluginPath = rootDirPath;
-    pluginPath += QLatin1Char('/');
-    pluginPath += QLatin1String("Plugins");
-    rc.push_back(pluginPath);
     return rc;
 }
 
-#ifdef Q_OS_MAC
-#define SHARE_PATH "/../Resources"
-#else
 #define SHARE_PATH "/../share"
-#endif
 
 static void overrideSettings(QCommandLineParser &parser, QSettings *settings)
 {
     QMap<QString, QString> settingOptions;
     // Options like -DMy/setting=test
-    QRegExp rx("([^=]+)=(.*)");
+    const QRegularExpression rx("([^=]+)=(.*)");
 
     foreach (QString option, parser.values(COMMAND_LINE_OVERRIDE)) {
-        if (rx.indexIn(option) > -1) {
-            settingOptions.insert(rx.cap(1), rx.cap(2));
+        const auto match = rx.match(option);
+        if (match.hasMatch()) {
+            settingOptions.insert(match.captured(1), match.captured(2));
         }
     }
     if (parser.isSet(COMMAND_LINE_CLEAN_CONFIG)) {
@@ -180,32 +172,13 @@ static void overrideSettings(QCommandLineParser &parser, QSettings *settings)
 
 int main(int argc, char **argv)
 {
-#ifdef Q_OS_MAC
-    // increase the number of file that can be opened in GCS
-    struct rlimit rl;
-    getrlimit(RLIMIT_NOFILE, &rl);
-    rl.rlim_cur = rl.rlim_max;
-    setrlimit(RLIMIT_NOFILE, &rl);
-    QApplication::setAttribute(Qt::AA_DontCreateNativeWidgetSiblings, true);
-
-    QFont::insertSubstitution(".Lucida Grande UI", "Lucida Grande");
-
-    QSettings tmpSettings;
-
-    bool value = true;
-
-    tmpSettings.setValue(QString("NSAppSleepDisabled"), value);
-#endif
-
     QApplication app(argc, argv);
+    Utils::applyDarkTheme();
 
     QCommandLineParser parser;
     parser.setApplicationDescription(GCS_PROJECT_BRANDING_PRETTY " GCS");
     const QCommandLineOption helpOption = parser.addHelpOption();
     const QCommandLineOption versionOption = parser.addVersionOption();
-    QCommandLineOption showVersionOption("version",
-                                         QCoreApplication::translate("main", "Show GCS version"));
-    parser.addOption(showVersionOption);
 
     QCommandLineOption overrideOption(
         QStringList() << "o" << COMMAND_LINE_OVERRIDE,
@@ -228,6 +201,9 @@ int main(int argc, char **argv)
                                             "usage). Special argument 'all' will run all tests."),
         QCoreApplication::translate("main", "plugin name"), "");
     parser.addOption(doTestsOption);
+    QCommandLineOption checkPluginsOption(QStringLiteral("check-plugins"),
+        QCoreApplication::translate("main", "Loads the enabled plugins, reports errors, and exits."));
+    parser.addOption(checkPluginsOption);
     QCommandLineOption pluginOption(
         QStringList() << "p" << COMMAND_LINE_PLUGIN_OPTION,
         QCoreApplication::translate("main", "Passes an option to a plugin."),
@@ -255,12 +231,7 @@ int main(int argc, char **argv)
 #ifdef USE_CRASHREPORTING
     // Disable crash reporter if we're doing unit tests
     // This means we won't hang CI, and QtTest will give us a nice stack trace
-    bool enableReporter = parser.values(doTestsOption).isEmpty();
-
-    // not implemented on linux
-#if defined(Q_OS_MAC)
-    enableReporter &= !Utils::HostOsInfo::debuggerPresent();
-#endif
+    bool enableReporter = parser.values(doTestsOption).isEmpty() && !parser.isSet(checkPluginsOption);
 
     if (enableReporter) {
         QString dirName(GCS_REVISION_PRETTY);
@@ -336,7 +307,7 @@ int main(int argc, char **argv)
     }
     const QString &gcsTranslationsPath =
         QCoreApplication::applicationDirPath() + QLatin1String(SHARE_PATH "/translations");
-    if (translator.load(QLatin1String("dronin_") + locale, gcsTranslationsPath)) {
+    if (translator.load(QLatin1String("droning_") + locale, gcsTranslationsPath)) {
         const QString &qtTrPath = QLibraryInfo::location(QLibraryInfo::TranslationsPath);
         const QString &qtTrFile = QLatin1String("qt_") + locale;
         // Binary installer puts Qt tr files into creatorTrPath
@@ -424,20 +395,30 @@ int main(int argc, char **argv)
                         "Some problems were encountered whilst loading the following plugins: "));
             msg.append(plugins.join(QStringLiteral(", ")));
 
-            if (parser.values(doTestsOption).isEmpty()) {
+            if (parser.values(doTestsOption).isEmpty() && !parser.isSet(checkPluginsOption)) {
                 QMessageBox msgBox(QMessageBox::Warning,
                                    QCoreApplication::tr("Plugin loader messages"),
                                    msg, QMessageBox::Ok);
                 msgBox.setDetailedText(errors.join(QStringLiteral("\n\n")));
                 msgBox.exec();
             } else {
-                const char *errorstr = errors.join(QStringLiteral("\n\n")).toLocal8Bit().data();
-                qFatal("ERROR: Some plugins failed to load:\n%s\n", errorstr);
+                qCritical().noquote() << "Some plugins failed to load:\n"
+                                      << errors.join(QStringLiteral("\n\n"));
+                return 1;
             }
         }
     }
 
-    QTimer::singleShot(100, &pluginManager, SLOT(startTests()));
+    if (parser.isSet(checkPluginsOption)) {
+        int running = 0;
+        for (const auto *plugin : pluginManager.plugins())
+            running += plugin->state() == ExtensionSystem::PluginSpec::Running;
+        std::cout << "Plugin loading check passed: " << running
+                  << " plugins running." << std::endl;
+        QTimer::singleShot(100, &app, &QCoreApplication::quit);
+    } else {
+        QTimer::singleShot(100, &pluginManager, SLOT(startTests()));
+    }
     splash.close();
     return app.exec();
 }

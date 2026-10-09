@@ -39,7 +39,7 @@
 
 #include <QObject>
 #include <QTimer>
-#include <QTime>
+#include <QElapsedTimer>
 #include "uavobjects/uavobjectmanager.h"
 #include "gcstelemetrystats.h"
 #include "flighttelemetrystats.h"
@@ -96,7 +96,7 @@ private:
     GCSTelemetryStats *gcsStatsObj;
     FlightTelemetryStats *flightStatsObj;
     QTimer *statsTimer;
-    QTime *connectionTimer;
+    QElapsedTimer connectionTimer;
     QTimer *objectRetrieveTimeout;
     int requestsInFlight;
 

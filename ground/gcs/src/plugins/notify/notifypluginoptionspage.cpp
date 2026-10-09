@@ -43,7 +43,7 @@
 #include <QBuffer>
 #include <QSpinBox>
 #include <QLineEdit>
-#include <QMediaPlayer>
+#include <QRegularExpression>
 
 #include "notifyplugin.h"
 #include "notifyitemdelegate.h"
@@ -109,7 +109,7 @@ QWidget *NotifyPluginOptionsPage::createPage(QWidget * /* parent */)
 
     initRulesTable();
     initButtons();
-    initPhononPlayer();
+    initSoundPlayer();
 
     int curr_row = _privListNotifications.indexOf(_selectedNotification);
     _notifyRulesSelection->setCurrentIndex(_notifyRulesModel->index(curr_row, 0, QModelIndex()),
@@ -129,13 +129,14 @@ void NotifyPluginOptionsPage::apply()
 void NotifyPluginOptionsPage::finish()
 {
     disconnect(_optionsPage->UAVObjectField,
-               QOverload<const QString &>::of(&QComboBox::currentIndexChanged), this,
+               &QComboBox::currentTextChanged, this,
                &NotifyPluginOptionsPage::on_changedIndex_UAVField);
 
-    disconnect(_testSound, &QMediaPlayer::stateChanged, this,
-               &NotifyPluginOptionsPage::on_changed_playButtonText);
     if (_testSound) {
+        disconnect(_testSound, nullptr, this, nullptr);
         _testSound->stop();
+        delete _testSound;
+        _testSound = nullptr;
     }
 }
 
@@ -156,10 +157,11 @@ void NotifyPluginOptionsPage::initButtons()
             &NotifyPluginOptionsPage::on_clicked_buttonTestSoundNotification);
 }
 
-void NotifyPluginOptionsPage::initPhononPlayer()
+void NotifyPluginOptionsPage::initSoundPlayer()
 {
-    _testSound = new QMediaPlayer;
-    connect(_testSound, &QMediaPlayer::stateChanged, this,
+    delete _testSound;
+    _testSound = new SoundSequencePlayer(this);
+    connect(_testSound, &SoundSequencePlayer::playingChanged, this,
             &NotifyPluginOptionsPage::on_changed_playButtonText);
 }
 
@@ -250,7 +252,7 @@ void NotifyPluginOptionsPage::addDynamicField(UAVObjectField *objField)
     }
 
     disconnect(_dynamicFieldCondition,
-               QOverload<const QString &>::of(&QComboBox::currentIndexChanged), this,
+               &QComboBox::currentTextChanged, this,
                &NotifyPluginOptionsPage::on_changedIndex_rangeValue);
 
     _dynamicFieldCondition->clear();
@@ -265,7 +267,7 @@ void NotifyPluginOptionsPage::addDynamicField(UAVObjectField *objField)
     _dynamicFieldCondition->setCurrentIndex(
         _dynamicFieldCondition->findText(NotifyPluginOptionsPage::conditionValues.at(cond)));
 
-    connect(_dynamicFieldCondition, QOverload<const QString &>::of(&QComboBox::currentIndexChanged),
+    connect(_dynamicFieldCondition, &QComboBox::currentTextChanged,
             this, &NotifyPluginOptionsPage::on_changedIndex_rangeValue);
 
     addDynamicFieldWidget(objField);
@@ -380,10 +382,10 @@ void NotifyPluginOptionsPage::updateConfigView(NotificationItem *notification)
 {
     Q_ASSERT(notification);
     disconnect(_optionsPage->UAVObject,
-               QOverload<const QString &>::of(&QComboBox::currentIndexChanged), this,
+               &QComboBox::currentTextChanged, this,
                &NotifyPluginOptionsPage::on_changedIndex_UAVObject);
     disconnect(_optionsPage->UAVObjectField,
-               QOverload<const QString &>::of(&QComboBox::currentIndexChanged), this,
+               &QComboBox::currentTextChanged, this,
                &NotifyPluginOptionsPage::on_changedIndex_UAVField);
 
     QString path = notification->getSoundCollectionPath();
@@ -469,10 +471,10 @@ void NotifyPluginOptionsPage::updateConfigView(NotificationItem *notification)
     setDynamicFieldValue(notification);
 
     connect(_optionsPage->UAVObject,
-            QOverload<const QString &>::of(&QComboBox::currentIndexChanged), this,
+            &QComboBox::currentTextChanged, this,
             &NotifyPluginOptionsPage::on_changedIndex_UAVObject);
     connect(_optionsPage->UAVObjectField,
-            QOverload<const QString &>::of(&QComboBox::currentIndexChanged), this,
+            &QComboBox::currentTextChanged, this,
             &NotifyPluginOptionsPage::on_changedIndex_UAVField);
 }
 
@@ -502,14 +504,14 @@ void NotifyPluginOptionsPage::on_changedIndex_UAVObject(QString val)
     }
     QList<UAVObjectField *> fieldList = _currUAVObject->getFields();
     disconnect(_optionsPage->UAVObjectField,
-               QOverload<const QString &>::of(&QComboBox::currentIndexChanged), this,
+               &QComboBox::currentTextChanged, this,
                &NotifyPluginOptionsPage::on_changedIndex_UAVField);
     _optionsPage->UAVObjectField->clear();
     foreach (UAVObjectField *field, fieldList) {
         _optionsPage->UAVObjectField->addItem(field->getName());
     }
     connect(_optionsPage->UAVObjectField,
-            QOverload<const QString &>::of(&QComboBox::currentIndexChanged), this,
+            &QComboBox::currentTextChanged, this,
             &NotifyPluginOptionsPage::on_changedIndex_UAVField);
     _selectedNotification->setObjectField(fieldList.at(0)->getName());
     addDynamicField(fieldList.at(0));
@@ -527,7 +529,7 @@ void NotifyPluginOptionsPage::on_changedIndex_soundLanguage(int index)
             << "*.wav";
     dirPath.setNameFilters(filters);
     QStringList listSoundFiles = dirPath.entryList(filters);
-    listSoundFiles.replaceInStrings(QRegExp(".mp3|.wav"), "");
+    listSoundFiles.replaceInStrings(QRegularExpression("\\.(mp3|wav)$"), "");
     _optionsPage->Sound1->clear();
     _optionsPage->Sound2->clear();
     _optionsPage->Sound3->clear();
@@ -539,18 +541,14 @@ void NotifyPluginOptionsPage::on_changedIndex_soundLanguage(int index)
     _optionsPage->Sound3->addItems(listSoundFiles);
 }
 
-void NotifyPluginOptionsPage::on_changed_playButtonText(QMediaPlayer::State newstate)
+void NotifyPluginOptionsPage::on_changed_playButtonText(bool playing)
 {
-    // Q_ASSERT(Phonon::ErrorState != newstate);
-
-    if (newstate == QMediaPlayer::PausedState || newstate == QMediaPlayer::StoppedState) {
+    if (!playing) {
         _optionsPage->buttonPlayNotification->setText("Play");
         _optionsPage->buttonPlayNotification->setIcon(QPixmap(":/notify/images/play.png"));
     } else {
-        if (newstate == QMediaPlayer::PlayingState) {
-            _optionsPage->buttonPlayNotification->setText("Stop");
-            _optionsPage->buttonPlayNotification->setIcon(QPixmap(":/notify/images/stop.png"));
-        }
+        _optionsPage->buttonPlayNotification->setText("Stop");
+        _optionsPage->buttonPlayNotification->setIcon(QPixmap(":/notify/images/stop.png"));
     }
 }
 
@@ -584,22 +582,19 @@ void NotifyPluginOptionsPage::on_clicked_buttonTestSoundNotification()
 {
     NotificationItem *notification = NULL;
 
-    playlist = new QMediaPlaylist;
     qNotifyDebug() << "on_buttonTestSoundNotification_clicked";
     Q_ASSERT(-1 != _notifyRulesSelection->currentIndex().row());
-    _testSound->stop();
+    if (_testSound->isPlaying()) {
+        _testSound->stop();
+        return;
+    }
     notification = _privListNotifications.at(_notifyRulesSelection->currentIndex().row());
     QStringList sequence = notification->toSoundList();
     if (sequence.isEmpty()) {
         qNotifyDebug() << "message sequense is empty!";
         return;
     }
-    foreach (QString item, sequence) {
-        qNotifyDebug() << item;
-        playlist->addMedia(QUrl::fromLocalFile(item));
-    }
-    _testSound->setPlaylist(playlist);
-    _testSound->play();
+    _testSound->play(sequence);
 }
 
 void NotifyPluginOptionsPage::on_clicked_buttonAddNotification()

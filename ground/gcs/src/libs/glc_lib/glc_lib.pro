@@ -415,8 +415,8 @@ HEADERS_INST = include/GLC_BoundingBox \
     		   include/GLC_ExtrudedMesh
 
     			   
-# Linux and macx install configuration
-unix {
+# Linux install configuration
+linux {
     # Location of HEADERS and library
     LIB_DIR = /usr/local/lib
     INCLUDE_DIR = /usr/local/include

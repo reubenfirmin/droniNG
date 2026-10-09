@@ -40,7 +40,7 @@
 #include <coreplugin/iconnection.h>
 #include <QtCore/QVector>
 #include <QtCore/QIODevice>
-#include <QtCore/QLinkedList>
+#include <QtCore/QList>
 #include <QPushButton>
 #include <QComboBox>
 #include <QPointer>
@@ -83,12 +83,12 @@ public:
         return connection->shortName() + ": " + device->getDisplayName();
     }
 
-    bool operator==(const DevListItem &rhs)
+    bool operator==(const DevListItem &rhs) const
     {
         return connection == rhs.connection && device == rhs.device;
     }
 
-    bool operator!=(const DevListItem &rhs) { return !(this == &rhs); }
+    bool operator!=(const DevListItem &rhs) const { return !(*this == rhs); }
 
     IConnection *connection;
     QPointer<IDevice> device;
@@ -108,7 +108,7 @@ public:
     DevListItem getCurrentDevice() { return m_connectionDevice; }
     DevListItem findDevice(const QString &devName);
 
-    QLinkedList<DevListItem> getAvailableDevices() { return m_devList; }
+    QList<DevListItem> getAvailableDevices() { return m_devList; }
 
     bool isConnected() { return m_ioDev != nullptr; }
 
@@ -128,7 +128,7 @@ signals:
     void deviceConnected(QIODevice *device);
     void deviceAboutToDisconnect();
     void deviceDisconnected();
-    void availableDevicesChanged(const QLinkedList<Core::DevListItem> devices);
+    void availableDevicesChanged(const QList<Core::DevListItem> devices);
 
 public slots:
     void telemetryConnected();
@@ -150,7 +150,7 @@ private slots:
 protected:
     QComboBox *m_availableDevList;
     QPushButton *m_connectBtn;
-    QLinkedList<DevListItem> m_devList;
+    QList<DevListItem> m_devList;
     QList<IConnection *> m_connectionsList;
 
     // tx/rx telemetry monitor

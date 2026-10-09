@@ -12,7 +12,7 @@
 from __future__ import print_function
 
 from codecs import open
-from cgi import escape
+from html import escape
 from datetime import datetime
 import hashlib
 import argparse
@@ -116,7 +116,7 @@ class Repo:
         """Get list of authors since the last full release tag (.n are ignored)"""
         self._authors_since_release = []
         self._exec('show-ref --tags')
-        pat = re.compile('^refs/tags/(?P<type>[A-Za-z]*)\-(?P<rel>(?P<date>[0-9]{8})(\.(?P<suffix>[0-9]*))?)$')
+        pat = re.compile(r'^refs/tags/(?P<type>[A-Za-z]*)\-(?P<rel>(?P<date>[0-9]{8})(\.(?P<suffix>[0-9]*))?)$')
         tags = []
         if self._rc == 0:
             for l in self._out.splitlines():
@@ -483,7 +483,7 @@ string given.
 
     if args.htmlsafe:
         for k in dictionary:
-            dictionary[k] = escape(dictionary[k]).encode('ascii', 'xmlcharrefreplace')
+            dictionary[k] = escape(dictionary[k], quote=False).encode('ascii', 'xmlcharrefreplace')
 
     # Process positional arguments in the form of:
     #   VAR1=str1 VAR2="string 2"

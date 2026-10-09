@@ -31,7 +31,7 @@
 #include <QObject>
 #include <QGraphicsView>
 #include <QtSvg/QSvgRenderer>
-#include <QtSvg/QGraphicsSvgItem>
+#include <QGraphicsSvgItem>
 #include <QtCore/QPointer>
 #include <QTimer>
 

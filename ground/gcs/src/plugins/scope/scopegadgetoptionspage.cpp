@@ -164,19 +164,19 @@ QWidget *ScopeGadgetOptionsPage::createPage(QWidget *parent)
 
     // Connect signals to slots
     connect(options_page->cmbXAxisScatterplot2d,
-            QOverload<const QString &>::of(&QComboBox::currentIndexChanged), this,
+            &QComboBox::currentTextChanged, this,
             &ScopeGadgetOptionsPage::on_cmbXAxisScatterplot2d_currentIndexChanged);
     connect(options_page->cmb2dPlotType,
-            QOverload<const QString &>::of(&QComboBox::currentIndexChanged), this,
+            &QComboBox::currentTextChanged, this,
             &ScopeGadgetOptionsPage::on_cmb2dPlotType_currentIndexChanged);
     connect(options_page->cmb3dPlotType,
-            QOverload<const QString &>::of(&QComboBox::currentIndexChanged), this,
+            &QComboBox::currentTextChanged, this,
             &ScopeGadgetOptionsPage::on_cmb3dPlotType_currentIndexChanged);
     connect(options_page->cmbUAVObjects,
-            QOverload<const QString &>::of(&QComboBox::currentIndexChanged), this,
+            &QComboBox::currentTextChanged, this,
             &ScopeGadgetOptionsPage::on_cmbUAVObjects_currentIndexChanged);
     connect(options_page->cmbUAVObjectsSpectrogram,
-            QOverload<const QString &>::of(&QComboBox::currentIndexChanged), this,
+            &QComboBox::currentTextChanged, this,
             &ScopeGadgetOptionsPage::on_cmbUAVObjectsSpectrogram_currentIndexChanged);
     connect(options_page->btnAdd2dCurve, &QAbstractButton::clicked, this,
             &ScopeGadgetOptionsPage::on_btnAdd2dCurve_clicked);
@@ -191,7 +191,7 @@ QWidget *ScopeGadgetOptionsPage::createPage(QWidget *parent)
     connect(options_page->mathFunctionComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &ScopeGadgetOptionsPage::on_mathFunctionComboBox_currentIndexChanged);
     connect(options_page->cmbSpectrogramSource,
-            QOverload<const QString &>::of(&QComboBox::currentIndexChanged), this,
+            &QComboBox::currentTextChanged, this,
             &ScopeGadgetOptionsPage::on_cmbSpectrogramSource_currentIndexChanged);
     connect(options_page->lst2dCurves, &QListWidget::itemClicked, this,
             &ScopeGadgetOptionsPage::on_lst2dItem_clicked);
@@ -620,7 +620,7 @@ void ScopeGadgetOptionsPage::setPlot2dCurveProperties(QListWidgetItem *listWidge
     QString styleSheet = dataSourceStyleSheetTemplate.arg(QColor(rgbColor).red())
                              .arg(QColor(rgbColor).green())
                              .arg(QColor(rgbColor).blue());
-    listWidgetItem->setTextColor(color); // This one sets the text color when unselected...
+    listWidgetItem->setForeground(color); // Text color when unselected.
     options_page->lst2dCurves->setStyleSheet(
         styleSheet); //.. and this one sets the text color when selected
 

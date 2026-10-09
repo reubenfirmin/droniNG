@@ -32,10 +32,7 @@
 
 #include <QtCore/QString>
 #include <QtCore/QList>
-
-QT_BEGIN_NAMESPACE
-class QStringList;
-QT_END_NAMESPACE
+#include <QtCore/QStringList>
 
 namespace ExtensionSystem {
 

@@ -1,9 +1,9 @@
 {
-	"project": "dRonin",
-	"content": "dRonin USB IDs",
+	"project": "droniNG",
+	"content": "droniNG USB IDs",
 	"groups": [
 		{
-			"name": "dRonin",
+			"name": "droniNG",
 			"devices": [
 				{
 					"name": "Firmware",
@@ -26,7 +26,7 @@
 			"devices": [
 				{
 					"name": "CopterControl",
-					"comment": "Used for CC3D in Tau/dRonin",
+					"comment": "Used for CC3D in Tau/droniNG",
 					"vid": "20a0",
 					"pid": "415b",
 					"type": ["hid", "cdc"]

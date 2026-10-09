@@ -27,12 +27,8 @@
 
 #include <QDebug>
 
-#ifdef __APPLE__
-#   include <client/mac/handler/exception_handler.h>
-#elif defined __linux__
-#   include <client/linux/handler/exception_handler.h>
-#   include <client/linux/handler/minidump_descriptor.h>
-#endif
+#include <client/linux/handler/exception_handler.h>
+#include <client/linux/handler/minidump_descriptor.h>
 
 namespace CrashReporter
 {
@@ -57,13 +53,8 @@ Handler::isActive()
 
 
 static bool
-#ifdef Q_OS_LINUX
 LaunchUploader( const google_breakpad::MinidumpDescriptor& descriptor, void* context, bool succeeded )
 {
-#else // Q_OS_MAC
-LaunchUploader( const char* dump_dir, const char* minidump_id, void* context, bool succeeded)
-{
-#endif
         if ( !succeeded )
         {
             printf("Could not write crash dump file");
@@ -73,18 +64,7 @@ LaunchUploader( const char* dump_dir, const char* minidump_id, void* context, bo
         // DON'T USE THE HEAP!!!
         // So that indeed means, no QStrings, no qDebug(), no QAnything, seriously!
 
-    #ifdef Q_OS_LINUX
         const char* path = descriptor.path();
-    #else // Q_OS_MAC
-        const char* extension = "dmp";
-
-        char path[4096];
-        strcpy(path, dump_dir);
-        strcat(path, "/");
-        strcat(path, minidump_id);
-        strcat(path, ".");
-        strcat(path,  extension);
-    #endif
 
         printf("Dump file was written to: %s\n", path);
 
@@ -118,11 +98,7 @@ Handler::Handler( const QString& dumpFolderPath, bool active, const QString& cra
 {
     s_active = active;
 
-    #if defined Q_OS_LINUX
     m_crash_handler =  new google_breakpad::ExceptionHandler( google_breakpad::MinidumpDescriptor(dumpFolderPath.toStdString()), NULL, LaunchUploader, this, true, -1 );
-    #elif defined Q_OS_MAC
-    m_crash_handler =  new google_breakpad::ExceptionHandler( dumpFolderPath.toStdString(), NULL, LaunchUploader, this, true, NULL);
-    #endif
 
     setCrashReporter( crashReporter );
 }

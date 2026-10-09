@@ -17,7 +17,7 @@
 */
 #pragma once
 
-#ifndef DRONIN_TARGET
+#ifndef DRONING_TARGET
 #include "drivers/io_types.h"
 #endif
 

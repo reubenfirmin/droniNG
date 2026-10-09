@@ -31,6 +31,7 @@
  */
 
 #include "uavobjectbrowserwidget.h"
+#include <QRegularExpression>
 #include "uavobjecttreemodel.h"
 #include "browseritemdelegate.h"
 #include "treeitem.h"
@@ -610,7 +611,8 @@ void UAVObjectBrowserWidget::enableUAVOBrowserButtons(bool enableState)
  */
 void UAVObjectBrowserWidget::searchTextChanged(QString searchText)
 {
-    proxyModel->setFilterRegExp(QRegExp(searchText, Qt::CaseInsensitive, QRegExp::FixedString));
+    proxyModel->setFilterRegularExpression(QRegularExpression(
+        QRegularExpression::escape(searchText), QRegularExpression::CaseInsensitiveOption));
 }
 
 void UAVObjectBrowserWidget::searchTextCleared()

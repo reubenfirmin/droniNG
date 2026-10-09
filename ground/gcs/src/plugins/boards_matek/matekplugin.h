@@ -33,7 +33,7 @@
 class MatekPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.Matek")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.Matek")
 
 public:
     MatekPlugin();

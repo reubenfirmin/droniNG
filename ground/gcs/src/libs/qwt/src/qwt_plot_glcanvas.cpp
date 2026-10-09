@@ -8,6 +8,7 @@
  *****************************************************************************/
 
 #include "qwt_plot_glcanvas.h"
+#include <qpainterpath.h>
 #include "qwt_plot.h"
 #include <qevent.h>
 #include <qpainter.h>

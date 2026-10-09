@@ -415,7 +415,7 @@ void ConnectionManager::updateConnectionList(IConnection *connection)
     // Go through the list of connections of that type.  If they are not in the
     // available device list then remove them.  If they are connected, then
     // disconnect them.
-    for (QLinkedList<DevListItem>::iterator iter = m_devList.begin(); iter != m_devList.end();) {
+    for (QList<DevListItem>::iterator iter = m_devList.begin(); iter != m_devList.end();) {
         if (iter->connection != connection) {
             ++iter;
             continue;

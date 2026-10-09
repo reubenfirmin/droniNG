@@ -32,7 +32,7 @@
 #include "uavtalk/telemetrymanager.h"
 #include <QGraphicsView>
 #include <QtSvg/QSvgRenderer>
-#include <QtSvg/QGraphicsSvgItem>
+#include <QGraphicsSvgItem>
 #include <QMouseEvent>
 #include <QMap>
 #include <QFile>

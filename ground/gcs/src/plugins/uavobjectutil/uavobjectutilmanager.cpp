@@ -702,7 +702,7 @@ bool UAVObjectUtilManager::descriptionToStructure(QByteArray desc, deviceDescrip
             gitDate = gitDate << 8;
             gitDate += desc.at(11 - i) & 0xFF;
         }
-        struc.gitDate = QDateTime::fromTime_t(gitDate).toUTC().toString("yyyyMMdd HH:mm");
+        struc.gitDate = QDateTime::fromSecsSinceEpoch(gitDate).toUTC().toString("yyyyMMdd HH:mm");
 
         QString gitTag = QString(desc.mid(14, 26));
         struc.gitTag = gitTag;

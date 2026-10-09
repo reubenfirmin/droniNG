@@ -76,7 +76,7 @@ void inputChannelForm::setName(QString &name)
 {
     ui->channelName->setText(name);
     QFontMetrics metrics(ui->channelName->font());
-    int width = metrics.width(name) + 5;
+    int width = metrics.horizontalAdvance(name) + 5;
     foreach (inputChannelForm *form, parent()->findChildren<inputChannelForm *>()) {
         if (form == this)
             continue;

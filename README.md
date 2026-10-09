@@ -1,18 +1,34 @@
-![dRonin](http://dronin.org/assets/images/logos/logo_final_full.png)
+![droniNG](artwork/Logo/droning_logo_full.svg)
 
-dRonin is an autopilot/flight controller firmware for controllers in the OpenPilot/Tau Labs family.  It's aimed at a variety of use cases: acro/racing, autonomous flight, and vehicle research.
+droniNG is an autopilot/flight controller firmware for controllers in the OpenPilot/Tau Labs family.  It's aimed at a variety of use cases: acro/racing, autonomous flight, and vehicle research.
 
-dRonin is production ready and released under the GPL.
+droniNG is a Linux-focused fork of [dRonin](https://github.com/d-ronin/dRonin),
+released under the GPL.
 
-See [dronin.org](http://dronin.org) for more details.
+See the [project repository](https://github.com/reubenfirmin/droniNG) for source,
+documentation, and issue reports.
 
 ## Supported Targets
 
 ### Desktop Ground Station
 
-The desktop ground station targets Linux and macOS, using Qt 5 and system zlib.
-Windows build, driver and packaging targets have been removed. Embedded firmware
-and Android targets are retained.
+The desktop ground station targets Linux, using Qt 6 and system zlib. The
+release SDK is Qt 6.12.0; Qt 5.15 remains a migration reference. The default
+appearance is dark, with colours inspired by KDE Breeze Dark.
+See [the Qt modernization plan](QT_MODERNIZATION_PLAN.md) for the staged Qt 6
+migration, prerequisites, and validation gates. Embedded firmware and Android
+targets are retained; their builds also use a Linux host.
+
+Use a separate build directory when changing Qt SDKs. With the local Qt 6.12.0
+kit installed, build and run the release application with:
+
+```bash
+make -j4 BUILD_DIR="$PWD/build/qt612-release" GCS_BUILD_CONF=release gcs
+build/qt612-release/ground/gcs/bin/droning-gcs
+```
+
+The Python package
+is named `droning`, and its command-line tools use the `droning-*` prefix.
 
 ### Full Support
 

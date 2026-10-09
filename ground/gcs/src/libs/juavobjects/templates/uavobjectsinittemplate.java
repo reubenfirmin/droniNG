@@ -26,9 +26,9 @@
  * with this program; if not, see <http://www.gnu.org/licenses/>
  */
 
-package org.dronin.uavtalk.uavobjects;
+package org.droning.uavtalk.uavobjects;
 
-import org.dronin.uavtalk.UAVObjectManager;
+import org.droning.uavtalk.UAVObjectManager;
 
 public class UAVObjectsInitialize {
 	

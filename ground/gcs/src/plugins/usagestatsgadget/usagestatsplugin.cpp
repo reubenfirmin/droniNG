@@ -342,7 +342,7 @@ void UsageStatsPlugin::setSendUsageStats(bool value)
 
 QString UsageStatsPlugin::getInstallationUUID() const
 {
-    return installationUUID.toString().remove(QRegExp("[{}]*"));
+    return installationUUID.toString(QUuid::WithoutBraces);
 }
 
 int UsageStatsPlugin::getDebugLogLevel() const

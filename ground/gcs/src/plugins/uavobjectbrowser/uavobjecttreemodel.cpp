@@ -424,7 +424,7 @@ QVariant UAVObjectTreeModel::data(const QModelIndex &index, int role) const
             return QVariant(m_updatedOnlyColor);
     }
 
-    if (role == Qt::TextColorRole) {
+    if (role == Qt::ForegroundRole) {
         if (item) {
             if (item->getIsPresentOnHardware())
                 return QVariant(m_isPresentOnHwColor);
@@ -479,7 +479,7 @@ bool UAVObjectTreeModel::setData(const QModelIndex &index, const QVariant &value
 Qt::ItemFlags UAVObjectTreeModel::flags(const QModelIndex &index) const
 {
     if (!index.isValid())
-        return nullptr;
+        return Qt::NoItemFlags;
 
     if (index.column() == TreeItem::dataColumn) {
         TreeItem *item = static_cast<TreeItem *>(index.internalPointer());

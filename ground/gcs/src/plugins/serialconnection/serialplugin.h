@@ -87,7 +87,7 @@ protected:
 class SerialPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.Serial")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.Serial")
 
 public:
     SerialPlugin();

@@ -4,29 +4,8 @@ Rectangle {
     id: container
     width: 1024
     height: 768
-    gradient: Gradient {
-        GradientStop {
-            position: 0
-            color: "#ffffff"
-        }
-
-        GradientStop {
-            position: 0.03
-            color: "#ffffff"
-        }
-
-        GradientStop {
-            position: 1
-            color: "#b9b9b9"
-        }
-
-        GradientStop {
-            position: 0.927
-            color: "#d2d2d2"
-        }
-
-
-    }
+    SystemPalette { id: appPalette }
+    color: appPalette.window
 
     Column {
         id: buttonsGrid

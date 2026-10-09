@@ -58,7 +58,7 @@ public:
     const char *uniqueModeName() const;
     QList<int> context() const;
     void activated();
-    QString contextHelpId() const { return QLatin1String("dRonin GCS"); }
+    QString contextHelpId() const { return QLatin1String("droniNG GCS"); }
     void setPriority(int priority) { m_priority = priority; }
 
 public slots:

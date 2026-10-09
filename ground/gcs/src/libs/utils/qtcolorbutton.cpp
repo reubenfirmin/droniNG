@@ -59,11 +59,9 @@ void QtColorButtonPrivate::slotEditColor()
 {
     QColor newColor;
     if (m_alphaAllowed) {
-        bool ok;
-        const QRgb rgba = QColorDialog::getRgba(m_color.rgba(), &ok, q_ptr);
-        if (!ok)
+        newColor = QColorDialog::getColor(m_color, q_ptr, QString(), QColorDialog::ShowAlphaChannel);
+        if (!newColor.isValid())
             return;
-        newColor = QColor::fromRgba(rgba);
     } else {
         newColor = QColorDialog::getColor(m_color, q_ptr);
         if (!newColor.isValid())
@@ -242,7 +240,7 @@ void QtColorButton::mouseMoveEvent(QMouseEvent *event)
         drg->setPixmap(d_ptr->generatePixmap());
         setDown(false);
         event->accept();
-        drg->start();
+        drg->exec(Qt::CopyAction);
         return;
     }
 #endif

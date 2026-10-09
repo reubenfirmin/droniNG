@@ -136,16 +136,6 @@ QWT_CONFIG     += QwtMathML
 # QWT_CONFIG     += QwtPlayground
 
 ######################################################################
-# When Qt has been built as framework qmake wants 
-# to link frameworks instead of regular libs
-######################################################################
-
-macx:!static:CONFIG(qt_framework, qt_framework|qt_no_framework) {
-
-#    QWT_CONFIG += QwtFramework
-}  
-
-######################################################################
 # Create and install pc files for pkg-config
 # See http://www.freedesktop.org/wiki/Software/pkg-config/
 ######################################################################

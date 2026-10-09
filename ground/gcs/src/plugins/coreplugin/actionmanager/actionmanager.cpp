@@ -306,7 +306,7 @@ ActionContainer *ActionManagerPrivate::createMenuBar(const QString &id)
     if (it != m_idContainerMap.constEnd())
         return it.value();
 
-    QMenuBar *mb = new QMenuBar; // No parent (System menu bar on Mac OS X)
+    QMenuBar *mb = new QMenuBar;
     mb->setObjectName(id);
 
     MenuBarActionContainer *mbc = new MenuBarActionContainer(uid);
@@ -360,9 +360,6 @@ Command *ActionManagerPrivate::registerOverridableAction(QAction *action, const 
         baseAction->setShortcutContext(Qt::ApplicationShortcut);
         baseAction->setEnabled(false);
         baseAction->setParent(m_mainWnd);
-#ifdef Q_OS_MAC
-        baseAction->setIconVisibleInMenu(false);
-#endif
         a->setAction(baseAction);
         m_mainWnd->addAction(baseAction);
         a->setKeySequence(a->keySequence());

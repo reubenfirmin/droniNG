@@ -40,7 +40,6 @@
 #include "geodecoderstatus.h"
 #include <QTime>
 #include "cache.h"
-#include <QTextCodec>
 #include "cmath"
 #include "QDomElement"
 

@@ -31,7 +31,6 @@
 
 #include <QtDebug>
 #include <QStringList>
-#include <QRegExp>
 
 #include <QVariant>
 #include <QRect>
@@ -39,6 +38,8 @@
 #include <QPoint>
 #include <QtCore/QUrl>
 #include <QDataStream>
+#include <QDomDocument>
+#include <QIODevice>
 
 #define NUM_PREFIX "arr_"
 
@@ -101,7 +102,8 @@ void XmlConfig::handleNode(QDomElement* node, QSettings::SettingsMap &map, QStri
     for ( int i = 0; i < node->childNodes().length(); ++i ){
         QDomNode child = node->childNodes().item(i);
         if ( child.isElement() ){
-            handleNode( static_cast<QDomElement*>(&child), map, path);
+            QDomElement element = child.toElement();
+            handleNode(&element, map, path);
         }
         else if ( child.isText() ){
 //            qDebug() << "Key: " << path << " Value:" << node->text();
@@ -138,7 +140,7 @@ bool XmlConfig::writeXmlFile(QIODevice &device, const QSettings::SettingsMap &ma
                 qWarning() << "ERROR: Settings must not start with " << NUM_PREFIX
                         << " in: " + iter.key();
             }
-            if ( QRegExp("[0-9]").exactMatch(elem.left(1)) ){
+            if ( !elem.isEmpty() && elem.at(0) >= QLatin1Char('0') && elem.at(0) <= QLatin1Char('9') ){
                 elem.prepend(NUM_PREFIX);
             }
             if ( node.firstChildElement(elem).isNull() ){

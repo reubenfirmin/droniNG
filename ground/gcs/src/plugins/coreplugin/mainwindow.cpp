@@ -53,7 +53,6 @@
 #include "ioutputpane.h"
 #include "icorelistener.h"
 #include "iconfigurableplugin.h"
-#include <QStyleFactory>
 #include "settingsdialog.h"
 #include "uniqueidmanager.h"
 #include "versiondialog.h"
@@ -119,13 +118,7 @@ MainWindow::MainWindow()
     , m_saveAllAction(nullptr)
     , m_exitAction(nullptr)
     , m_optionsAction(nullptr)
-    ,
-#ifdef Q_OS_MAC
-    m_minimizeAction(0)
-    , m_zoomAction(0)
-    ,
-#endif /* Q_OS_MAC */
-    m_toggleFullScreenAction(nullptr)
+    , m_toggleFullScreenAction(nullptr)
 {
     // keep this in sync with main() in app/main.cpp
     m_settings = new QSettings(QDir::tempPath() + QDir::separator() + GCS_PROJECT_BRANDING
@@ -156,33 +149,12 @@ MainWindow::MainWindow()
     }
 
     setWindowTitle(QLatin1String(Core::Constants::GCS_NAME));
-    if (!Utils::HostOsInfo::isMacHost())
-        QApplication::setWindowIcon(QIcon(Core::Constants::ICON_GCS));
+    QApplication::setWindowIcon(QIcon(Core::Constants::ICON_GCS));
     QCoreApplication::setApplicationName(QLatin1String(Core::Constants::GCS_NAME));
     QCoreApplication::setApplicationVersion(QLatin1String(Core::Constants::GCS_VERSION_LONG));
     QCoreApplication::setOrganizationName(QLatin1String(Core::Constants::GCS_AUTHOR));
     QCoreApplication::setOrganizationDomain(QLatin1String(GCS_PROJECT_BRANDING_HELP));
     QSettings::setDefaultFormat(XmlConfig::XmlSettingsFormat);
-    QString baseName = QApplication::style()->objectName();
-
-    qDebug() << baseName;
-    if (Utils::HostOsInfo::isAnyUnixHost() && !Utils::HostOsInfo::isMacHost()) {
-        if (baseName == QLatin1String("windows")) {
-            // Sometimes we get the standard windows 95 style as a fallback
-            if (QStyleFactory::keys().contains(QLatin1String("Fusion"))) {
-                baseName = QLatin1String("fusion"); // Qt5
-            } else { // Qt4
-                // e.g. if we are running on a KDE4 desktop
-                QByteArray desktopEnvironment = qgetenv("DESKTOP_SESSION");
-                if (desktopEnvironment == "kde")
-                    baseName = QLatin1String("plastique");
-                else
-                    baseName = QLatin1String("cleanlooks");
-            }
-        }
-    }
-    qApp->setStyle(QStyleFactory::create(baseName));
-
     setDockNestingEnabled(true);
 
     setCorner(Qt::BottomLeftCorner, Qt::LeftDockWidgetArea);
@@ -330,13 +302,8 @@ void MainWindow::extensionsInitialized()
             }
         }
         QDir directory(QCoreApplication::applicationDirPath());
-#ifdef Q_OS_MAC
-        directory.cdUp();
-        directory.cd("Resources");
-#else
         directory.cdUp();
         directory.cd("share");
-#endif
         directory.cd("default_configurations");
 
         qDebug() << "Looking for default config files in: " + directory.absolutePath();
@@ -418,20 +385,11 @@ void MainWindow::loadStyleSheet()
 {
     /* Let's use QFile and point to a resource... */
     QDir directory(QCoreApplication::applicationDirPath());
-#ifdef Q_OS_MAC
-    directory.cdUp();
-    directory.cd("Resources");
-#else
     directory.cdUp();
     directory.cd("share");
-#endif
     directory.cd("stylesheets");
     QFile global(directory.absolutePath() + QDir::separator() + "global.qss");
-#ifdef Q_OS_MAC
-    QFile data(directory.absolutePath() + QDir::separator() + "macos.qss");
-#else
     QFile data(directory.absolutePath() + QDir::separator() + "linux.qss");
-#endif
     QString style;
     /* ...to open the file */
 
@@ -540,9 +498,7 @@ void MainWindow::registerDefaultContainers()
 
     ActionContainer *menubar = am->createMenuBar(Constants::MENU_BAR);
 
-#ifndef Q_OS_MAC // System menu bar on Mac
     setMenuBar(menubar->menuBar());
-#endif /* Q_OS_MAC */
     menubar->appendGroup(Constants::G_FILE);
     menubar->appendGroup(Constants::G_EDIT);
     menubar->appendGroup(Constants::G_VIEW);
@@ -655,9 +611,7 @@ void MainWindow::registerDefaultActions()
     // SaveAll Action
     m_saveAllAction = new QAction(tr("Save &GCS Default Settings"), this);
     cmd = am->registerAction(m_saveAllAction, Constants::SAVEALL, m_globalContext);
-#ifndef Q_OS_MAC
     cmd->setDefaultKeySequence(QKeySequence(tr("Ctrl+Shift+S")));
-#endif
     mfile->addAction(cmd, Constants::G_FILE_SAVE);
     connect(m_saveAllAction, SIGNAL(triggered()), this, SLOT(saveAll()));
 
@@ -717,33 +671,9 @@ void MainWindow::registerDefaultActions()
     // Options Action
     m_optionsAction = new QAction(QIcon(Constants::ICON_OPTIONS), tr("&Options..."), this);
     cmd = am->registerAction(m_optionsAction, Constants::OPTIONS, m_globalContext);
-#ifdef Q_OS_MAC
-    cmd->setDefaultKeySequence(QKeySequence("Ctrl+,"));
-    cmd->action()->setMenuRole(QAction::PreferencesRole);
-#endif
     mtools->addAction(cmd, Constants::G_DEFAULT_THREE);
     connect(m_optionsAction, SIGNAL(triggered()), this, SLOT(showOptionsDialog()));
 
-#ifdef Q_OS_MAC
-    // Minimize Action
-    m_minimizeAction = new QAction(tr("Minimize"), this);
-    cmd = am->registerAction(m_minimizeAction, Constants::MINIMIZE_WINDOW, m_globalContext);
-    cmd->setDefaultKeySequence(QKeySequence("Ctrl+M"));
-    mwindow->addAction(cmd, Constants::G_WINDOW_SIZE);
-    connect(m_minimizeAction, SIGNAL(triggered()), this, SLOT(showMinimized()));
-
-    // Zoom Action
-    m_zoomAction = new QAction(tr("Zoom"), this);
-    cmd = am->registerAction(m_zoomAction, Constants::ZOOM_WINDOW, m_globalContext);
-    mwindow->addAction(cmd, Constants::G_WINDOW_SIZE);
-    connect(m_zoomAction, SIGNAL(triggered()), this, SLOT(showMaximized()));
-
-    // Window separator
-    cmd = createSeparator(am, this, QLatin1String("QtCreator.Window.Sep.Size"), m_globalContext);
-    mwindow->addAction(cmd, Constants::G_WINDOW_SIZE);
-#endif
-
-#ifndef Q_OS_MAC
     // Full Screen Action
     m_toggleFullScreenAction = new QAction(tr("Full Screen"), this);
     m_toggleFullScreenAction->setCheckable(true);
@@ -752,7 +682,6 @@ void MainWindow::registerDefaultActions()
     cmd->setDefaultKeySequence(QKeySequence("Ctrl+Shift+F11"));
     mwindow->addAction(cmd, Constants::G_WINDOW_SIZE);
     connect(m_toggleFullScreenAction, SIGNAL(triggered(bool)), this, SLOT(setFullScreen(bool)));
-#endif
 
     /*
      * UavGadgetManager Actions
@@ -780,11 +709,7 @@ void MainWindow::registerDefaultActions()
                              uavGadgetManagerContext);
     mwindow->addAction(cmd, Constants::G_WINDOW_SPLIT);
 
-#ifdef Q_OS_MAC
-    QString prefix = tr("Meta+Shift");
-#else
     QString prefix = tr("Ctrl+Shift");
-#endif
 
     m_splitAction = new QAction(tr("Split"), this);
     cmd = am->registerAction(m_splitAction, Constants::SPLIT, uavGadgetManagerContext);
@@ -823,36 +748,23 @@ void MainWindow::registerDefaultActions()
     connect(tmpaction, SIGNAL(triggered()), this, SLOT(showHelp()));
 
 // About sep
-#ifndef Q_OS_MAC // doesn't have the "About" actions in the Help menu
     tmpaction = new QAction(this);
     tmpaction->setSeparator(true);
     cmd = am->registerAction(tmpaction, QLatin1String("QtCreator.Help.Sep.About"), m_globalContext);
     mhelp->addAction(cmd, Constants::G_HELP_ABOUT);
-#endif
 
     // About Plugins Action
     tmpaction = new QAction(QIcon(Constants::ICON_PLUGIN), tr("About &Plugins..."), this);
     cmd = am->registerAction(tmpaction, Constants::ABOUT_PLUGINS, m_globalContext);
     mhelp->addAction(cmd, Constants::G_HELP_ABOUT);
     tmpaction->setEnabled(true);
-#ifdef Q_OS_MAC
-    cmd->action()->setMenuRole(QAction::ApplicationSpecificRole);
-#endif
     connect(tmpaction, SIGNAL(triggered()), this, SLOT(aboutPlugins()));
 
 // About GCS Action
-#ifdef Q_OS_MAC
-    tmpaction = new QAction(QIcon(Constants::ICON_GCS), tr("About &GCS"),
-                            this); // it's convention not to add dots to the about menu
-#else
     tmpaction = new QAction(QIcon(Constants::ICON_GCS), tr("About &GCS..."), this);
-#endif
     cmd = am->registerAction(tmpaction, Constants::ABOUT_GCS, m_globalContext);
     mhelp->addAction(cmd, Constants::G_HELP_ABOUT);
     tmpaction->setEnabled(true);
-#ifdef Q_OS_MAC
-    cmd->action()->setMenuRole(QAction::ApplicationSpecificRole);
-#endif
     connect(tmpaction, SIGNAL(triggered()), this, SLOT(aboutGCS()));
 
     // Credits Action
@@ -860,9 +772,6 @@ void MainWindow::registerDefaultActions()
     cmd = am->registerAction(tmpaction, Constants::ABOUT_AUTHORS, m_globalContext);
     mhelp->addAction(cmd, Constants::G_HELP_ABOUT);
     tmpaction->setEnabled(true);
-#ifdef Q_OS_MAC
-    cmd->action()->setMenuRole(QAction::ApplicationSpecificRole);
-#endif
     connect(tmpaction, SIGNAL(triggered()), this, SLOT(aboutAuthors()));
 }
 
@@ -1015,16 +924,8 @@ void MainWindow::changeEvent(QEvent *e)
             emit windowActivated();
         }
     } else if (e->type() == QEvent::WindowStateChange) {
-#ifdef Q_OS_MAC
-        bool minimized = isMinimized();
-        if (debugMainWindow)
-            qDebug() << "main window state changed to minimized=" << minimized;
-        m_minimizeAction->setEnabled(!minimized);
-        m_zoomAction->setEnabled(!minimized);
-#else
         bool isFullScreen = (windowState() & Qt::WindowFullScreen) != 0;
         m_toggleFullScreenAction->setChecked(isFullScreen);
-#endif
     }
 }
 

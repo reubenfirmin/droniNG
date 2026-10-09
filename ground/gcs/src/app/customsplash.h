@@ -27,18 +27,18 @@
 #define CUSTOMSPLASH_H
 
 #include <QSplashScreen>
-#include <QTime>
+#include <QElapsedTimer>
 #include <QSettings>
 
 class CustomSplash : public QSplashScreen
 {
     Q_OBJECT
 public:
-    explicit CustomSplash(const QPixmap &pixmap = QPixmap(), Qt::WindowFlags f = nullptr);
+    explicit CustomSplash(const QPixmap &pixmap = QPixmap(), Qt::WindowFlags f = {});
     int m_progress;
     QPixmap m_pixmap;
     QColor m_progress_bar_color;
-    QTime time;
+    QElapsedTimer time;
     QColor progressBarColor() const;
     void setprogressBarColor(const QColor &progressBarColor);
     int message_number;

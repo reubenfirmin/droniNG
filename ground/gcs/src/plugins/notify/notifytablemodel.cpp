@@ -33,6 +33,7 @@
 #include <qdebug.h>
 #include <QMimeData>
 #include <QDataStream>
+#include <QIODevice>
 
 const char *mime_type_notify_table = "openpilot/notify_plugin_table";
 

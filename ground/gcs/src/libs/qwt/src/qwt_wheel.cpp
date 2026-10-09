@@ -8,6 +8,7 @@
  *****************************************************************************/
 
 #include "qwt_wheel.h"
+#include "qwt_qt_compat.h"
 #include "qwt_math.h"
 #include "qwt_painter.h"
 #include <qevent.h>
@@ -16,7 +17,7 @@
 #include <qstyle.h>
 #include <qstyleoption.h>
 #include <qapplication.h>
-#include <qdatetime.h>
+#include <QElapsedTimer>
 
 #if QT_VERSION < 0x040601
 #define qFabs(x) ::fabs(x)
@@ -75,7 +76,7 @@ public:
 
     // for the flying wheel effect
     int timerId;
-    QTime time;
+    QElapsedTimer time;
     double speed;
     double mouseValue;
     double flyingValue;
@@ -328,7 +329,7 @@ void QwtWheel::timerEvent( QTimerEvent *event )
 */
 void QwtWheel::wheelEvent( QWheelEvent *event )
 {
-    if ( !wheelRect().contains( event->pos() ) )
+    if ( !wheelRect().contains( qwtWheelPosition( event ) ) )
     {
         event->ignore();
         return;
@@ -346,12 +347,12 @@ void QwtWheel::wheelEvent( QWheelEvent *event )
     {
         // one page regardless of delta
         increment = d_data->singleStep * d_data->pageStepCount;
-        if ( event->delta() < 0 )
+        if ( qwtWheelDelta( event ) < 0 )
             increment = -increment;
     }
     else
     {
-        const int numSteps = event->delta() / 120;
+        const int numSteps = qwtWheelDelta( event ) / 120;
         increment = d_data->singleStep * numSteps;
     }
 
@@ -733,7 +734,7 @@ void QwtWheel::paintEvent( QPaintEvent *event )
     painter.setClipRegion( event->region() );
 
     QStyleOption opt;
-    opt.init(this);
+    opt.initFrom(this);
     style()->drawPrimitive(QStyle::PE_Widget, &opt, &painter, this);
 
     qDrawShadePanel( &painter, 
@@ -946,7 +947,7 @@ int QwtWheel::wheelWidth() const
 QSize QwtWheel::sizeHint() const
 {
     const QSize hint = minimumSizeHint();
-    return hint.expandedTo( QApplication::globalStrut() );
+    return hint.expandedTo( qwtGlobalStrut() );
 }
 
 /*!

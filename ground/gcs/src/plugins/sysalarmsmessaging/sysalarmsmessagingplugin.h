@@ -43,7 +43,7 @@ using namespace Core;
 class SysAlarmsMessagingPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.SysAlarmsMessaging")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.SysAlarmsMessaging")
 
 public:
     SysAlarmsMessagingPlugin();

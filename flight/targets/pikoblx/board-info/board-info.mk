@@ -8,7 +8,7 @@ BOARD               := STM32F30x_PIKOBLX
 MODEL               := HD
 MODEL_SUFFIX        :=
 
-USB_VEND            := "dRonin"
+USB_VEND            := "droniNG"
 USB_PROD            := "PikoBLX"
 
 # Note: These must match the values in link_$(BOARD)_memory.ld

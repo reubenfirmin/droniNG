@@ -236,7 +236,7 @@ void QwtThermo::paintEvent( QPaintEvent *event )
     painter.setClipRegion( event->region() );
 
     QStyleOption opt;
-    opt.init(this);
+    opt.initFrom(this);
     style()->drawPrimitive(QStyle::PE_Widget, &opt, &painter, this);
 
     const QRect tRect = pipeRect();
@@ -877,10 +877,9 @@ QSize QwtThermo::minimumSizeHint() const
     h += 2 * d_data->borderWidth;
 
     // finally add the margins
-    int left, right, top, bottom;
-    getContentsMargins( &left, &top, &right, &bottom );
-    w += left + right;
-    h += top + bottom;
+    const QMargins margins = contentsMargins();
+    w += margins.left() + margins.right();
+    h += margins.top() + margins.bottom();
 
     return QSize( w, h );
 }

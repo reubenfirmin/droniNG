@@ -64,7 +64,7 @@ SetupWizard::SetupWizard(bool autoLaunched, QWidget *parent)
     , m_connectionManager(nullptr)
 {
     connect(this, &QWizard::rejected, this, &SetupWizard::boardIgnorePrompt);
-    setWindowTitle(tr("dRonin Setup Wizard"));
+    setWindowTitle(tr("droniNG Setup Wizard"));
     setOption(QWizard::IndependentPages, false);
     for (quint16 i = 0; i < ActuatorSettings::CHANNELMAX_NUMELEM; i++) {
         m_actuatorSettings << actuatorChannelSettings();
