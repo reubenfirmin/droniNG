@@ -31,10 +31,7 @@
 ExpoCurve::ExpoCurve(QWidget *parent)
     : QwtPlot(parent)
 {
-    QPalette palette = parent->palette();
-
-    palette.setColor(QPalette::WindowText, palette.color(QPalette::Dark));
-    palette.setColor(QPalette::Window, palette.color(QPalette::Light));
+    const QPalette plotPalette = palette();
 
     QwtPainter::setPolylineSplitting(false);
     QwtPainter::setRoundingAlignment(false);
@@ -48,8 +45,9 @@ ExpoCurve::ExpoCurve(QWidget *parent)
     if (f) {
         f->setFrameStyle(QFrame::Box | QFrame::Plain);
         f->setLineWidth(1);
-        f->setPalette(palette);
+        f->setPalette(plotPalette);
     }
+    setCanvasBackground(plotPalette.color(QPalette::Base));
 
     // Add grid lines
     QwtPlotGrid *grid = new QwtPlotGrid;
@@ -80,10 +78,6 @@ ExpoCurve::ExpoCurve(QWidget *parent)
     // connect signal when clicked on legend entry to function that shows/hides the curve
     connect(m_legend, &QwtLegend::checked, this, &ExpoCurve::showCurve);
 
-    QPalette pal = m_legend->palette();
-    pal.setColor(m_legend->backgroundRole(), QColor(100, 100, 100)); // background colour
-    pal.setColor(QPalette::Text, QColor(0, 0, 0)); // text colour
-    m_legend->setPalette(pal);
     m_legend->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Expanding);
 
     insertLegend(m_legend, QwtPlot::RightLegend);
@@ -118,8 +112,8 @@ ExpoCurve::ExpoCurve(QWidget *parent)
     axis_title.setText(tr("rate (deg/s)"));
     this->setAxisTitle(QwtPlot::yLeft, axis_title);
 
-    this->axisWidget(QwtPlot::xBottom)->setPalette(palette);
-    this->axisWidget(QwtPlot::yLeft)->setPalette(palette);
+    this->axisWidget(QwtPlot::xBottom)->setPalette(plotPalette);
+    this->axisWidget(QwtPlot::yLeft)->setPalette(plotPalette);
 
     plotDataRoll(50, 720, 50);
     plotDataPitch(50, 720, 50);

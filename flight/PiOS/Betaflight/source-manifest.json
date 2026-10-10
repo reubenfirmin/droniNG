@@ -1,0 +1,603 @@
+{
+  "schema_version": 1,
+  "repositories": {
+    "config": {
+      "repository": "betaflight/config",
+      "commit": "e1d87e7ecf6717bd3806a08400aeb892cd1d1fc3"
+    },
+    "betaflight": {
+      "repository": "betaflight/betaflight",
+      "commit": "4fc1520c5a5decddc8ef07ad57c0e766ea8747ba"
+    }
+  },
+  "files": [
+    {
+      "repository": "config",
+      "path": "LICENSE",
+      "git_blob_sha1": "f288702d2fa16d3cdf0035b15a9fcbc552cd88e7",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "bytes": 35149
+    },
+    {
+      "repository": "config",
+      "path": "configs/SPBE/SPEEDYBEEF405V4/config.h",
+      "git_blob_sha1": "40446e721c438a25f26e39b20c6f57d7eaeb3fcc",
+      "sha256": "7a95491001afa775b933dd9b628525bd28f7ed93e982a2a42f08319b86d5335c",
+      "bytes": 3396
+    },
+    {
+      "repository": "config",
+      "path": "configs/SPBE/SPEEDYBEEF405V5/config.h",
+      "git_blob_sha1": "a38d34586172a502cc53380f470bd84063f7d305",
+      "sha256": "ac3e588e71a3452eb37544f162bd7e76ce65bb0962201869b0394f9ef0859bb3",
+      "bytes": 4195
+    },
+    {
+      "repository": "config",
+      "path": "configs/GEPR/GEPRCF405/config.h",
+      "git_blob_sha1": "11a23ec4b7b539e722613da629d48c165ca9b025",
+      "sha256": "9a157e5817b5a004639c68ccff3b9c996f7027c63121eea597caedec65aae0ff",
+      "bytes": 3630
+    },
+    {
+      "repository": "config",
+      "path": "configs/DIAT/MAMBAF405_2022A/config.h",
+      "git_blob_sha1": "7feff9226c8d66f4ee4b400fe8769cbf8aabd21a",
+      "sha256": "60bca1fbcb54682f53bf7908893bf6b7426347dd589b9293ea9397999d38e172",
+      "bytes": 3585
+    },
+    {
+      "repository": "config",
+      "path": "configs/IFRC/IFLIGHT_BLITZ_F722/config.h",
+      "git_blob_sha1": "6ece3b611b13fa056bb87580cfbfbeb7e617f068",
+      "sha256": "002a2a1aee1d95ccee346c6938bd4c4adbeba1d50b4b02291761ea878744064f",
+      "bytes": 3436
+    },
+    {
+      "repository": "config",
+      "path": "configs/HBRO/KAKUTEH7V2/config.h",
+      "git_blob_sha1": "5c89383843291c6c8a69d94da1745dd1a5f2b31f",
+      "sha256": "c64c499a22a772c5413ef2c885158c0354310dff248d292d4b426b7df9f3f14c",
+      "bytes": 4040
+    },
+    {
+      "repository": "betaflight",
+      "path": "LICENSE",
+      "git_blob_sha1": "f288702d2fa16d3cdf0035b15a9fcbc552cd88e7",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "bytes": 35149
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/accgyro/accgyro.h",
+      "git_blob_sha1": "c2debaa217162b70e3586ebdba9ef492aa1faea5",
+      "sha256": "db4ab6ff4fdf49fb57b61b0c0e784b7dc6f745df831032aa8413eb0882ebaaae",
+      "bytes": 5819
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/accgyro/accgyro_mpu.c",
+      "git_blob_sha1": "75c45294e55db33c5ffd2e7d0af55a07caf619e5",
+      "sha256": "d81947fda6515e8f37a8dceeb564c1d8f0c00a69f93a50ca8cc109d25a2a0231",
+      "bytes": 18316
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/accgyro/accgyro_mpu.h",
+      "git_blob_sha1": "c8ccb611f5aa2461d25fe9da61085f5cb925fd6a",
+      "sha256": "db8bcfa04727f50bb46c4c07c674c7f9d408cd57a54cc1a2acc8630323774f06",
+      "bytes": 8285
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/accgyro/accgyro_spi_mpu6000.c",
+      "git_blob_sha1": "e2faad16b6946cda85be707b3f8928c784432331",
+      "sha256": "50cb0549b1823d3a0dd60ad24a64cfc6e8ec343cdba5d2f8e8e35b399b6745fc",
+      "bytes": 7024
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/accgyro/accgyro_spi_mpu6000.h",
+      "git_blob_sha1": "79ca7f93e00a152d493fab750ed777c20723e57b",
+      "sha256": "165e31d3761a7693e4a200a10a0065e25216e7cb6c5e9b86a1a5de527c782b4c",
+      "bytes": 1296
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/accgyro/accgyro_spi_mpu6500.c",
+      "git_blob_sha1": "6a6e2114ca93af6e72145fa47d4fd517d2d2da5a",
+      "sha256": "a09e12d40fe745b416ff858159391f868e77d6f4c396bfb7b45ea42203c55570",
+      "bytes": 3890
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/accgyro/accgyro_spi_mpu6500.h",
+      "git_blob_sha1": "2bf5d5f2870699c2bf2e0f92cd3e45fda99751c6",
+      "sha256": "fc151e1dbe01ff0c2674559142c1cc6e4498b85fd95585536a476bd999dafacf",
+      "bytes": 1029
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/accgyro/accgyro_spi_icm426xx.c",
+      "git_blob_sha1": "a292389665162dc24bd949326f657e783c38c6c4",
+      "sha256": "92811297aecfcf6ac2c1db63c8bb0da337f14072c9e5ab4146b0d9e354f3246e",
+      "bytes": 19734
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/accgyro/accgyro_spi_icm426xx.h",
+      "git_blob_sha1": "e72e04e0729c496149acdf3ebf2d453aaff6f13a",
+      "sha256": "643b37c8bd59307ef1d919197ed4e3df99717f6785c62f840665135cd0d44b44",
+      "bytes": 1110
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/accgyro/accgyro_spi_bmi270.c",
+      "git_blob_sha1": "6fa06f84738685fe3c47780048c28d517436dfcb",
+      "sha256": "72eaa9a8b3e0548864d0dbe6967de0f209ece9398ee42e22aaee4e003bf496c9",
+      "bytes": 20843
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/accgyro/accgyro_spi_bmi270.h",
+      "git_blob_sha1": "6059f6c1a96402bea824a528733f7eb97465f7b8",
+      "sha256": "a733027ca5018dda07d2b7b48765fd6f4c2791fd1acdc9c995f85ff908146164",
+      "bytes": 988
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/accgyro/accgyro_spi_lsm6dso.c",
+      "git_blob_sha1": "ef43cce575f17891e6507105ab02b059a2d56c51",
+      "sha256": "a681a51c2fae5e2f31636d7dfe8c6bb9295b4fdbfa81894f102dcb2c99492754",
+      "bytes": 3101
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/accgyro/accgyro_spi_lsm6dso.h",
+      "git_blob_sha1": "ebcac8e7d66c5a94e192d11c0a200ad0ecf07c6d",
+      "sha256": "4e3d0d0c5f53daab505dab149245cbe5584e965847b3428c8122de22062659c3",
+      "bytes": 2835
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/accgyro/accgyro_spi_lsm6dso_init.c",
+      "git_blob_sha1": "0305cd5f0e8dc434597afeef10a243f826143505",
+      "sha256": "12910d8416e40a5bd4ee8164504d8c249209b35665e5ea3592a631757feac505",
+      "bytes": 8176
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/accgyro/accgyro_spi_lsm6dsv16x.c",
+      "git_blob_sha1": "84469b9158bb9ed1a4ca29cfb65de14adcbabc3a",
+      "sha256": "51ce94642d2626a905a0b91c855822065d6e027893ae0a2014d2153c30104e1f",
+      "bytes": 57007
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/accgyro/accgyro_spi_lsm6dsv16x.h",
+      "git_blob_sha1": "85f9594f13ad60bb8ca757d942705c75bc5c2434",
+      "sha256": "32c55471273f663a5481c1a21c969892d64aff0c385aa4915c1f7e982f5f78d9",
+      "bytes": 1355
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/barometer/barometer.h",
+      "git_blob_sha1": "4ef7470d3a178edb7e3ddf23a174f4d96d7c35e0",
+      "sha256": "1bacc1191b230c93c37c2f70776b36909569dde8902d1f31820df59c42a8fd6f",
+      "bytes": 1667
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/barometer/barometer_bmp280.c",
+      "git_blob_sha1": "db918e1aabb18eb3d87fa75534453a85e3df17ca",
+      "sha256": "5278042bd7e22d7a2e08205fef38d97e54e1c4b86d705e6721fcf1ade3015c2c",
+      "bytes": 11238
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/barometer/barometer_bmp280.h",
+      "git_blob_sha1": "c55e7ffd0dc304cd3e7f77308826dec80f7d500b",
+      "sha256": "65e39be1aa82a91cf32501fc9a6ec776a8e9d0a1206359421997ea024b1757f4",
+      "bytes": 821
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/barometer/barometer_dps310.c",
+      "git_blob_sha1": "abd1d57e00b4e7f04a4f9f46ab423de898cc64e5",
+      "sha256": "6f0ecf455973571b37d2439010fa6fc77cc94d63447e81c137b2aea7a7664f28",
+      "bytes": 14284
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/barometer/barometer_dps310.h",
+      "git_blob_sha1": "f9ee0e0f5546e61b350e98653e37b5a749dc85f0",
+      "sha256": "fd32deda1fbd010e4a7889fbf20d75c7c99576f7b3116faf0977f388180e80a3",
+      "bytes": 1175
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/flash/flash.c",
+      "git_blob_sha1": "5345b12d814b85ea95ac28d511c03d3e01681262",
+      "sha256": "06dcaa961201815d76e6d65160c90272d185bd42cc561e8f006d2d1d48287632",
+      "bytes": 21829
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/flash/flash.h",
+      "git_blob_sha1": "55d17552908502c17be3371d13d86baa3024dee0",
+      "sha256": "7487b103de4e4fdaa0dac3f69b90ca5a0d428551dac5fed1ce4ecfe3edb68ea1",
+      "bytes": 4020
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/flash/flash_impl.h",
+      "git_blob_sha1": "117bf0ffe48cc6345112a468463cf79e142fb71a",
+      "sha256": "56084cdf65af0a317eab1c0efcb77bc3bbd8b30b6079f95d2e0444918af4bedd",
+      "bytes": 4725
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/flash/flash_m25p16.c",
+      "git_blob_sha1": "01f6ff059dadfe47284485ce4388246e773a4bb3",
+      "sha256": "f47988a1a410023ffbb41e7f0007cd9d58ffa448b4cb59011ded1d946f12a869",
+      "bytes": 26485
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/flash/flash_m25p16.h",
+      "git_blob_sha1": "2e0d186d02fd03721d50c9167a8cdd6de85abe2d",
+      "sha256": "fc1d5869c354c83f9f6e9e1309d2126709b6bbeb981baac8161bbe9182c18500",
+      "bytes": 874
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/flash/flash_w25q128fv.c",
+      "git_blob_sha1": "169e6930052a98ec784977fa2cb766531ba13484",
+      "sha256": "80d3dec7cb4941de3f832c58f8af443dd75564b5a37796a42082a7662189dde3",
+      "bytes": 20954
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/flash/flash_w25q128fv.h",
+      "git_blob_sha1": "4a82c0d9984e3fb6b6b9803d5bc5c710838dee8a",
+      "sha256": "68d3a6dc01c261e1cefec286d8d28a4362bb4f9e54727748df2bd57d2aa660e7",
+      "bytes": 117
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/flash/flash_w25n.c",
+      "git_blob_sha1": "bc8b2f7fb40efd41db0c27c05244089bc5674d9f",
+      "sha256": "ef3a2b9dd964858057810405ddff2633ac6f6bee50831addb848d537f61938be",
+      "bytes": 35313
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/flash/flash_w25n.h",
+      "git_blob_sha1": "5b50124482fd0a809ced358dbe1938a0f646ba13",
+      "sha256": "22e15f557909588c8fb012f6adcf815d69ea1d0f5a1726cbd280459ce4590994",
+      "bytes": 869
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/max7456.c",
+      "git_blob_sha1": "e0d0d5de582eefee6d81844fdd1d77717bf673b3",
+      "sha256": "c2296b554deb0124a5a251d63b9e53d2438e1cd4eb02102de3bc7decacd30605",
+      "bytes": 25812
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/max7456.h",
+      "git_blob_sha1": "e83659560212f1a9cc6c7a55bce78f5e9db790c7",
+      "sha256": "fb97ae5bab3edac71b7504582c870b8f5e9dbb3461cc2204b106769eefd94427",
+      "bytes": 2517
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/sdcard.c",
+      "git_blob_sha1": "5c61f68f6cfacc9808e520e4fe5ee7cd7e90d110",
+      "sha256": "a3472d06f55c5c13a791632e85ad0bae1ba41eb99aefcfec2d3967bbb3e87b22",
+      "bytes": 4867
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/sdcard.h",
+      "git_blob_sha1": "7b647252c89fe2c40bf213860f0133dc220e5121",
+      "sha256": "19fc147b63a6966d74a6eacc7e4e9f7878b904ccfac3909258f26ceb6e1273db",
+      "bytes": 2478
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/sdcard_impl.h",
+      "git_blob_sha1": "2d23b7d1c48ceb683a43fb871d9bc8b7ce775fdd",
+      "sha256": "8847b207ee44c11f1b8fe3699766477b5e28b058d14affc3a64554c695b7b83a",
+      "bytes": 3692
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/sdcard_spi.c",
+      "git_blob_sha1": "7a0cb6e931405d7263654c012aecc535087acb41",
+      "sha256": "1477bdabbe09f5f46fed8b38812f28afd44cd4cdc9e43acb786697f7438af90f",
+      "bytes": 38725
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/sdcard_standard.c",
+      "git_blob_sha1": "78d482ee12d4f0645eab442af142f54f3bc42988",
+      "sha256": "c57fdbde0d077be9f207423425cf3c20c6513347ea6d6a55c1822d25fb16bf47",
+      "bytes": 1628
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/sdcard_standard.h",
+      "git_blob_sha1": "95972bd0f1f9f310c6b8687f34fae3dbc54482a8",
+      "sha256": "a40e27b30371fb3eb665bfc186f0d456c287e1576a4ab074011227ac0bb77120",
+      "bytes": 9738
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/bus.h",
+      "git_blob_sha1": "0cc6b536cae9a65381a5d54281ab7a5866416ac0",
+      "sha256": "825c354fd89940a13bee09fb5a8fb7942a9b91b5c630a060910d31ac389a8a4c",
+      "bytes": 5989
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/bus_spi.h",
+      "git_blob_sha1": "d788d56591452a0c22863641f40089d91e4a5f2a",
+      "sha256": "3d7c55d52244b15f5a219c42cd69d6b4f52f1699d8e421a7e2cf224082cc5bc3",
+      "bytes": 5520
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/bus_spi_types.h",
+      "git_blob_sha1": "14aa7b6674d82cf1271c5ab8d83ab7615a8d6e0b",
+      "sha256": "bb647dff50cafa3db77a4ec06df49a68fa5cb6ce62ed3ae053058747e29af6cf",
+      "bytes": 1138
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/bus_spi_impl.h",
+      "git_blob_sha1": "feb06f7a428e72b7a1ad4359ebe0f08efe5441b7",
+      "sha256": "0a30c57c3b878c58cd9c75ca23622144904140f4f707a5137a4e3bf8401b76a0",
+      "bytes": 2538
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/bus_i2c.h",
+      "git_blob_sha1": "eca7bc57cb9b9b6557c2d43ba1221226259119e1",
+      "sha256": "be90292ff4d29c9125ef24acc4fdf4d241496f7fc32452f3c8a53bc34e38de64",
+      "bytes": 2088
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/exti.h",
+      "git_blob_sha1": "2576183d2f2e1caa10898053ae4809bf4ead2c00",
+      "sha256": "2f585a8df2133b73a4a3352039466d0d96ed550f4677fa0785cc361a7052a6c6",
+      "bytes": 1441
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/io.h",
+      "git_blob_sha1": "b89db23d0a6da545343732dba8bb91a4b60286e4",
+      "sha256": "de3748bffa3782bee1f8f9286459947b0abc19887783ae3d05348bf273b67ebd",
+      "bytes": 2175
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/io_def.h",
+      "git_blob_sha1": "22040052215b4829e07c9bd0909342309bd2f6fd",
+      "sha256": "d8c782e36ec04a76f3b7363bc651aa0156db482a40c97db2cf4081ea53bb173c",
+      "bytes": 2280
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/io_types.h",
+      "git_blob_sha1": "a05ea49c1d3edfff525c0807df0959a14cfd0e5a",
+      "sha256": "cc5112b3cd61ea5bb23feec933c3523b64d77b7cf1fce1b6f1d506d998bf4171",
+      "bytes": 2215
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/sensor.h",
+      "git_blob_sha1": "243ea2a2e7edcff0311a815a08d112b0190e353c",
+      "sha256": "723acaa357dfe5e1b38c4794586afbefdeacd6e307f34b10595d35807f6a7504",
+      "bytes": 1394
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/time.h",
+      "git_blob_sha1": "e761530101035ad8c745dad45e220b4305112034",
+      "sha256": "52ffaf2e1a273ad6b38dbc8fd637a7f00cdef787096f7afdd3b1007de3461e15",
+      "bytes": 1047
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/dma.h",
+      "git_blob_sha1": "012882314c769a11ac191a14958dd6c510346ba1",
+      "sha256": "14441543ad6efd62976ec1a5abba52ea54378a0333a63fcf8e0d8f20fb571fd1",
+      "bytes": 3245
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/dma_reqmap.h",
+      "git_blob_sha1": "e39cb3ae9bd1d6c8c44076871d1915077cd67e2e",
+      "sha256": "41f0c0d9b3da65e807a46343bc44d876d4b7a20af4852afc50c5e9f7a7d0bf76",
+      "bytes": 2275
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/timer.h",
+      "git_blob_sha1": "ef70750f7d80c5696d9fab848d52189b7ac42cdd",
+      "sha256": "dcbee6e0dfa449e8edfb28ab45ee3d54a47190bb1ee718ea988453da02d21007",
+      "bytes": 6322
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/gyro_clkin.h",
+      "git_blob_sha1": "cf01888eee08dccf99c8dd40441731557ede5945",
+      "sha256": "dae7d7c5066fd0d86b8a956039b035e2123c91a9ac0773b9c55c5d4cdef7d7c3",
+      "bytes": 1261
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/common/axis.h",
+      "git_blob_sha1": "9e838c424dc0cb56f7c70d4898814bc8ce5d7e69",
+      "sha256": "aa023a9fbc51e6880ba532ece7374f2dd34e87b69c2f53ca975ae9f1e689168a",
+      "bytes": 2959
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/common/utils.h",
+      "git_blob_sha1": "5483ec45ff7f70ddc11365e60e2e3a1579840669",
+      "sha256": "f41c0d5c4c6bc593a549a2e5d4a9c930de6f3d019b5d048ca7acd98de42e9e62",
+      "bytes": 5436
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/common/maths.h",
+      "git_blob_sha1": "1ba0c3379226ea5eedfb6dc69c0d86d9020ae8fb",
+      "sha256": "d21c1269351309e090b5cf0eb697d7b7cf09c58feca9a25a00454d65edf47b19",
+      "bytes": 6152
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/build/build_config.h",
+      "git_blob_sha1": "013f6e04f6a74ea66f931865617b7cdd30bd3885",
+      "sha256": "27ebb4cab46eba22dd14a0fd09c221e7de5f34abdbcb6a3d2d5fe3025403d9e6",
+      "bytes": 1377
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/build/debug.h",
+      "git_blob_sha1": "1f0ce9724301f1ec78a4bd7f9188d93a0a02f671",
+      "sha256": "546760fdbd23ec0573e73840f1d0bcd51f1967f47719a4c03d860115542ce002",
+      "bytes": 8487
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/platform.h",
+      "git_blob_sha1": "3e9bb741bdd421e87fbb3692418349009b98de97",
+      "sha256": "5f9d6deb7a6104ec17ce67a93c5e1032274cb5b7c1f72649373f8b43743d33c2",
+      "bytes": 1615
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/sensors/gyro.h",
+      "git_blob_sha1": "98fa62c63ce9b7aa78d575619739f6468e891d0f",
+      "sha256": "5c21fd0b81f9811bef345645086b5acb8ff8041bec8052130ef4d5194f00795d",
+      "bytes": 6110
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/pg/gyrodev.h",
+      "git_blob_sha1": "5959c97f7a827714c397c7af625730244e73af49",
+      "sha256": "9b6fb36e884658e167b5db0112f03d743ce8394928d2df007ffa0d4326904432",
+      "bytes": 1351
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/pg/gyrodev.c",
+      "git_blob_sha1": "9012f8f9e74328c74c7f6be6a176bcaf3add4b1e",
+      "sha256": "8242e40221e0e2aff272aa2852fa91d4874c1710bc58b70c2406a728e10650e6",
+      "bytes": 8813
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/pg/pg.h",
+      "git_blob_sha1": "8159a443d7128a2d0bba8a73d3db5793e0431816",
+      "sha256": "e9e42a5412f254a70a0074ad21871b2e97dbf2c315e16bbd17870e77c42f05c7",
+      "bytes": 10116
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/pg/timerio.c",
+      "git_blob_sha1": "955cdfac9129afc62b64d73d1028102616e517bb",
+      "sha256": "f497b875623664b71ff88e987a77413bdf28f0dcef29acc168e235dd2a0c7af4",
+      "bytes": 1670
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/main/drivers/timer_common.c",
+      "git_blob_sha1": "5f5bbf67a4a33ec25b4f3f250f635c543c5b6324",
+      "sha256": "e2545a8d4731d17470cfa4e232fbf81c6705e8a6e45f392c722d7537e0adceec",
+      "bytes": 4771
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/platform/STM32/include/platform/platform.h",
+      "git_blob_sha1": "adb3ee8ff0364709b2b919cab72c0cdfacb2db0f",
+      "sha256": "3d8cb36bc8254a2d5d8ba87d1ec6b3e1176f3a92d1fd11b226e38c8c433fc286",
+      "bytes": 29149
+    },
+    {
+      "repository": "betaflight",
+      "path": "lib/main/BoschSensortec/BMI270-Sensor-API/bmi270_maximum_fifo.c",
+      "git_blob_sha1": "c97e4bdd8b1255191f52cba5007c9c551024f47a",
+      "sha256": "1d6da1d8bd5f772729851bd8451acc0649b940e5f6bb06a45163080b629fc810",
+      "bytes": 8559
+    },
+    {
+      "repository": "betaflight",
+      "path": "lib/main/BoschSensortec/BMI270-Sensor-API/LICENSE",
+      "git_blob_sha1": "315dfa23097dbf96367cd4033ac557698844b1f0",
+      "sha256": "8c966978a9f67992e824d0b76381eab42f240c0049881f7bf2b46c2c093191aa",
+      "bytes": 1524
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/platform/STM32/system_stm32f4xx.c",
+      "git_blob_sha1": "880b4cddaeb3f27797b264a7d44da65b107ea4c8",
+      "sha256": "fc09fc70b48c6dd1189b09e92ac45f9a6d18f5738504daad4e9399f96eb5cd78",
+      "bytes": 4622
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/platform/STM32/startup/system_stm32f4xx.c",
+      "git_blob_sha1": "c4272f3d06d2340d29452f1b4d66c67e3fa4ad5e",
+      "sha256": "c6f2c6fad576239da38f5cda7b961113da1a266a81d1719462741cf6a1a711bf",
+      "bytes": 50994
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/platform/STM32/target/STM32F405/target.h",
+      "git_blob_sha1": "a4313fe380cb748ab8e5cfe40e7b974bb3eea738",
+      "sha256": "38d07b3609dc09afd058d3b741f1c76a093bedb0cdd3e7c9d2a660615a0f50df",
+      "bytes": 1788
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/platform/STM32/target/STM32F722/target.h",
+      "git_blob_sha1": "af8ba56a75703c245ea7c146fbb60d2d7845fde6",
+      "sha256": "3ecadc53e796ee2de55c31f8ae74c0372f4be13167b56d086045830934770359",
+      "bytes": 1945
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/platform/STM32/target/STM32H743/target.h",
+      "git_blob_sha1": "41cba2d6cbb07df1c4c7e720b729e393fcd08301",
+      "sha256": "73ff0e644266551fc7d9e8830b2861fe292e50adfe9fc91c3d43af6ef5c83c01",
+      "bytes": 2252
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/platform/STM32/timer_def.h",
+      "git_blob_sha1": "16bc7da8f040b449a90d002197c65a8528b7f8c3",
+      "sha256": "551c1be564549c64c47232fb3cbdec554e6bf1895567636494e2a3e0b61bbf97",
+      "bytes": 95183
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/platform/STM32/timer_stm32f4xx.c",
+      "git_blob_sha1": "9a0331583d9298d21c9e73d1373509e088ddf53d",
+      "sha256": "c5dc80babff38b77bef62e22238edb4360334739e252bf58fb0e23f902c736c3",
+      "bytes": 8150
+    },
+    {
+      "repository": "betaflight",
+      "path": "src/platform/STM32/dma_reqmap_mcu.c",
+      "git_blob_sha1": "c1310eb44219272fe11eb45ee2166f9061e03b50",
+      "sha256": "6a25e96506d430c8d0fc3e068b62ce8ab61031b2eb20b6c6edef71f4f64ae703",
+      "bytes": 37075
+    }
+  ]
+}

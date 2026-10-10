@@ -45,7 +45,7 @@ Item {
                 weight: Font.Bold
             }
 
-            color: mouseArea.containsMouse ? appPalette.link : appPalette.text
+            color: mouseArea.containsMouse ? appPalette.highlight : appPalette.text
 
             MouseArea {
                 id: mouseArea

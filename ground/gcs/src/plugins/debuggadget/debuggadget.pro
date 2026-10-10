@@ -6,6 +6,7 @@ DEFINES += DEBUGGADGET_LIBRARY
 include(../../gcsplugin.pri)
 
 include(../../libs/extensionsystem/extensionsystem.pri)
+include(../../libs/utils/utils.pri)
 
 include(../../plugins/coreplugin/coreplugin.pri)
 

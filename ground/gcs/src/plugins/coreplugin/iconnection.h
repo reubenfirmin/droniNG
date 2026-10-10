@@ -37,6 +37,13 @@
 
 namespace Core {
 
+struct ConnectionError
+{
+    QString message;
+    QString command;
+    QString details;
+};
+
 /**
 *   An IConnection object define a "type of connection",
 *   for instance USB, Serial, Network, ...
@@ -57,6 +64,14 @@ public:
     *   deleted by the connection manager.
     */
     virtual QIODevice *openDevice(IDevice *device) = 0;
+
+    // Details of the most recent failed open, when supplied by the plugin.
+    virtual QString errorString() const { return QString(); }
+    virtual ConnectionError error() const
+    {
+        return {tr("Check that your controller is plugged in, then try connecting again."),
+                QString(), errorString()};
+    }
 
     virtual void closeDevice(const QString &deviceName) { Q_UNUSED(deviceName) }
 

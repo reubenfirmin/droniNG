@@ -74,6 +74,7 @@ public slots:
 private slots:
     void objectRetrieveTimeoutCB();
     void newInstanceSlot(UAVObject *);
+    void handshakeTimeoutCB();
 
 private:
     static const int STATS_UPDATE_PERIOD_MS = 1600;
@@ -98,6 +99,8 @@ private:
     QTimer *statsTimer;
     QElapsedTimer connectionTimer;
     QTimer *objectRetrieveTimeout;
+    QTimer *handshakeTimeout;
+    Telemetry::TelemetryStats handshakeStats{};
     int requestsInFlight;
 
     void startRetrievingObjects();

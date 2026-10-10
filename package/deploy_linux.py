@@ -15,6 +15,10 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
+
+from linux_abi import collect_abi, dependency_paths
+from source_distribution import include_sources
 
 
 PLUGIN_GROUPS = (
@@ -40,7 +44,15 @@ def is_elf(path):
         return stream.read(4) == b"\x7fELF"
 
 
-def deploy(qmake, application):
+def deploy(qmake, application, qt_source_archives=None, sdk_dependency_cache=None,
+           application_source_root=None):
+    if (qt_source_archives is None) != (sdk_dependency_cache is None):
+        raise RuntimeError("Supply both Qt source archives and the SDK dependency cache")
+    if application_source_root is not None and qt_source_archives is None:
+        raise RuntimeError("Application source inclusion requires the SDK source material options")
+    if ((application / "source-materials").exists()
+            or (application / "THIRD_PARTY_NOTICES.md").exists()):
+        raise RuntimeError("Use a fresh package stage to preserve existing source materials")
     version = query(qmake, "QT_VERSION")
     major = version.split(".")[0]
     if major not in ("5", "6"):
@@ -74,18 +86,12 @@ def deploy(qmake, application):
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode:
             raise RuntimeError(f"ldd failed for {path}: {result.stderr.strip()}")
-        if "not found" in result.stdout or "not found" in result.stderr:
-            raise RuntimeError(f"Missing dependency in {path}:\n{result.stdout}{result.stderr}")
         found = []
-        for line in result.stdout.splitlines():
-            match = re.match(r"\s*(\S+) => (/\S+) \(", line)
-            if not match:
-                continue
-            name, filename = match.groups()
+        for name, filename in dependency_paths(result.stdout + result.stderr).items():
             qt = re.match(r"libQt([56])", name)
             if qt and qt.group(1) != major:
                 raise RuntimeError(f"Qt {major} package would load {name} from {path}")
-            found.append((name, Path(filename)))
+            found.append((name, filename))
         return found
 
     # Check the application before making runtime copies: a wrong QMAKE must
@@ -148,7 +154,11 @@ def deploy(qmake, application):
                 if not (resolved.is_relative_to(library_source)
                         or resolved.is_relative_to(library_destination)):
                     raise RuntimeError(f"Qt dependency comes from another SDK: {dependency}")
-                destination = library_destination / dependency.name
+                if Path(name).name != name:
+                    raise RuntimeError(f"Runtime dependency is not a relocatable library name: {name}")
+                # ldd may resolve a symlink to its fully versioned filename.
+                # The deployed filename must satisfy the requested SONAME.
+                destination = library_destination / name
                 if dependency != destination:
                     if destination.exists() and not destination.samefile(dependency):
                         destination.unlink()
@@ -164,8 +174,12 @@ def deploy(qmake, application):
         "Translations=../lib/droning/translations\n", encoding="utf-8")
     manifest = {"qt_version": version, "qmake": str(Path(qmake).resolve()),
                 "bundled_libraries_sha256": dict(sorted(bundled.items())),
-                "system_dependencies": sorted(external)}
+                "system_dependencies": sorted(external),
+                "linux_abi": collect_abi(application, major)}
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    if qt_source_archives is not None:
+        include_sources(application, prefix, qt_source_archives, sdk_dependency_cache,
+                        application_source_root=application_source_root)
     print(f"Bundled Qt {version}: {len(bundled)} runtime libraries; manifest {manifest_path}")
 
 
@@ -173,10 +187,18 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--qmake", required=True)
     parser.add_argument("--application", required=True, type=Path)
+    parser.add_argument("--qt-source-archives", type=Path,
+                        help="Include verified Qt source archives, notices and SDK inventories")
+    parser.add_argument("--sdk-dependency-cache", type=Path,
+                        help="Include the pinned FFmpeg/ICU materials with Qt sources")
+    parser.add_argument("--application-source-root", type=Path,
+                        help="Preserve current tracked sources and new application source files")
     args = parser.parse_args()
     try:
-        deploy(args.qmake, args.application.resolve())
-    except (OSError, RuntimeError, subprocess.SubprocessError, ValueError) as error:
+        deploy(args.qmake, args.application.resolve(),
+               args.qt_source_archives, args.sdk_dependency_cache, args.application_source_root)
+    except (OSError, RuntimeError, subprocess.SubprocessError, ValueError,
+            KeyError, tarfile.TarError) as error:
         print(f"Qt deployment failed: {error}", file=sys.stderr)
         return 1
     return 0

@@ -262,6 +262,11 @@ endif
 
 
 GCS_QMAKE_DEPS := $(shell find $(ROOT_DIR)/ground -name '*.pr?') $(wildcard $(ROOT_DIR)/branding/*.pri)
+GCS_QMAKE_DEPS += $(ROOT_DIR)/make/scripts/version-info.py \
+                  $(ROOT_DIR)/make/templates/gcsversioninfotemplate.h \
+                  $(ROOT_DIR)/make/templates/gcsauthorstemplate.html \
+                  $(ROOT_DIR)/make/templates/gcsrelauthorstemplate.html \
+                  $(wildcard $(ROOT_DIR)/make/gcs-version-metadata.json)
 $(GCS_QMAKE_DEPS): ;
 
 GCS_GRAPHICS_TOOLS :=

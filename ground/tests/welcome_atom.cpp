@@ -1,6 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "atomfeedmodel.h"
+#include <utils/darktheme.h>
+#include <QApplication>
 #include <QFile>
+#include <QQuickItem>
+#include <QQuickWindow>
 #include <QQmlComponent>
 #include <QQmlEngine>
 #include <QTcpServer>
@@ -30,6 +34,11 @@ class WelcomeAtomTests : public QObject
         return QUrl::fromLocalFile(file.fileName());
     }
 private slots:
+    void initTestCase()
+    {
+        Utils::applyDarkTheme();
+        qmlRegisterType<Welcome::AtomFeedModel>("DroniNG.Welcome", 1, 0, "AtomFeedModel");
+    }
     void atomRolesAndFiltering_data()
     {
         QTest::addColumn<QByteArray>("xml");
@@ -121,7 +130,6 @@ private slots:
     }
     void shippedNewsPanel()
     {
-        qmlRegisterType<Welcome::AtomFeedModel>("DroniNG.Welcome", 1, 0, "AtomFeedModel");
         QTemporaryDir directory;
         QVERIFY(directory.isValid());
         const QUrl source = write(directory, "feed.atom", feed);
@@ -137,6 +145,96 @@ private slots:
         QVERIFY(model);
         QTRY_COMPARE(model->rowCount(), 2);
         QCOMPARE(warnings, 0);
+    }
+
+    void panelHover_data()
+    {
+        QTest::addColumn<QString>("fileName");
+        QTest::addColumn<int>("rows");
+        QTest::addColumn<int>("textsPerRow");
+        QTest::newRow("sites") << QString("SitesPanel.qml") << 4 << 1;
+        QTest::newRow("news") << QString("NewsPanel.qml") << 1 << 2;
+        QTest::newRow("autotune") << QString("AutoTunePanel.qml") << 1 << 3;
+    }
+
+    void panelHover()
+    {
+        QFETCH(QString, fileName);
+        QFETCH(int, rows);
+        QFETCH(int, textsPerRow);
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QUrl atomSource = write(directory, "hover.atom", QByteArray(
+            "<feed xmlns='http://www.w3.org/2005/Atom'><entry><title>Hover test</title>"
+            "<author><name>Developer</name></author></entry></feed>"));
+        QTcpServer server;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        connect(&server, &QTcpServer::newConnection, this, [&]() {
+            QTcpSocket *socket = server.nextPendingConnection();
+            connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+            connect(socket, &QTcpSocket::readyRead, socket, [socket]() {
+                if (!socket->readAll().contains("\r\n\r\n"))
+                    return;
+                const QByteArray json = "[{\"Board\":\"CC3D\",\"Key\":\"test\",\"Tau\":0.01,"
+                    "\"Timestamp\":\"2026-01-01T00:00:00Z\",\"City\":\"london\",\"Country\":\"UK\"}]";
+                socket->write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
+                              + QByteArray::number(json.size()) + "\r\nConnection: close\r\n\r\n" + json);
+                socket->disconnectFromHost();
+            });
+        });
+        QQmlEngine engine;
+        QStringList warnings;
+        connect(&engine, &QQmlEngine::warnings, this, [&](const QList<QQmlError> &errors) {
+            for (const QQmlError &error : errors)
+                warnings.append(error.toString());
+        });
+        const QString panelDir = qEnvironmentVariable("GCS_WELCOME_QML_DIR", WELCOME_PANEL_DIR);
+        QQmlComponent component(&engine, QUrl::fromLocalFile(panelDir + "/" + fileName));
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        QVariantMap properties;
+        if (fileName == "NewsPanel.qml")
+            properties.insert("feedSource", atomSource);
+        else if (fileName == "AutoTunePanel.qml")
+            properties.insert("feedSource", QUrl(QString("http://127.0.0.1:%1/").arg(server.serverPort())));
+        QQuickWindow window;
+        window.resize(500, 400);
+        std::unique_ptr<QQuickItem> panel(qobject_cast<QQuickItem *>(component.createWithInitialProperties(properties)));
+        QVERIFY(panel);
+        panel->setParentItem(window.contentItem());
+        panel->setSize(QSizeF(480, 380));
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        QTest::mouseMove(&window, QPoint(490, 390));
+        QTRY_COMPARE(itemsWithProperty(panel.get(), "hoverEnabled", true).size(), rows);
+        const auto areas = itemsWithProperty(panel.get(), "hoverEnabled", true);
+        for (QQuickItem *area : areas) {
+            const auto texts = itemsWithProperty(area->parentItem(), "color");
+            QCOMPARE(texts.size(), textsPerRow);
+            const QPoint inside = area->mapToScene(QPointF(area->width() / 2, area->height() - 2)).toPoint();
+            QTest::mouseMove(&window, inside);
+            QTRY_VERIFY(area->property("containsMouse").toBool());
+            QVERIFY2(warnings.isEmpty(), qPrintable(warnings.join('\n')));
+            for (QQuickItem *text : texts)
+                QCOMPARE(text->property("color").value<QColor>(), qApp->palette().color(QPalette::Active, QPalette::Highlight));
+            QTest::mouseMove(&window, QPoint(490, 390));
+            QTRY_VERIFY(!area->property("containsMouse").toBool());
+            for (QQuickItem *text : texts)
+                QCOMPARE(text->property("color").value<QColor>(), qApp->palette().color(QPalette::Active, QPalette::Text));
+        }
+        QVERIFY2(warnings.isEmpty(), qPrintable(warnings.join('\n')));
+    }
+
+private:
+    static QList<QQuickItem *> itemsWithProperty(QQuickItem *root, const char *name,
+                                               const QVariant &value = {})
+    {
+        QList<QQuickItem *> items;
+        const QVariant property = root->property(name);
+        if (property.isValid() && (!value.isValid() || property == value))
+            items.append(root);
+        for (QQuickItem *child : root->childItems())
+            items.append(itemsWithProperty(child, name, value));
+        return items;
     }
 };
 

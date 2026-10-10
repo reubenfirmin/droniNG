@@ -111,6 +111,10 @@ TelemetryMonitor::TelemetryMonitor(UAVObjectManager *objMngr, Telemetry *tel)
     // Start update timer
     statsTimer = new QTimer(this);
     objectRetrieveTimeout = new QTimer(this);
+    handshakeTimeout = new QTimer(this);
+    handshakeTimeout->setSingleShot(true);
+    connect(handshakeTimeout, &QTimer::timeout, this, &TelemetryMonitor::handshakeTimeoutCB);
+    handshakeTimeout->start(CONNECTION_TIMEOUT_MS);
     objectRetrieveTimeout->setSingleShot(true);
     connect(statsTimer, &QTimer::timeout, this, &TelemetryMonitor::processStatsUpdates);
     connect(objectRetrieveTimeout, &QTimer::timeout, this,
@@ -354,12 +358,33 @@ void TelemetryMonitor::flightStatsUpdated(UAVObject *obj)
 
 void TelemetryMonitor::objectRetrieveTimeoutCB()
 {
-    qInfo() <<
+    qWarning() <<
         QString("%0 reached timeout for object retrieval, clearing queue")
         .arg(Q_FUNC_INFO);
 
     /* Clear the queue */
     queue = decltype(queue)(queueCompare);
+}
+
+void TelemetryMonitor::handshakeTimeoutCB()
+{
+    // Include the final partial stats interval in the diagnostic counters.
+    processStatsUpdates();
+    if (gcsStatsObj->getData().Status == GCSTelemetryStats::STATUS_CONNECTED)
+        return;
+
+    auto device = Core::ICore::instance()->connectionManager()->getCurrentDevice();
+    qWarning().noquote()
+        << QString("UAVTalk handshake timed out after %1 ms on %2: "
+                   "txBytes=%3, rxBytes=%4, validRxObjects=%5, rxErrors=%6, "
+                   "txErrors=%7, txRetries=%8, GCS state=%9, flight state=%10. "
+                   "The connection remains open and the GCS is still retrying. "
+                   "Check the serial settings and firmware: this GCS requires compatible dRonin UAVTalk firmware.")
+               .arg(CONNECTION_TIMEOUT_MS).arg(device.getConName())
+               .arg(handshakeStats.txBytes).arg(handshakeStats.rxBytes)
+               .arg(handshakeStats.rxObjects).arg(handshakeStats.rxErrors)
+               .arg(handshakeStats.txErrors).arg(handshakeStats.txRetries)
+               .arg(gcsStatsObj->getData().Status).arg(flightStatsObj->getData().Status);
 }
 
 void TelemetryMonitor::newInstanceSlot(UAVObject *obj)
@@ -379,6 +404,12 @@ void TelemetryMonitor::processStatsUpdates()
     GCSTelemetryStats::DataFields gcsStats = gcsStatsObj->getData();
     FlightTelemetryStats::DataFields flightStats = flightStatsObj->getData();
     Telemetry::TelemetryStats telStats = tel->getStats();
+    handshakeStats.txBytes += telStats.txBytes;
+    handshakeStats.rxBytes += telStats.rxBytes;
+    handshakeStats.rxObjects += telStats.rxObjects;
+    handshakeStats.rxErrors += telStats.rxErrors;
+    handshakeStats.txErrors += telStats.txErrors;
+    handshakeStats.txRetries += telStats.txRetries;
 
     // Update stats object
     gcsStats.RxDataRate = (float)telStats.rxBytes / ((float)statsTimer->interval() / 1000.0);
@@ -428,11 +459,18 @@ void TelemetryMonitor::processStatsUpdates()
 
     // Act on new connections or disconnections
     if (gcsStats.Status == GCSTelemetryStats::STATUS_CONNECTED && gcsStats.Status != oldStatus) {
+        handshakeTimeout->stop();
         statsTimer->setInterval(STATS_UPDATE_PERIOD_MS);
-        qDebug() << "Connection with the autopilot established";
+        qInfo() << "UAVTalk handshake completed; retrieving objects from the autopilot";
         connectionStatus = CON_INITIALIZING;
         startRetrievingObjects();
     } else if (gcsStats.Status == GCSTelemetryStats::STATUS_DISCONNECTED && gcsStats.Status != oldStatus) {
+        auto device = Core::ICore::instance()->connectionManager()->getCurrentDevice();
+        qWarning().noquote() << "Telemetry disconnected from" << device.getConName() << ":"
+                            << (connectionTimeout ? "no valid UAVTalk objects received for 8 seconds"
+                                                  : "the autopilot reported a disconnected state");
+        handshakeStats = {};
+        handshakeTimeout->start(CONNECTION_TIMEOUT_MS);
         statsTimer->setInterval(STATS_CONNECT_PERIOD_MS);
         connectionStatus = CON_DISCONNECTED;
         foreach (UAVObjectManager::ObjectMap map, objMngr->getObjects()) {

@@ -1,0 +1,29 @@
+{
+  "qt_version": "6.12.0",
+  "source_url_prefix": "https://download.qt.io/official_releases/qt/6.12/6.12.0/submodules/",
+  "modules": {
+    "qt5compat": "78cf1c283795312a7fa31c73eb7f7f556b48374adc484f10ad5a3c0bcb59264e",
+    "qtbase": "a951bd163c7b80fc6b8c88d7668fb56abf91c152373e13c10666763238131307",
+    "qtcharts": "dc5e0599455c78729248a1bb95824fe6a3420e860b8cabc5ac0c7a93c2062bfb",
+    "qtdeclarative": "311f3a2603e1973bb59baef9dfa740a376de713157d4782ee043681e889c9260",
+    "qtimageformats": "0943132b5db8de6b6a7f1d162682173e8763c7ed94e80fd39113292845f67762",
+    "qtmultimedia": "3143f53b64257ba2a0685c940f5dce476c75871ff86b516de45cfd54ea93a62d",
+    "qtserialport": "ba8886a54eee466e57c9fa1341255cc09c462c84baab3ee7b19d67cdbcbd71c3",
+    "qtshadertools": "c7d84f436e1aaef39fdcadebf2bd71bdf24dc69497e13f2e0198873cbbfea2ab",
+    "qtsvg": "e4ab39534ec97987b1b9b60ef7f4d3253d5912a69f8c713a01753174a4029331",
+    "qttranslations": "85929c0c30d6f273f23bd879bb69803ea17b010ab73cab2f8abf95357f6f6bbb",
+    "qttools": "8dab8f3611496486a470ad5f115ceea584f36bc22a2b8b6f6ebdbafbb8160693",
+    "qtwayland": "ae14d9bcf1bb3c300a3ab2e6a53f50284e5c6c966a4ac4cc5aedcb1bc74e4d02"
+  },
+  "build_tools": {
+    "bin/qmake": "qtbase",
+    "libexec/moc": "qtbase",
+    "libexec/rcc": "qtbase",
+    "libexec/uic": "qtbase",
+    "bin/lrelease": "qttools",
+    "bin/lrelease-pro": "qttools",
+    "bin/lupdate": "qttools",
+    "bin/lupdate-pro": "qttools",
+    "bin/lconvert": "qttools"
+  }
+}

@@ -8,6 +8,7 @@ Item {
     SystemPalette { id: appPalette }
     width: 100
     height: 62
+    property url feedSource: "http://dronin-autotown.appspot.com/api/recentTunes?limit=10"
 
     signal clicked(string url)
 
@@ -45,7 +46,7 @@ Item {
     JSONListModel {
         id: jsonModel
         // The existing public tune database is maintained by upstream.
-        source: "http://dronin-autotown.appspot.com/api/recentTunes?limit=10"
+        source: container.feedSource
         query: "$[*]"
     }
 
@@ -68,20 +69,20 @@ Item {
                         width: view.width
                         font.bold: true
                         elide: Text.ElideRight
-                        color: mouseArea.containsMouse ? appPalette.link : appPalette.text
+                        color: mouseArea.containsMouse ? appPalette.highlight : appPalette.text
                     }
                     Text {
                         text: "Tau: %1 ms".arg(model.Tau * 1000.0)
                         width: view.width
                         elide: Text.ElideRight
-                        color: mouseArea.containsMouse ? appPalette.link : appPalette.text
+                        color: mouseArea.containsMouse ? appPalette.highlight : appPalette.text
                     }
                     Text {
                         text: "%1 in %2, %3".arg(relDate).arg(TitleCase.toTitleCase(model.City)).arg(model.Country)
                         font.italic: true
                         width: view.width
                         elide: Text.ElideRight
-                        color: mouseArea.containsMouse ? appPalette.link : appPalette.text
+                        color: mouseArea.containsMouse ? appPalette.highlight : appPalette.text
                     }
                 }
 

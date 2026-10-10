@@ -1,0 +1,104 @@
+{
+  "qt_version": "6.12.0",
+  "sdk_platform": "linux_gcc_64",
+  "qt_vendor_commit": "ef25002ed292b132d1ed3246bfcee1d24a9cd966",
+  "components": {
+    "ffmpeg": {
+      "version": "9.0.1",
+      "source_archive": "ffmpeg-9.0.1.tar.gz",
+      "qt_recipe_archive_sha1": "89c318905212e6b67e10e42ab10ab8007e0aefda",
+      "release_signing_fingerprint": "FCF986EA15E6E293A5644F10B4322F04D67658D8",
+      "observed_configuration": "--disable-programs --disable-doc --disable-debug --enable-network --disable-lzma --enable-pic --disable-vulkan --disable-v4l2-m2m --disable-decoder=truemotion1 --disable-avdevice --disable-avfilter --enable-shared --disable-static --enable-openssl --prefix=/usr/local/FFmpeg-n9.0.1",
+      "observed_library_license": "LGPL version 2.1 or later",
+      "sdk_library_sha256": {
+        "libavutil.so.61": "65c881ddaf2211fe06775ab38fc677905f5990831e043c149abfa9fc0077d7f3",
+        "libavcodec.so.63": "e7b4411e1a64c0449235eb810dfbbb6e72febc414eed02532b01b02ec6e7852e",
+        "libavformat.so.63": "e697292a30ab2cd594b53428d7f02ec65529972ba5a4f5b3975891146f24e27c",
+        "libswresample.so.7": "498b423124dc465dc87749302dff699b19d5408dfac08c1ac62bd008cf19522d",
+        "libswscale.so.10": "7c13008174fd1f1e8b8c99fad679e47b1d2bf188871be7b4930c96f0c1a5bfc0"
+      },
+      "notice_members": ["COPYING.LGPLv2.1", "COPYING.LGPLv3", "COPYING.GPLv2", "COPYING.GPLv3", "LICENSE.md"],
+      "provenance": "The gzip source matches Qt's pinned SHA1. Its 10,397 source-file hashes match the signed xz release. All five pinned libraries report the configuration above, matching Qt's recipe. Qt subsequently changes dependencies to its FFmpeg loader stubs and sets the origin-relative loader path. This is source/build provenance, not a byte-identical rebuild."
+    },
+    "icu": {
+      "version": "73.2",
+      "source_archive": "icu4c-73_2-src.tgz",
+      "published_source_md5": "b8a4b8cf77f2e2f6e1341eac0aab2fc4",
+      "qt_recipe_prebuilt_sha1": "d2bbb7b2a9a9ee00dba5cc6a68137f6c8a98c27e",
+      "sdk_library_sha256": {
+        "libicudata.so.73": "4f182a855296cf96d39f75c9028b12765a78fe6afff3d3781d633110525b7a8b",
+        "libicui18n.so.73": "a18e48266e59efff3ec872d9dc5cc99b776e180b8ede57269d354e6bc6595778",
+        "libicuuc.so.73": "b76380b2c15c8ff8b3c94576ac98b40d34fc0a091db4a89324d72e271c7699f0"
+      },
+      "notice_members": ["LICENSE", "license.html"],
+      "provenance": "The SDK libraries match Qt's pinned RHEL 8.6 prebuilt in every byte except the 17-byte loader-path slot changed to $ORIGIN. The upstream 73.2 source passes the published MD5. The exact source inputs, patches and recipe used to build that prebuilt remain unverified."
+    },
+    "nv-codec-headers": {
+      "version": "12.0.16.1",
+      "source_archive": "nv-codec-headers-12.0.16.1.tar.gz",
+      "qt_recipe_archive_sha1": "df7239777af15af5d7e563d2af0deff874c3b770",
+      "sdk_library_sha256": {},
+      "notice_members": ["include/ffnvcodec/dynlink_cuda.h", "include/ffnvcodec/dynlink_cuviddec.h", "include/ffnvcodec/dynlink_loader.h", "include/ffnvcodec/dynlink_nvcuvid.h", "include/ffnvcodec/nvEncodeAPI.h"],
+      "provenance": "Qt's FFmpeg recipe installs this pinned build input. The complete headers retain their embedded copyright and permission notices; there is no separate licence file in this archive."
+    }
+  },
+  "materials": {
+    "ffmpeg-9.0.1.tar.gz": {
+      "url": "https://ffmpeg.org/releases/ffmpeg-9.0.1.tar.gz",
+      "sha256": "657dbf258cce6c0681714b6e40b8ca69e988c67ecfc2f7aab47574e6ebaceb38"
+    },
+    "ffmpeg-9.0.1.tar.xz": {
+      "url": "https://ffmpeg.org/releases/ffmpeg-9.0.1.tar.xz",
+      "sha256": "cf38e0e28c7e5605942c4a77755349b0145804a397af37eb1fb4c77cb237f635"
+    },
+    "ffmpeg-9.0.1.tar.xz.asc": {
+      "url": "https://ffmpeg.org/releases/ffmpeg-9.0.1.tar.xz.asc",
+      "sha256": "b613a00005232a1245ace7080088781ac23a916119d3e5b0d6c042368eee0177"
+    },
+    "ffmpeg-devel.asc": {
+      "url": "https://ffmpeg.org/ffmpeg-devel.asc",
+      "sha256": "397b3becedcd5a98769967ff1ff8501ddc89f8368b8f766e4701377d7dbaabe5"
+    },
+    "icu4c-73_2-src.tgz": {
+      "url": "https://github.com/unicode-org/icu/releases/download/release-73-2/icu4c-73_2-src.tgz",
+      "sha256": "818a80712ed3caacd9b652305e01afc7fa167e6f2e94996da44b90c2ab604ce1"
+    },
+    "icu4c-73_2-src.md5": {
+      "url": "https://github.com/unicode-org/icu/releases/download/release-73-2/icu4c-73_2-src.md5",
+      "sha256": "428b8f433e39edfc02bdb8d3eccd0ce9a0dd3ecbc818f307637079eafd1fcf86"
+    },
+    "icu-linux-g++-Rhel8.6-x64.7z": {
+      "url": "https://download.qt.io/development_releases/prebuilt/icu/prebuilt/73.2/icu-linux-g++-Rhel8.6-x64.7z",
+      "sha256": "67c31f27a29194d2d226fd2b1b9f531beab7f292608bdffc23bc3c5bd62e90ae"
+    },
+    "nv-codec-headers-12.0.16.1.tar.gz": {
+      "url": "https://github.com/FFmpeg/nv-codec-headers/releases/download/n12.0.16.1/nv-codec-headers-12.0.16.1.tar.gz",
+      "sha256": "bfb3306f22c169fedcfc5489b344f414089eec796ffd528412677b0c872bc6e2"
+    },
+    "qt-6.12.0-install-ffmpeg-linux.sh": {
+      "url": "https://code.qt.io/cgit/qt/qt5.git/plain/coin/provisioning/common/linux/install-ffmpeg-linux.sh?id=ef25002ed292b132d1ed3246bfcee1d24a9cd966",
+      "sha256": "43536d2053b7f0e4634df7859ccd083d3103abf881b5bbeac672fe276ac28b55"
+    },
+    "qt-6.12.0-ffmpeg-installation-utils.sh": {
+      "url": "https://code.qt.io/cgit/qt/qt5.git/plain/coin/provisioning/common/unix/ffmpeg-installation-utils.sh?id=ef25002ed292b132d1ed3246bfcee1d24a9cd966",
+      "sha256": "28308522279901a565855114f5fcfcdc2d5aeb083f15c50faa9b5664bc305f1e"
+    },
+    "qt-6.12.0-ffmpeg-config-options.txt": {
+      "url": "https://code.qt.io/cgit/qt/qt5.git/plain/coin/provisioning/common/shared/ffmpeg_config_options.txt?id=ef25002ed292b132d1ed3246bfcee1d24a9cd966",
+      "sha256": "5331acdc4bb8689719d6319e3ede3babd46793320d5305128224b4ac19bb810c"
+    },
+    "qt-6.12.0-fix-ffmpeg-dependencies.sh": {
+      "url": "https://code.qt.io/cgit/qt/qt5.git/plain/coin/provisioning/common/shared/fix_ffmpeg_dependencies.sh?id=ef25002ed292b132d1ed3246bfcee1d24a9cd966",
+      "sha256": "b301bd034f266c332c6ed4d00c12bac33d4c6660489b9da75a0d53949a147eb6"
+    },
+    "qt-6.12.0-install-icu-rhel94.sh": {
+      "url": "https://code.qt.io/cgit/qt/qt5.git/plain/coin/provisioning/qtci-linux-RHEL-9.4-x86_64/30-install_icu.sh?id=ef25002ed292b132d1ed3246bfcee1d24a9cd966",
+      "sha256": "282f7405252127ecbabe3760a82f0d5ff2d6f4117971c9d97ac82f6f285669b3"
+    }
+  },
+  "remaining_source_gates": [
+    "ICU prebuilt: obtain and verify its exact source inputs, patches and build recipe.",
+    "Qt and FFmpeg: retain complete build helpers and environments needed for reproduction; selected provisioning files alone are not a standalone build recipe.",
+    "Application: audit the remaining libraries and assets, preserve the exact application source changes, and integrate notices/source materials into the final distribution."
+  ]
+}

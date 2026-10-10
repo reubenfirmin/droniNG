@@ -37,6 +37,7 @@
 #include "utils/xmlconfig.h"
 #include "utils/pathutils.h"
 #include "utils/darktheme.h"
+#include "utils/qtlogging.h"
 #include <runguard/runguard.h>
 
 #include <extensionsystem/pluginmanager.h>
@@ -172,6 +173,7 @@ static void overrideSettings(QCommandLineParser &parser, QSettings *settings)
 
 int main(int argc, char **argv)
 {
+    Utils::installQtMessageHandler();
     QApplication app(argc, argv);
     Utils::applyDarkTheme();
 

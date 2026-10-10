@@ -30,6 +30,7 @@
 #include <coreplugin/iuavgadget.h>
 #include <QTextStream>
 #include <QProcessEnvironment>
+#include <utils/qtlogging.h>
 
 void customMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {
@@ -40,6 +41,7 @@ void customMessageHandler(QtMsgType type, const QMessageLogContext &context, con
         break;
     case QtInfoMsg:
         level = DebugEngine::INFO;
+        QTextStream(stderr) << "[Info] " << msg << Qt::endl;
         break;
     case QtWarningMsg:
         level = DebugEngine::WARNING;
@@ -66,7 +68,7 @@ DebugGadgetFactory::DebugGadgetFactory(QObject *parent)
         DebugEngine::getInstance()->message(DebugEngine::INFO,
                                             "Debug gadget disabled by NO_DEBUG_GADGET env. var.");
     else
-        qInstallMessageHandler(customMessageHandler);
+        Utils::installQtMessageHandler(customMessageHandler);
 }
 
 DebugGadgetFactory::~DebugGadgetFactory()

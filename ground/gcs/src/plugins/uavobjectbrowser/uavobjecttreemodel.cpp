@@ -47,6 +47,44 @@
 
 #include <QApplication>
 
+namespace {
+QColor compositeColor(const QColor &foreground, const QColor &background)
+{
+    const qreal alpha = foreground.alphaF();
+    return QColor::fromRgbF(foreground.redF() * alpha + background.redF() * (1 - alpha),
+                            foreground.greenF() * alpha + background.greenF() * (1 - alpha),
+                            foreground.blueF() * alpha + background.blueF() * (1 - alpha));
+}
+
+double relativeLuminance(const QColor &color)
+{
+    // sRGB contrast calculation: https://www.w3.org/WAI/WCAG22/Techniques/general/G18
+    const auto channel = [](double component) {
+        return component <= 0.04045 ? component / 12.92
+                                   : pow((component + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * channel(color.redF()) + 0.7152 * channel(color.greenF())
+           + 0.0722 * channel(color.blueF());
+}
+
+QColor readableHighlightText(const QColor &foreground, const QColor &background)
+{
+    const QColor paintedBackground =
+            compositeColor(background, QApplication::palette().color(QPalette::Base));
+    const double backgroundLuminance = relativeLuminance(paintedBackground);
+    const double foregroundLuminance =
+            relativeLuminance(compositeColor(foreground, paintedBackground));
+    const double contrast = (qMax(foregroundLuminance, backgroundLuminance) + 0.05)
+                            / (qMin(foregroundLuminance, backgroundLuminance) + 0.05);
+    if (contrast >= 4.5)
+        return foreground;
+
+    const double blackContrast = (backgroundLuminance + 0.05) / 0.05;
+    const double whiteContrast = 1.05 / (backgroundLuminance + 0.05);
+    return blackContrast >= whiteContrast ? QColor(Qt::black) : QColor(Qt::white);
+}
+}
+
 UAVObjectTreeModel::UAVObjectTreeModel(QObject *parent, bool useScientificNotation)
     : QAbstractItemModel(parent)
     , m_rootItem(NULL)
@@ -426,10 +464,11 @@ QVariant UAVObjectTreeModel::data(const QModelIndex &index, int role) const
 
     if (role == Qt::ForegroundRole) {
         if (item) {
-            if (item->getIsPresentOnHardware())
-                return QVariant(m_isPresentOnHwColor);
-            else
-                return QVariant(m_notPresentOnHwColor);
+            const QColor foreground = item->getIsPresentOnHardware() ? m_isPresentOnHwColor
+                                                                     : m_notPresentOnHwColor;
+            const QColor background = data(index, Qt::BackgroundRole).value<QColor>();
+            return background.isValid() ? readableHighlightText(foreground, background)
+                                        : foreground;
         }
     }
 

@@ -86,6 +86,24 @@ private slots:
                                       qRound(480 * view->devicePixelRatioF())));
         qInfo() << "Production ModelView context" << view->context()->format().version()
                 << view->context()->format().profile();
+        view->makeCurrent();
+        const QString renderer = QString::fromLatin1(
+            reinterpret_cast<const char *>(glGetString(GL_RENDERER)));
+        const QString vendor = QString::fromLatin1(
+            reinterpret_cast<const char *>(glGetString(GL_VENDOR)));
+        view->doneCurrent();
+        QVERIFY(!renderer.isEmpty());
+        qInfo() << "ModelView graphics" << QGuiApplication::platformName()
+                << "vendor" << vendor << "renderer" << renderer
+                << "devicePixelRatio" << view->devicePixelRatioF();
+        if (qEnvironmentVariableIsSet("GCS_REQUIRE_HARDWARE_GL")) {
+            const QString lower = renderer.toLower();
+            const bool software = lower.contains("llvmpipe") || lower.contains("softpipe")
+                                  || lower.contains("software") || lower.contains("swrast")
+                                  || lower.contains("swiftshader") || lower.contains("lavapipe");
+            QVERIFY2(!software, qPrintable(QStringLiteral("Hardware OpenGL required; renderer is ")
+                                           + renderer));
+        }
         QVERIFY(view->context()->format().profile() != QSurfaceFormat::CoreProfile);
         checkGL(*view);
 

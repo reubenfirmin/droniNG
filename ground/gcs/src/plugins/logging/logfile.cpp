@@ -30,6 +30,7 @@
 #include <QTextStream>
 #include <QMainWindow>
 #include <QMessageBox>
+#include <algorithm>
 
 #include <coreplugin/icore.h>
 #include <coreplugin/coreconstants.h>
@@ -235,7 +236,7 @@ void LogFile::timerFired()
             mutex.unlock();
             emit readyRead();
 
-            if (file.bytesAvailable() < 4) {
+            if (file.bytesAvailable() < 4 || timestampBufferIdx >= quint32(timestampBuffer.size())) {
                 stopReplay();
                 return;
             }
@@ -357,16 +358,29 @@ void LogFile::resumeReplay()
  */
 void LogFile::setReplayTime(double val)
 {
-    quint32 tmpIdx = 0;
-    while (timestampBuffer[tmpIdx++] <= val * 1000 && tmpIdx <= timestampBufferIdx) {
-    }
+    if (!file.isOpen() || timestampBuffer.isEmpty() || !qIsFinite(val))
+        return;
 
-    lastTimeStampPos = timestampPos[tmpIdx];
-    lastTimeStamp = timestampBuffer[tmpIdx];
-    timestampBufferIdx = tmpIdx;
+    // The position control uses elapsed seconds, while the file may start with
+    // a nonzero timestamp. Seek to the first packet at or after that position.
+    const double target = firstTimestamp + qMax(0.0, val) * 1000.0;
+    auto packet = std::lower_bound(timestampBuffer.cbegin(), timestampBuffer.cend(), target);
+    if (packet == timestampBuffer.cend())
+        --packet;
+    const quint32 index = quint32(packet - timestampBuffer.cbegin());
+
+    // Discard both our pending data and QIODevice's read-ahead buffer.
+    {
+        QMutexLocker locker(&mutex);
+        dataBuffer.clear();
+    }
+    QIODevice::seek(0);
+    lastTimeStampPos = timestampPos[index];
+    lastTimeStamp = timestampBuffer[index];
+    timestampBufferIdx = index + 1;
 
     lastPlayTimeOffset = myTime.elapsed();
-    lastPlayTime = lastTimeStamp;
+    lastPlayTime = lastTimeStamp - firstTimestamp;
 
-    qDebug() << "Replaying at: " << lastTimeStamp << ", but requestion at" << val * 1000;
+    qDebug() << "Replaying at elapsed milliseconds:" << lastPlayTime;
 }

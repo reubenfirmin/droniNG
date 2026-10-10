@@ -99,6 +99,9 @@ package_flight_symbols: extract_firmware
 ground_package: ground_package_os_specific
 	@echo $@ starting
 	$(V1)cd $(PACKAGE_DIR)/$(GCS_PACKAGE_ROOT) && find . \( -type f -o -type l \) -print > $(PACKAGE_DIR)/$(GCS_PACKAGE_ROOT)/filelist.lst
+	$(V1) if [ "$(PACKAGE_SOURCE_MATERIALS)" = YES ]; then \
+	  $(HOST_PYTHON) "$(ROOT_DIR)/package/source_distribution.py" \
+	    --application "$(PACKAGE_DIR)/$(GCS_PACKAGE_ROOT)"; fi
 
 # Decide on a verbosity level based on the V= parameter
 export AT := @

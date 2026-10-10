@@ -1,0 +1,29 @@
+{
+  "components": {
+    "glc": {
+      "revision": "b292ccf7851576d71ee9bed7ced4c340b910159a",
+      "pin_variable": "GLC6_REV",
+      "checkout": "downloads/glc-qt6",
+      "upstream": "https://github.com/laumaya/GLC_lib.git",
+      "notices": ["LICENSE.LGPL", "src/lib/3rdparty/quazip/COPYING", "src/lib/3rdparty/clip2tri/LICENSE", "src/lib/3rdparty/clip2tri/LICENSE.poly2tri", "src/lib/3rdparty/zlib/LICENSE"]
+    },
+    "breakpad": {
+      "revision": "6598c9c33fc02da7805401f3b0f1a733e6a24071",
+      "pin_variable": "BREAKPAD_REV",
+      "checkout": "downloads/breakpad-linux",
+      "upstream": "https://github.com/google/breakpad.git",
+      "gitlinks": {
+        "src/testing": {"revision": "6910c9d9165801d8827d628cb72eb7ea9dd538c5", "purpose": "Optional self-tests; disabled by the selected --disable-selftest recipe"},
+        "src/third_party/lss": {"revision": "29164a80da4d41134950d76d55199ea33fbb9613", "component": "linux-syscall-support"}
+      },
+      "notices": ["LICENSE", "src/third_party/curl/COPYING", "src/third_party/libdisasm/LICENSE"]
+    },
+    "linux-syscall-support": {
+      "revision": "29164a80da4d41134950d76d55199ea33fbb9613",
+      "pin_variable": "BREAKPAD_LSS_REV",
+      "checkout": "downloads/breakpad-linux/src/third_party/lss",
+      "upstream": "https://chromium.googlesource.com/linux-syscall-support",
+      "notices": ["LICENSE"]
+    }
+  }
+}

@@ -1060,12 +1060,9 @@ void QFrozenTableViewWithCopyPaste::init()
 
     viewport()->stackUnder(frozenTableView);
 
-    // Set table color to green background and red text. This is ugly as sin, but functional for the
-    // moment.
     frozenTableView->setStyleSheet("QTableView { border: none;"
-                                   "color: #FF0000;"
-                                   "background-color: #8EDE21;"
-                                   "selection-background-color: #999}"); // for demo purposes
+                                   "color: palette(text);"
+                                   "background-color: palette(alternate-base); }");
     for (int row = 1; row < model()->rowCount(); row++)
         frozenTableView->setRowHidden(row, true);
 

@@ -79,7 +79,7 @@ Item {
                     width: view.width * 0.15
                     textFormat: text.indexOf("&") > 0 ? Text.StyledText : Text.PlainText
                     elide: Text.ElideRight
-                    color: mouseArea.containsMouse ? appPalette.link : appPalette.text
+                    color: mouseArea.containsMouse ? appPalette.highlight : appPalette.text
                     MouseArea {
                         anchors.fill: parent  //...to cover the whole image
                         onClicked: Qt.openUrlExternally(authoruri)
@@ -89,7 +89,7 @@ Item {
                     text: title.trim()
                     font.bold: true
                     elide: Text.ElideRight
-                    color: mouseArea.containsMouse ? appPalette.link : appPalette.text
+                    color: mouseArea.containsMouse ? appPalette.highlight : appPalette.text
                     MouseArea {
                         anchors.fill: parent  //...to cover the whole image
                         onClicked: Qt.openUrlExternally(link)

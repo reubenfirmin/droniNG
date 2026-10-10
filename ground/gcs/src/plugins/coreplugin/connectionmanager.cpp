@@ -35,8 +35,17 @@
 #include <QtSerialPort/QSerialPort>
 #include <QtSerialPort/QSerialPortInfo>
 #include <QDebug>
+#include <QApplication>
+#include <QClipboard>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QFontDatabase>
+#include <QFrame>
 #include <QLabel>
 #include <QHBoxLayout>
+#include <QPlainTextEdit>
+#include <QToolButton>
+#include <QVBoxLayout>
 #include <QComboBox>
 #include <QEventLoop>
 #include <QMainWindow>
@@ -111,21 +120,85 @@ void ConnectionManager::init()
  */
 void ConnectionManager::connectDeviceFailed(DevListItem &device)
 {
+    auto *dialog = new QDialog(window());
+    dialog->setObjectName("connectionErrorDialog");
+    dialog->setWindowTitle(tr("Connection failed"));
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setMinimumWidth(480);
+    auto *layout = new QVBoxLayout(dialog);
+    layout->setContentsMargins(20, 20, 20, 20);
+    layout->setSpacing(14);
 
-    QString msg("<span style='color:red'>Failed</span> to connect device: ");
-    if (device.device)
-        msg.append(device.device->getDisplayName());
-    else
-        msg.append("Unknown");
+    auto *heading = new QLabel(tr("Can't connect to %1")
+        .arg(device.device ? device.device->getDisplayName() : tr("your controller")), dialog);
+    heading->setTextFormat(Qt::PlainText);
+    heading->setWordWrap(true);
+    QFont headingFont = heading->font();
+    headingFont.setBold(true);
+    heading->setFont(headingFont);
+    layout->addWidget(heading);
 
-#ifdef Q_OS_LINUX
-    if (device.connection && device.connection->shortName() == "USB")
-        msg.append("<br />Have you set udev rules?");
-#endif
+    auto *guidance = new QLabel(m_connectionError.message, dialog);
+    guidance->setObjectName("connectionErrorGuidance");
+    guidance->setTextFormat(Qt::PlainText);
+    guidance->setWordWrap(true);
+    guidance->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+    layout->addWidget(guidance);
 
-    QMessageBox msgFailedToConnect(dynamic_cast<QWidget *>(Core::ICore::instance()->mainWindow()));
-    msgFailedToConnect.setText(msg);
-    msgFailedToConnect.open();
+    if (!m_connectionError.command.isEmpty()) {
+        auto *commandBlock = new QFrame(dialog);
+        commandBlock->setObjectName("connectionErrorCommandBlock");
+        commandBlock->setStyleSheet(QStringLiteral(
+            "QFrame#connectionErrorCommandBlock {"
+            " background-color: palette(base); border: none; border-radius: 6px; }"));
+        auto *commandRow = new QHBoxLayout(commandBlock);
+        commandRow->setContentsMargins(14, 12, 14, 12);
+        commandRow->setSpacing(16);
+        auto *command = new QLabel(m_connectionError.command, commandBlock);
+        command->setObjectName("connectionErrorCommand");
+        command->setAccessibleName(tr("Terminal command"));
+        command->setTextFormat(Qt::PlainText);
+        command->setWordWrap(true);
+        command->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+        command->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+        commandRow->addWidget(command, 1);
+        auto *copy = new QPushButton(tr("Copy command"), commandBlock);
+        copy->setObjectName("copyConnectionErrorCommand");
+        copy->setAutoDefault(false);
+        connect(copy, &QPushButton::clicked, dialog, [command, copy] {
+            QApplication::clipboard()->setText(command->text());
+            copy->setText(tr("Copied"));
+        });
+        commandRow->addWidget(copy);
+        layout->addWidget(commandBlock);
+    }
+
+    if (!m_connectionError.details.isEmpty()) {
+        auto *toggle = new QToolButton(dialog);
+        toggle->setObjectName("connectionErrorDetailsToggle");
+        toggle->setText(tr("Technical details"));
+        toggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        toggle->setArrowType(Qt::RightArrow);
+        toggle->setCheckable(true);
+        layout->addWidget(toggle, 0, Qt::AlignLeft);
+        auto *details = new QPlainTextEdit(m_connectionError.details, dialog);
+        details->setObjectName("connectionErrorDetails");
+        details->setAccessibleName(tr("Technical details"));
+        details->setReadOnly(true);
+        details->setMaximumHeight(120);
+        details->hide();
+        layout->addWidget(details);
+        connect(toggle, &QToolButton::toggled, dialog, [toggle, details, dialog](bool expanded) {
+            toggle->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
+            details->setVisible(expanded);
+            dialog->adjustSize();
+        });
+    }
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, dialog);
+    connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+    dialog->open();
 }
 
 /**
@@ -133,20 +206,43 @@ void ConnectionManager::connectDeviceFailed(DevListItem &device)
  */
 bool ConnectionManager::connectDevice(DevListItem device)
 {
-    if (!device.connection) {
+    m_connectionError = {};
+    const QString name = device.getConName();
+    const auto fail = [&](const ConnectionError &error) {
+        m_connectionError = error;
+        qWarning().noquote() << QString("Connection failed for %1: %2")
+            .arg(name.isEmpty() ? "unknown device" : name,
+                 error.details.isEmpty() ? error.message : error.details);
         return false;
-    }
+    };
+    if (!device.connection || device.device.isNull())
+        return fail({tr("This controller is no longer available. "
+                        "Plug it in, select it from the connection list, and try again."), {}, {}});
+    if (m_ioDev)
+        return fail({tr("Another controller is already connected. Disconnect it first."), {}, {}});
+
+    qInfo().noquote() << "Connecting to" << name;
 
     QIODevice *io_dev = device.connection->openDevice(device.device);
     if (!io_dev) {
-        return false;
+        ConnectionError error = device.connection->error();
+        if (error.message.isEmpty())
+            error.message = tr("Check that your controller is plugged in, then try connecting again.");
+#ifdef Q_OS_LINUX
+        if (device.connection->shortName() == "USB")
+            error.message.append(tr(" Check that the USB access rules are installed."));
+#endif
+        return fail(error);
     }
 
-    io_dev->open(QIODevice::ReadWrite);
-
-    // check if opening the device worked
-    if (!io_dev->isOpen()) {
-        return false;
+    // Serial plugins configure and open their device before returning it.
+    if ((!io_dev->isOpen() && !io_dev->open(QIODevice::ReadWrite))
+        || !io_dev->isReadable() || !io_dev->isWritable()) {
+        const QString detail = io_dev->errorString();
+        device.connection->closeDevice(name);
+        return fail({tr("DroniNG couldn't access this controller. "
+                        "Close any other apps using it, then try connecting again."), {},
+                     tr("The device could not be opened for reading and writing: %1").arg(detail)});
     }
 
     // The device is connected make it the one selected on the dropbox
@@ -158,9 +254,17 @@ bool ConnectionManager::connectDevice(DevListItem device)
     // remember the connection/device details
     m_connectionDevice = device;
     m_ioDev = io_dev;
+    qInfo().noquote() << "Transport opened for" << name << "- waiting for the UAVTalk handshake";
 
-    connect(m_connectionDevice.connection, SIGNAL(destroyed(QObject *)), this,
-            SLOT(onConnectionDestroyed(QObject *)), Qt::QueuedConnection);
+    const quint64 generation = ++m_connectionGeneration;
+    m_connectionDestroyed = connect(device.connection, &QObject::destroyed, this,
+                                   [this, generation] {
+        // An old queued notification must not disconnect a subsequent device.
+        if (generation != m_connectionGeneration)
+            return;
+        m_connectionDevice.connection = nullptr;
+        disconnectDevice();
+    }, Qt::QueuedConnection);
 
     // signal interested plugins that we connected to the device
     emit deviceConnected(io_dev);
@@ -190,6 +294,8 @@ bool ConnectionManager::disconnectDevice()
     }
 
     // We are connected - disconnect from the device
+    ++m_connectionGeneration;
+    QObject::disconnect(m_connectionDestroyed);
 
     // stop our timers
     if (reconnect->isActive())
@@ -259,12 +365,6 @@ void ConnectionManager::aboutToRemoveObject(QObject *obj)
         m_connectionsList.removeAt(m_connectionsList.indexOf(connection));
 }
 
-void ConnectionManager::onConnectionDestroyed(QObject *obj)
-{
-    Q_UNUSED(obj)
-    disconnectDevice();
-}
-
 /**
  *   Slot called when the user clicks the connect/disconnect button
  */
@@ -276,11 +376,8 @@ void ConnectionManager::onConnectClicked()
         DevListItem device = findDevice(
             m_availableDevList->itemData(m_availableDevList->currentIndex(), Qt::ToolTipRole)
                 .toString());
-        if (device.connection) {
-            if (!connectDevice(device)) {
-                connectDeviceFailed(device);
-            }
-        }
+        if (!connectDevice(device))
+            connectDeviceFailed(device);
     } else { // disconnecting
         disconnectDevice();
     }
@@ -291,7 +388,7 @@ void ConnectionManager::onConnectClicked()
  */
 void ConnectionManager::telemetryConnected()
 {
-    qDebug() << "TelemetryMonitor: connected";
+    qInfo().noquote() << "Telemetry connected to" << m_connectionDevice.getConName();
 
     if (reconnectCheck->isActive())
         reconnectCheck->stop();
@@ -337,7 +434,8 @@ void ConnectionManager::reconnectSlot()
         reconnect->stop();
         reconnectCheck->start(20000);
     } else
-        qDebug() << "reconnect NOT successfull";
+        qWarning().noquote() << "Transport reconnect failed for"
+                            << m_connectionDevice.getConName() << ":" << m_ioDev->errorString();
 }
 
 void ConnectionManager::reconnectCheckSlot()

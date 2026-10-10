@@ -303,11 +303,6 @@ void ScopeGadgetWidget::addLegend()
     m_legend->setFrameStyle(QFrame::Box | QFrame::Sunken);
     m_legend->setToolTip(tr("Click legend to show/hide scope trace"));
 
-    QPalette pal = m_legend->palette();
-    pal.setColor(m_legend->backgroundRole(), QColor(100, 100, 100)); // background colour
-    pal.setColor(QPalette::Text, QColor(0, 0, 0)); // text colour
-    m_legend->setPalette(pal);
-
     insertLegend(m_legend, QwtPlot::TopLegend);
 
     // Update the checked/unchecked state of the legend items

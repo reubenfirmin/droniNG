@@ -10,6 +10,10 @@ documentation, and issue reports.
 
 ## Supported Targets
 
+See the [firmware support plan](FIRMWARE_PLAN.md) for the current hardware
+availability audit, proposed target retirements, and Betaflight board and driver
+integration. Those proposals do not change the supported-target list yet.
+
 ### Desktop Ground Station
 
 The desktop ground station targets Linux, using Qt 6 and system zlib. The

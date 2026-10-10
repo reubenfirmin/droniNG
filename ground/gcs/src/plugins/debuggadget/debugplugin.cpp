@@ -29,6 +29,7 @@
 #include <QtPlugin>
 #include <QStringList>
 #include <extensionsystem/pluginmanager.h>
+#include <utils/qtlogging.h>
 
 DebugPlugin::DebugPlugin()
 {
@@ -55,5 +56,5 @@ void DebugPlugin::extensionsInitialized()
 
 void DebugPlugin::shutdown()
 {
-    qInstallMessageHandler(nullptr);
+    Utils::installQtMessageHandler();
 }

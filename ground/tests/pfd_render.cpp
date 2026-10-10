@@ -10,6 +10,7 @@
 #include <QQmlEngine>
 #include <QQmlError>
 #include <QQuickItem>
+#include <QSGRendererInterface>
 #include <QTest>
 #include <memory>
 
@@ -85,6 +86,10 @@ private slots:
         QTest::qWait(100);
         const QImage level = view.grabWindow();
         QVERIFY(!level.isNull());
+        qInfo() << "PFD graphics" << QGuiApplication::platformName()
+                << "graphicsApi" << view.rendererInterface()->graphicsApi()
+                << "devicePixelRatio" << view.devicePixelRatio()
+                << "logicalSize" << view.size() << "framebufferSize" << level.size();
         int sky = 0, earth = 0;
         for (int y = 0; y < level.height(); ++y) {
             for (int x = 0; x < level.width(); ++x) {

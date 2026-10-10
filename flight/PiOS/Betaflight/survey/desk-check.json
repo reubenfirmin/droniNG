@@ -1,0 +1,1898 @@
+{
+  "schema_version": 1,
+  "scope": "offline survey; no generated firmware or hardware verification",
+  "source_files_verified": 84,
+  "repositories": {
+    "config": {
+      "repository": "betaflight/config",
+      "commit": "e1d87e7ecf6717bd3806a08400aeb892cd1d1fc3"
+    },
+    "betaflight": {
+      "repository": "betaflight/betaflight",
+      "commit": "4fc1520c5a5decddc8ef07ad57c0e766ea8747ba"
+    }
+  },
+  "targets": [
+    {
+      "target": "SPEEDYBEEF405V4",
+      "source": "upstream/config/configs/SPBE/SPEEDYBEEF405V4/config.h",
+      "mcu": "STM32F405",
+      "processor_backend_available": true,
+      "installable": false,
+      "imu_alternatives": [
+        "ICM42688P"
+      ],
+      "gyro": {
+        "bus": "SPI1",
+        "cs": "PA4",
+        "drdy": "PC4",
+        "alignment": "CW90_DEG",
+        "alignment_source": "board definition",
+        "external_clock_pin": null
+      },
+      "spi_buses": {
+        "SPI1": {
+          "SCK": "PA5",
+          "SDI": "PA6",
+          "SDO": "PA7"
+        },
+        "SPI2": {
+          "SCK": "PB13",
+          "SDI": "PC2",
+          "SDO": "PC3"
+        },
+        "SPI3": {
+          "SCK": "PB3",
+          "SDI": "PB4",
+          "SDO": "PB5"
+        }
+      },
+      "hse_mhz_explicit": "8",
+      "motor_pins": {
+        "MOTOR1_PIN": "PB6",
+        "MOTOR2_PIN": "PB7",
+        "MOTOR3_PIN": "PB0",
+        "MOTOR4_PIN": "PB1",
+        "MOTOR5_PIN": "PC8",
+        "MOTOR6_PIN": "PC9",
+        "MOTOR7_PIN": "PB10",
+        "MOTOR8_PIN": "PA15"
+      },
+      "timer_mappings": [
+        {
+          "pin": "PB6",
+          "occurrence": 1,
+          "betaflight_dma_option": 0,
+          "timer": "TIM4",
+          "channel": "CH1",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 0
+        },
+        {
+          "pin": "PB7",
+          "occurrence": 1,
+          "betaflight_dma_option": 0,
+          "timer": "TIM4",
+          "channel": "CH2",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 1
+        },
+        {
+          "pin": "PB0",
+          "occurrence": 2,
+          "betaflight_dma_option": 0,
+          "timer": "TIM3",
+          "channel": "CH3",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 2
+        },
+        {
+          "pin": "PB1",
+          "occurrence": 2,
+          "betaflight_dma_option": 0,
+          "timer": "TIM3",
+          "channel": "CH4",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 3
+        },
+        {
+          "pin": "PC8",
+          "occurrence": 2,
+          "betaflight_dma_option": 0,
+          "timer": "TIM8",
+          "channel": "CH3",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 4
+        },
+        {
+          "pin": "PC9",
+          "occurrence": 2,
+          "betaflight_dma_option": 0,
+          "timer": "TIM8",
+          "channel": "CH4",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 5
+        },
+        {
+          "pin": "PB10",
+          "occurrence": 1,
+          "betaflight_dma_option": 0,
+          "timer": "TIM2",
+          "channel": "CH3",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 6
+        },
+        {
+          "pin": "PA15",
+          "occurrence": 1,
+          "betaflight_dma_option": 0,
+          "timer": "TIM2",
+          "channel": "CH1",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 7
+        },
+        {
+          "pin": "PB15",
+          "occurrence": 3,
+          "betaflight_dma_option": -1,
+          "timer": "TIM12",
+          "channel": "CH2",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 8
+        },
+        {
+          "pin": "PB14",
+          "occurrence": 3,
+          "betaflight_dma_option": -1,
+          "timer": "TIM12",
+          "channel": "CH1",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 9
+        },
+        {
+          "pin": "PA8",
+          "occurrence": 1,
+          "betaflight_dma_option": 0,
+          "timer": "TIM1",
+          "channel": "CH1",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 10
+        },
+        {
+          "pin": "PA3",
+          "occurrence": 3,
+          "betaflight_dma_option": -1,
+          "timer": "TIM9",
+          "channel": "CH2",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 11
+        }
+      ],
+      "shared_pin_roles": [
+        {
+          "pin": "PA3",
+          "roles": [
+            "RX_PPM_PIN",
+            "UART2_RX_PIN"
+          ]
+        }
+      ],
+      "swd_pin_roles": {},
+      "issues": [
+        "required: native PiOS ICM42688P driver port",
+        "optional logging: SPI SD-card backend and storage integration",
+        "barometer: DPS310 port, async bus replacement and Pa-to-kPa conversion",
+        "required: mutually exclusive resources; do not enable every defined pin role"
+      ],
+      "board_macros": {
+        "ADC1_DMA_OPT": "0",
+        "ADC_CURR_PIN": "PC1",
+        "ADC_RSSI_PIN": "PC5",
+        "ADC_VBAT_PIN": "PC0",
+        "BARO_I2C_INSTANCE": "I2CDEV_1",
+        "BEEPER_INVERTED": "",
+        "BEEPER_PIN": "PC15",
+        "BOARD_NAME": "SPEEDYBEEF405V4",
+        "CAMERA_CONTROL_PIN": "PB14",
+        "DEFAULT_BLACKBOX_DEVICE": "BLACKBOX_DEVICE_SDCARD",
+        "DEFAULT_CURRENT_METER_SCALE": "400",
+        "DEFAULT_CURRENT_METER_SOURCE": "CURRENT_METER_ADC",
+        "DEFAULT_DSHOT_BITBANG": "DSHOT_BITBANG_OFF",
+        "DEFAULT_DSHOT_BURST": "DSHOT_DMAR_OFF",
+        "DEFAULT_VOLTAGE_METER_SOURCE": "VOLTAGE_METER_ADC",
+        "ESC_SENSOR_UART": "SERIAL_PORT_UART5",
+        "FC_TARGET_MCU": "STM32F405",
+        "GYRO_1_ALIGN": "CW90_DEG",
+        "GYRO_1_CS_PIN": "PA4",
+        "GYRO_1_EXTI_PIN": "PC4",
+        "GYRO_1_SPI_INSTANCE": "SPI1",
+        "I2C1_SCL_PIN": "PB8",
+        "I2C1_SDA_PIN": "PB9",
+        "LED0_PIN": "PC13",
+        "LED_STRIP_PIN": "PA8",
+        "MAG_I2C_INSTANCE": "I2CDEV_1",
+        "MANUFACTURER_ID": "SPBE",
+        "MAX7456_SPI_CS_PIN": "PB12",
+        "MAX7456_SPI_INSTANCE": "SPI2",
+        "MOTOR1_PIN": "PB6",
+        "MOTOR2_PIN": "PB7",
+        "MOTOR3_PIN": "PB0",
+        "MOTOR4_PIN": "PB1",
+        "MOTOR5_PIN": "PC8",
+        "MOTOR6_PIN": "PC9",
+        "MOTOR7_PIN": "PB10",
+        "MOTOR8_PIN": "PA15",
+        "MSP_UART": "SERIAL_PORT_UART4",
+        "PINIO1_BOX": "0",
+        "PINIO1_CONFIG": "129",
+        "PINIO1_PIN": "PB11",
+        "RX_PPM_PIN": "PA3",
+        "SDCARD_DETECT_INVERTED": "",
+        "SDCARD_SPI_CS_PIN": "PC14",
+        "SDCARD_SPI_INSTANCE": "SPI3",
+        "SERIALRX_UART": "SERIAL_PORT_USART2",
+        "SERVO1_PIN": "PB15",
+        "SPI1_SCK_PIN": "PA5",
+        "SPI1_SDI_PIN": "PA6",
+        "SPI1_SDO_PIN": "PA7",
+        "SPI2_SCK_PIN": "PB13",
+        "SPI2_SDI_PIN": "PC2",
+        "SPI2_SDO_PIN": "PC3",
+        "SPI3_SCK_PIN": "PB3",
+        "SPI3_SDI_PIN": "PB4",
+        "SPI3_SDO_PIN": "PB5",
+        "SYSTEM_HSE_MHZ": "8",
+        "TIMER_PIN_MAPPING": "TIMER_PIN_MAP( 0, PB6, 1, 0) TIMER_PIN_MAP( 1, PB7, 1, 0) TIMER_PIN_MAP( 2, PB0, 2, 0) TIMER_PIN_MAP( 3, PB1, 2, 0) TIMER_PIN_MAP( 4, PC8, 2, 0) TIMER_PIN_MAP( 5, PC9, 2, 0) TIMER_PIN_MAP( 6, PB10, 1, 0) TIMER_PIN_MAP( 7, PA15, 1, 0) TIMER_PIN_MAP( 8, PB15, 3, -1) TIMER_PIN_MAP( 9, PB14, 3, -1) TIMER_PIN_MAP(10, PA8, 1, 0) TIMER_PIN_MAP(11, PA3, 3, -1)",
+        "UART1_RX_PIN": "PA10",
+        "UART1_TX_PIN": "PA9",
+        "UART2_RX_PIN": "PA3",
+        "UART2_TX_PIN": "PA2",
+        "UART3_RX_PIN": "PC11",
+        "UART3_TX_PIN": "PC10",
+        "UART4_RX_PIN": "PA1",
+        "UART4_TX_PIN": "PA0",
+        "UART5_RX_PIN": "PD2",
+        "UART6_RX_PIN": "PC7",
+        "UART6_TX_PIN": "PC6",
+        "USE_ACC": "",
+        "USE_ACC_SPI_ICM42688P": "",
+        "USE_BARO": "",
+        "USE_BARO_DPS310": "",
+        "USE_GYRO": "",
+        "USE_GYRO_SPI_ICM42688P": "",
+        "USE_MAX7456": "",
+        "USE_SDCARD": "",
+        "USE_SDCARD_SPI": ""
+      }
+    },
+    {
+      "target": "SPEEDYBEEF405V5",
+      "source": "upstream/config/configs/SPBE/SPEEDYBEEF405V5/config.h",
+      "mcu": "STM32F405",
+      "processor_backend_available": true,
+      "installable": false,
+      "imu_alternatives": [
+        "ICM42688P"
+      ],
+      "gyro": {
+        "bus": "SPI1",
+        "cs": "PA4",
+        "drdy": "PC4",
+        "alignment": "CW270_DEG",
+        "alignment_source": "board definition",
+        "external_clock_pin": "PB15"
+      },
+      "spi_buses": {
+        "SPI1": {
+          "SCK": "PA5",
+          "SDI": "PA6",
+          "SDO": "PA7"
+        },
+        "SPI2": {
+          "SCK": "PB13",
+          "SDI": "PC2",
+          "SDO": "PC3"
+        },
+        "SPI3": {
+          "SCK": "PB3",
+          "SDI": "PB4",
+          "SDO": "PB5"
+        }
+      },
+      "hse_mhz_explicit": "8",
+      "motor_pins": {
+        "MOTOR1_PIN": "PB1",
+        "MOTOR2_PIN": "PB0",
+        "MOTOR3_PIN": "PB10",
+        "MOTOR4_PIN": "PB11"
+      },
+      "timer_mappings": [
+        {
+          "pin": "PB1",
+          "occurrence": 2,
+          "betaflight_dma_option": 0,
+          "timer": "TIM3",
+          "channel": "CH4",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 0
+        },
+        {
+          "pin": "PB0",
+          "occurrence": 2,
+          "betaflight_dma_option": 0,
+          "timer": "TIM3",
+          "channel": "CH3",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 1
+        },
+        {
+          "pin": "PB10",
+          "occurrence": 1,
+          "betaflight_dma_option": 0,
+          "timer": "TIM2",
+          "channel": "CH3",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 2
+        },
+        {
+          "pin": "PB11",
+          "occurrence": 1,
+          "betaflight_dma_option": 1,
+          "timer": "TIM2",
+          "channel": "CH4",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 3
+        },
+        {
+          "pin": "PC9",
+          "occurrence": 2,
+          "betaflight_dma_option": -1,
+          "timer": "TIM8",
+          "channel": "CH4",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 4
+        },
+        {
+          "pin": "PC8",
+          "occurrence": 2,
+          "betaflight_dma_option": -1,
+          "timer": "TIM8",
+          "channel": "CH3",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 5
+        },
+        {
+          "pin": "PA8",
+          "occurrence": 1,
+          "betaflight_dma_option": 1,
+          "timer": "TIM1",
+          "channel": "CH1",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 6
+        },
+        {
+          "pin": "PB9",
+          "occurrence": 2,
+          "betaflight_dma_option": -1,
+          "timer": "TIM11",
+          "channel": "CH1",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 7
+        },
+        {
+          "pin": "PA3",
+          "occurrence": 2,
+          "betaflight_dma_option": -1,
+          "timer": "TIM5",
+          "channel": "CH4",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 8
+        },
+        {
+          "pin": "PB8",
+          "occurrence": 1,
+          "betaflight_dma_option": -1,
+          "timer": "TIM4",
+          "channel": "CH3",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 9
+        },
+        {
+          "pin": "PB15",
+          "occurrence": 3,
+          "betaflight_dma_option": -1,
+          "timer": "TIM12",
+          "channel": "CH2",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 10
+        }
+      ],
+      "shared_pin_roles": [
+        {
+          "pin": "PA3",
+          "roles": [
+            "RX_PPM_PIN",
+            "UART2_RX_PIN"
+          ]
+        }
+      ],
+      "swd_pin_roles": {},
+      "issues": [
+        "required: native PiOS ICM42688P driver port",
+        "required: explicit gyro CLKIN timer/clock port; outside initial MVP",
+        "barometer: DPS310 port, async bus replacement and Pa-to-kPa conversion",
+        "required: mutually exclusive resources; do not enable every defined pin role"
+      ],
+      "board_macros": {
+        "ADC1_DMA_OPT": "1",
+        "ADC_CURR_PIN": "PC5",
+        "ADC_RSSI_PIN": "PC0",
+        "ADC_VBAT_PIN": "PC1",
+        "BARO_I2C_INSTANCE": "I2CDEV_1",
+        "BEEPER_INVERTED": "",
+        "BEEPER_PIN": "PB9",
+        "BOARD_NAME": "SPEEDYBEEF405V5",
+        "BOX_USER1_NAME": "\"9V BEC OFF\"",
+        "BOX_USER2_NAME": "\"PROG PWR SWITCH\"",
+        "CAMERA_CONTROL_PIN": "PB8",
+        "DEFAULT_BLACKBOX_DEVICE": "BLACKBOX_DEVICE_FLASH",
+        "DEFAULT_CURRENT_METER_SCALE": "36",
+        "DEFAULT_CURRENT_METER_SOURCE": "CURRENT_METER_ADC",
+        "DEFAULT_DSHOT_BITBANG": "DSHOT_BITBANG_OFF",
+        "DEFAULT_DSHOT_BURST": "DSHOT_DMAR_OFF",
+        "DEFAULT_PID_PROCESS_DENOM": "2",
+        "DEFAULT_VOLTAGE_METER_SOURCE": "VOLTAGE_METER_ADC",
+        "ESC_SENSOR_UART": "SERIAL_PORT_UART5",
+        "FC_TARGET_MCU": "STM32F405",
+        "FLASH_CS_PIN": "PC12",
+        "FLASH_SPI_INSTANCE": "SPI3",
+        "GPS_UART": "SERIAL_PORT_UART4",
+        "GYRO_1_ALIGN": "CW270_DEG",
+        "GYRO_1_CLKIN_PIN": "PB15",
+        "GYRO_1_CS_PIN": "PA4",
+        "GYRO_1_EXTI_PIN": "PC4",
+        "GYRO_1_SPI_INSTANCE": "SPI1",
+        "I2C1_SCL_PIN": "PB6",
+        "I2C1_SDA_PIN": "PB7",
+        "LED0_PIN": "PA15",
+        "LED_STRIP_PIN": "PA8",
+        "MAG_I2C_INSTANCE": "I2CDEV_1",
+        "MANUFACTURER_ID": "SPBE",
+        "MAX7456_SPI_CS_PIN": "PB12",
+        "MAX7456_SPI_INSTANCE": "SPI2",
+        "MOTOR1_PIN": "PB1",
+        "MOTOR2_PIN": "PB0",
+        "MOTOR3_PIN": "PB10",
+        "MOTOR4_PIN": "PB11",
+        "MSP_UART": "SERIAL_PORT_USART1",
+        "PINIO1_BOX": "40",
+        "PINIO1_CONFIG": "1",
+        "PINIO1_PIN": "PC13",
+        "PINIO2_BOX": "41",
+        "PINIO2_CONFIG": "1",
+        "PINIO2_PIN": "PC14",
+        "RX_PPM_PIN": "PA3",
+        "SERIALRX_UART": "SERIAL_PORT_USART6",
+        "SERVO1_PIN": "PC9",
+        "SERVO2_PIN": "PC8",
+        "SPI1_SCK_PIN": "PA5",
+        "SPI1_SDI_PIN": "PA6",
+        "SPI1_SDO_PIN": "PA7",
+        "SPI2_SCK_PIN": "PB13",
+        "SPI2_SDI_PIN": "PC2",
+        "SPI2_SDO_PIN": "PC3",
+        "SPI3_SCK_PIN": "PB3",
+        "SPI3_SDI_PIN": "PB4",
+        "SPI3_SDO_PIN": "PB5",
+        "SYSTEM_HSE_MHZ": "8",
+        "TIMER_PIN_MAPPING": "TIMER_PIN_MAP(0, MOTOR1_PIN, 2, 0) TIMER_PIN_MAP(1, MOTOR2_PIN, 2, 0) TIMER_PIN_MAP(2, MOTOR3_PIN, 1, 0) TIMER_PIN_MAP(3, MOTOR4_PIN, 1, 1) TIMER_PIN_MAP(4, SERVO1_PIN, 2, -1) TIMER_PIN_MAP(5, SERVO2_PIN, 2, -1) TIMER_PIN_MAP(6, LED_STRIP_PIN, 1, 1) TIMER_PIN_MAP(7, BEEPER_PIN, 2, -1) TIMER_PIN_MAP(8, RX_PPM_PIN, 2, -1) TIMER_PIN_MAP(9, CAMERA_CONTROL_PIN, 1, -1) TIMER_PIN_MAP(10, GYRO_1_CLKIN_PIN, 3, -1)",
+        "UART1_RX_PIN": "PA10",
+        "UART1_TX_PIN": "PA9",
+        "UART2_RX_PIN": "PA3",
+        "UART2_TX_PIN": "PA2",
+        "UART3_RX_PIN": "PC11",
+        "UART3_TX_PIN": "PC10",
+        "UART4_RX_PIN": "PA1",
+        "UART4_TX_PIN": "PA0",
+        "UART5_RX_PIN": "PD2",
+        "UART6_RX_PIN": "PC7",
+        "UART6_TX_PIN": "PC6",
+        "USE_ACC": "",
+        "USE_ACC_SPI_ICM42688P": "",
+        "USE_BARO": "",
+        "USE_BARO_DPS310": "",
+        "USE_FLASH": "",
+        "USE_FLASH_M25P16": "",
+        "USE_GYRO": "",
+        "USE_GYRO_CLKIN": "",
+        "USE_GYRO_SPI_ICM42688P": "",
+        "USE_MAX7456": ""
+      }
+    },
+    {
+      "target": "GEPRCF405",
+      "source": "upstream/config/configs/GEPR/GEPRCF405/config.h",
+      "mcu": "STM32F405",
+      "processor_backend_available": true,
+      "installable": false,
+      "imu_alternatives": [
+        "MPU6000",
+        "ICM42688P",
+        "BMI270",
+        "LSM6DSK320X"
+      ],
+      "gyro": {
+        "bus": "SPI3",
+        "cs": "PA15",
+        "drdy": "PC3",
+        "alignment": "CW180_DEG",
+        "alignment_source": "board definition",
+        "external_clock_pin": null
+      },
+      "spi_buses": {
+        "SPI1": {
+          "SCK": "PA5",
+          "SDI": "PA6",
+          "SDO": "PA7"
+        },
+        "SPI2": {
+          "SCK": "PB13",
+          "SDI": "PB14",
+          "SDO": "PB15"
+        },
+        "SPI3": {
+          "SCK": "PB3",
+          "SDI": "PB4",
+          "SDO": "PB5"
+        }
+      },
+      "hse_mhz_explicit": "8",
+      "motor_pins": {
+        "MOTOR1_PIN": "PA8",
+        "MOTOR2_PIN": "PA9",
+        "MOTOR3_PIN": "PA10",
+        "MOTOR4_PIN": "PC8",
+        "MOTOR5_PIN": "PC9",
+        "MOTOR6_PIN": "PB0",
+        "MOTOR7_PIN": "PB1"
+      },
+      "timer_mappings": [
+        {
+          "pin": "PC7",
+          "occurrence": 2,
+          "betaflight_dma_option": 0,
+          "timer": "TIM8",
+          "channel": "CH2",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 0
+        },
+        {
+          "pin": "PA8",
+          "occurrence": 1,
+          "betaflight_dma_option": 1,
+          "timer": "TIM1",
+          "channel": "CH1",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 1
+        },
+        {
+          "pin": "PA9",
+          "occurrence": 1,
+          "betaflight_dma_option": 1,
+          "timer": "TIM1",
+          "channel": "CH2",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 2
+        },
+        {
+          "pin": "PA10",
+          "occurrence": 1,
+          "betaflight_dma_option": 1,
+          "timer": "TIM1",
+          "channel": "CH3",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 3
+        },
+        {
+          "pin": "PC8",
+          "occurrence": 2,
+          "betaflight_dma_option": 1,
+          "timer": "TIM8",
+          "channel": "CH3",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 4
+        },
+        {
+          "pin": "PC9",
+          "occurrence": 2,
+          "betaflight_dma_option": 0,
+          "timer": "TIM8",
+          "channel": "CH4",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 5
+        },
+        {
+          "pin": "PB0",
+          "occurrence": 2,
+          "betaflight_dma_option": 0,
+          "timer": "TIM3",
+          "channel": "CH3",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 6
+        },
+        {
+          "pin": "PB1",
+          "occurrence": 2,
+          "betaflight_dma_option": 0,
+          "timer": "TIM3",
+          "channel": "CH4",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 7
+        }
+      ],
+      "shared_pin_roles": [
+        {
+          "pin": "PB1",
+          "roles": [
+            "LED_STRIP_PIN",
+            "MOTOR7_PIN"
+          ]
+        },
+        {
+          "pin": "PC7",
+          "roles": [
+            "RX_PPM_PIN",
+            "UART6_RX_PIN"
+          ]
+        }
+      ],
+      "swd_pin_roles": {
+        "PA13": [
+          "PINIO1_PIN"
+        ],
+        "PA14": [
+          "PINIO2_PIN"
+        ]
+      },
+      "issues": [
+        "required: exact fitted IMU/revision or implement and validate every allowed alternative",
+        "required: native PiOS ICM42688P driver port",
+        "required: native PiOS BMI270 driver port",
+        "required: native PiOS LSM6DSK320X driver port",
+        "barometer: DPS310 port, async bus replacement and Pa-to-kPa conversion",
+        "optional softserial outside initial MVP",
+        "required: mutually exclusive resources; do not enable every defined pin role",
+        "GPIO: declared functions occupy SWD debug pins"
+      ],
+      "board_macros": {
+        "ADC1_DMA_OPT": "0",
+        "ADC_CURR_PIN": "PC0",
+        "ADC_RSSI_PIN": "PC2",
+        "ADC_VBAT_PIN": "PC1",
+        "BARO_I2C_INSTANCE": "I2CDEV_2",
+        "BEEPER_INVERTED": "",
+        "BEEPER_PIN": "PC13",
+        "BOARD_NAME": "GEPRCF405",
+        "DEFAULT_BLACKBOX_DEVICE": "BLACKBOX_DEVICE_FLASH",
+        "DEFAULT_CURRENT_METER_SCALE": "179",
+        "DEFAULT_CURRENT_METER_SOURCE": "CURRENT_METER_ADC",
+        "DEFAULT_VOLTAGE_METER_SOURCE": "VOLTAGE_METER_ADC",
+        "FC_TARGET_MCU": "STM32F405",
+        "FLASH_CS_PIN": "PB12",
+        "FLASH_SPI_INSTANCE": "SPI2",
+        "GYRO_1_ALIGN": "CW180_DEG",
+        "GYRO_1_CS_PIN": "PA15",
+        "GYRO_1_EXTI_PIN": "PC3",
+        "GYRO_1_SPI_INSTANCE": "SPI3",
+        "I2C1_SCL_PIN": "PB8",
+        "I2C1_SDA_PIN": "PB9",
+        "I2C2_SCL_PIN": "PB10",
+        "I2C2_SDA_PIN": "PB11",
+        "LED0_PIN": "PC14",
+        "LED1_PIN": "PC15",
+        "LED_STRIP_PIN": "PB1",
+        "MAG_I2C_INSTANCE": "I2CDEV_1",
+        "MANUFACTURER_ID": "GEPR",
+        "MAX7456_SPI_CS_PIN": "PA4",
+        "MAX7456_SPI_INSTANCE": "SPI1",
+        "MOTOR1_PIN": "PA8",
+        "MOTOR2_PIN": "PA9",
+        "MOTOR3_PIN": "PA10",
+        "MOTOR4_PIN": "PC8",
+        "MOTOR5_PIN": "PC9",
+        "MOTOR6_PIN": "PB0",
+        "MOTOR7_PIN": "PB1",
+        "PINIO1_PIN": "PA13",
+        "PINIO2_PIN": "PA14",
+        "RX_PPM_PIN": "PC7",
+        "SOFTSERIAL1_RX_PIN": "PC5",
+        "SOFTSERIAL1_TX_PIN": "PB2",
+        "SPI1_SCK_PIN": "PA5",
+        "SPI1_SDI_PIN": "PA6",
+        "SPI1_SDO_PIN": "PA7",
+        "SPI2_SCK_PIN": "PB13",
+        "SPI2_SDI_PIN": "PB14",
+        "SPI2_SDO_PIN": "PB15",
+        "SPI3_SCK_PIN": "PB3",
+        "SPI3_SDI_PIN": "PB4",
+        "SPI3_SDO_PIN": "PB5",
+        "SYSTEM_HSE_MHZ": "8",
+        "TIMER_PIN_MAPPING": "TIMER_PIN_MAP( 0, PC7 , 2, 0) TIMER_PIN_MAP( 1, PA8 , 1, 1) TIMER_PIN_MAP( 2, PA9 , 1, 1) TIMER_PIN_MAP( 3, PA10, 1, 1) TIMER_PIN_MAP( 4, PC8 , 2, 1) TIMER_PIN_MAP( 5, PC9 , 2, 0) TIMER_PIN_MAP( 6, PB0 , 2, 0) TIMER_PIN_MAP( 7, PB1 , 2, 0)",
+        "UART1_RX_PIN": "PB7",
+        "UART1_TX_PIN": "PB6",
+        "UART2_RX_PIN": "PA3",
+        "UART2_TX_PIN": "PA2",
+        "UART3_RX_PIN": "PC11",
+        "UART3_TX_PIN": "PC10",
+        "UART4_RX_PIN": "PA1",
+        "UART4_TX_PIN": "PA0",
+        "UART5_RX_PIN": "PD2",
+        "UART5_TX_PIN": "PC12",
+        "UART6_RX_PIN": "PC7",
+        "UART6_TX_PIN": "PC6",
+        "USB_DETECT_PIN": "PC4",
+        "USE_ACC": "",
+        "USE_ACCGYRO_BMI270": "",
+        "USE_ACCGYRO_LSM6DSK320X": "",
+        "USE_ACC_SPI_ICM42688P": "",
+        "USE_ACC_SPI_MPU6000": "",
+        "USE_BARO": "",
+        "USE_BARO_BMP280": "",
+        "USE_BARO_DPS310": "",
+        "USE_FLASH": "",
+        "USE_FLASH_W25Q128FV": "",
+        "USE_GYRO": "",
+        "USE_GYRO_SPI_ICM42688P": "",
+        "USE_GYRO_SPI_MPU6000": "",
+        "USE_MAX7456": ""
+      }
+    },
+    {
+      "target": "MAMBAF405_2022A",
+      "source": "upstream/config/configs/DIAT/MAMBAF405_2022A/config.h",
+      "mcu": "STM32F405",
+      "processor_backend_available": true,
+      "installable": false,
+      "imu_alternatives": [
+        "MPU6000",
+        "MPU6500",
+        "BMI270"
+      ],
+      "gyro": {
+        "bus": "SPI1",
+        "cs": "PA4",
+        "drdy": "PC4",
+        "alignment": "CW180_DEG",
+        "alignment_source": "board definition",
+        "external_clock_pin": null
+      },
+      "spi_buses": {
+        "SPI1": {
+          "SCK": "PA5",
+          "SDI": "PA6",
+          "SDO": "PA7"
+        },
+        "SPI2": {
+          "SCK": "PB13",
+          "SDI": "PB14",
+          "SDO": "PB15"
+        },
+        "SPI3": {
+          "SCK": "PC10",
+          "SDI": "PC11",
+          "SDO": "PB5"
+        }
+      },
+      "hse_mhz_explicit": null,
+      "motor_pins": {
+        "MOTOR1_PIN": "PA9",
+        "MOTOR2_PIN": "PA8",
+        "MOTOR3_PIN": "PC9",
+        "MOTOR4_PIN": "PC8",
+        "MOTOR5_PIN": "PB0",
+        "MOTOR6_PIN": "PB1"
+      },
+      "timer_mappings": [
+        {
+          "pin": "PB9",
+          "occurrence": 2,
+          "betaflight_dma_option": -1,
+          "timer": "TIM11",
+          "channel": "CH1",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 0
+        },
+        {
+          "pin": "PA9",
+          "occurrence": 1,
+          "betaflight_dma_option": 0,
+          "timer": "TIM1",
+          "channel": "CH2",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 1
+        },
+        {
+          "pin": "PA8",
+          "occurrence": 1,
+          "betaflight_dma_option": 0,
+          "timer": "TIM1",
+          "channel": "CH1",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 2
+        },
+        {
+          "pin": "PC9",
+          "occurrence": 2,
+          "betaflight_dma_option": 0,
+          "timer": "TIM8",
+          "channel": "CH4",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 3
+        },
+        {
+          "pin": "PC8",
+          "occurrence": 2,
+          "betaflight_dma_option": 0,
+          "timer": "TIM8",
+          "channel": "CH3",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 4
+        },
+        {
+          "pin": "PB0",
+          "occurrence": 2,
+          "betaflight_dma_option": 0,
+          "timer": "TIM3",
+          "channel": "CH3",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 5
+        },
+        {
+          "pin": "PB1",
+          "occurrence": 2,
+          "betaflight_dma_option": 0,
+          "timer": "TIM3",
+          "channel": "CH4",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 6
+        },
+        {
+          "pin": "PB8",
+          "occurrence": 1,
+          "betaflight_dma_option": 0,
+          "timer": "TIM4",
+          "channel": "CH3",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 7
+        },
+        {
+          "pin": "PB3",
+          "occurrence": 1,
+          "betaflight_dma_option": 0,
+          "timer": "TIM2",
+          "channel": "CH2",
+          "resolution": "physical timer/channel only; PiOS AF/DMA allocation unvalidated",
+          "index": 8
+        }
+      ],
+      "shared_pin_roles": [],
+      "swd_pin_roles": {},
+      "issues": [
+        "required: resolve SYSTEM_HSE_MHZ from full upstream defaults or reviewed hardware override",
+        "required: exact fitted IMU/revision or implement and validate every allowed alternative",
+        "required: native PiOS BMI270 driver port",
+        "barometer: DPS310 port, async bus replacement and Pa-to-kPa conversion",
+        "ADC: backend currently hardcodes ADC1 clock enable; ADC3 needs review/fix"
+      ],
+      "board_macros": {
+        "ADC3_DMA_OPT": "0",
+        "ADC_CURR_PIN": "PC3",
+        "ADC_INSTANCE": "ADC3",
+        "ADC_VBAT_PIN": "PC1",
+        "BARO_I2C_INSTANCE": "I2CDEV_1",
+        "BEEPER_INVERTED": "",
+        "BEEPER_PIN": "PC13",
+        "BOARD_NAME": "MAMBAF405_2022A",
+        "DEFAULT_BLACKBOX_DEVICE": "BLACKBOX_DEVICE_FLASH",
+        "DEFAULT_CURRENT_METER_SOURCE": "CURRENT_METER_ADC",
+        "DEFAULT_DSHOT_BURST": "DSHOT_DMAR_ON",
+        "DEFAULT_VOLTAGE_METER_SOURCE": "VOLTAGE_METER_ADC",
+        "FC_TARGET_MCU": "STM32F405",
+        "FLASH_CS_PIN": "PA15",
+        "FLASH_SPI_INSTANCE": "SPI3",
+        "GYRO_1_ALIGN": "CW180_DEG",
+        "GYRO_1_CS_PIN": "PA4",
+        "GYRO_1_EXTI_PIN": "PC4",
+        "GYRO_1_SPI_INSTANCE": "SPI1",
+        "I2C1_SCL_PIN": "PB8",
+        "I2C1_SDA_PIN": "PB9",
+        "INVERTER_PIN_UART1": "PC0",
+        "LED0_PIN": "PC15",
+        "LED1_PIN": "PC14",
+        "LED_STRIP_PIN": "PB3",
+        "MAG_I2C_INSTANCE": "I2CDEV_1",
+        "MANUFACTURER_ID": "DIAT",
+        "MAX7456_SPI_CS_PIN": "PB12",
+        "MAX7456_SPI_INSTANCE": "SPI2",
+        "MOTOR1_PIN": "PA9",
+        "MOTOR2_PIN": "PA8",
+        "MOTOR3_PIN": "PC9",
+        "MOTOR4_PIN": "PC8",
+        "MOTOR5_PIN": "PB0",
+        "MOTOR6_PIN": "PB1",
+        "PINIO1_BOX": "0",
+        "PINIO1_CONFIG": "129",
+        "PINIO1_PIN": "PC2",
+        "PINIO2_BOX": "40",
+        "PINIO2_CONFIG": "129",
+        "PINIO2_PIN": "PC5",
+        "SPI1_SCK_PIN": "PA5",
+        "SPI1_SDI_PIN": "PA6",
+        "SPI1_SDO_PIN": "PA7",
+        "SPI2_SCK_PIN": "PB13",
+        "SPI2_SDI_PIN": "PB14",
+        "SPI2_SDO_PIN": "PB15",
+        "SPI3_SCK_PIN": "PC10",
+        "SPI3_SDI_PIN": "PC11",
+        "SPI3_SDO_PIN": "PB5",
+        "TIMER_PIN_MAPPING": "TIMER_PIN_MAP( 0, PB9 , 2, -1) TIMER_PIN_MAP( 1, PA9 , 1, 0) TIMER_PIN_MAP( 2, PA8 , 1, 0) TIMER_PIN_MAP( 3, PC9 , 2, 0) TIMER_PIN_MAP( 4, PC8 , 2, 0) TIMER_PIN_MAP( 5, PB0 , 2, 0) TIMER_PIN_MAP( 6, PB1 , 2, 0) TIMER_PIN_MAP( 7, PB8 , 1, 0) TIMER_PIN_MAP( 8, PB3 , 1, 0)",
+        "UART1_RX_PIN": "PB7",
+        "UART1_TX_PIN": "PB6",
+        "UART2_RX_PIN": "PA3",
+        "UART2_TX_PIN": "PA2",
+        "UART3_RX_PIN": "PB11",
+        "UART3_TX_PIN": "PB10",
+        "UART4_RX_PIN": "PA1",
+        "UART4_TX_PIN": "PA0",
+        "UART5_RX_PIN": "PD2",
+        "UART5_TX_PIN": "PC12",
+        "UART6_RX_PIN": "PC7",
+        "UART6_TX_PIN": "PC6",
+        "USE_ACC": "",
+        "USE_ACCGYRO_BMI270": "",
+        "USE_ACC_SPI_MPU6000": "",
+        "USE_ACC_SPI_MPU6500": "",
+        "USE_BARO": "",
+        "USE_BARO_DPS310": "",
+        "USE_FLASH": "",
+        "USE_FLASH_M25P16": "",
+        "USE_GYRO": "",
+        "USE_GYRO_SPI_MPU6000": "",
+        "USE_GYRO_SPI_MPU6500": "",
+        "USE_MAX7456": ""
+      }
+    },
+    {
+      "target": "IFLIGHT_BLITZ_F722",
+      "source": "upstream/config/configs/IFRC/IFLIGHT_BLITZ_F722/config.h",
+      "mcu": "STM32F722",
+      "processor_backend_available": false,
+      "installable": false,
+      "imu_alternatives": [
+        "MPU6000",
+        "ICM42688P",
+        "BMI270"
+      ],
+      "gyro": {
+        "bus": "SPI1",
+        "cs": "PA4",
+        "drdy": "PC4",
+        "alignment": "CW0_DEG",
+        "alignment_source": "pg/gyrodev.c default block",
+        "external_clock_pin": null
+      },
+      "spi_buses": {
+        "SPI1": {
+          "SCK": "PA5",
+          "SDI": "PA6",
+          "SDO": "PA7"
+        },
+        "SPI2": {
+          "SCK": "PB13",
+          "SDI": "PB14",
+          "SDO": "PB15"
+        },
+        "SPI3": {
+          "SCK": "PB3",
+          "SDI": "PB4",
+          "SDO": "PB5"
+        }
+      },
+      "hse_mhz_explicit": null,
+      "motor_pins": {
+        "MOTOR1_PIN": "PB1",
+        "MOTOR2_PIN": "PB0",
+        "MOTOR3_PIN": "PC8",
+        "MOTOR4_PIN": "PC9",
+        "MOTOR5_PIN": "PB6",
+        "MOTOR6_PIN": "PB7",
+        "MOTOR7_PIN": "PB10",
+        "MOTOR8_PIN": "PB11"
+      },
+      "timer_mappings": [
+        {
+          "pin": "PB1",
+          "occurrence": 2,
+          "betaflight_dma_option": 0,
+          "resolution": "blocked: processor table/backend not supported by this survey",
+          "index": 0
+        },
+        {
+          "pin": "PB0",
+          "occurrence": 2,
+          "betaflight_dma_option": 0,
+          "resolution": "blocked: processor table/backend not supported by this survey",
+          "index": 1
+        },
+        {
+          "pin": "PC8",
+          "occurrence": 2,
+          "betaflight_dma_option": 1,
+          "resolution": "blocked: processor table/backend not supported by this survey",
+          "index": 2
+        },
+        {
+          "pin": "PC9",
+          "occurrence": 2,
+          "betaflight_dma_option": 0,
+          "resolution": "blocked: processor table/backend not supported by this survey",
+          "index": 3
+        },
+        {
+          "pin": "PB6",
+          "occurrence": 1,
+          "betaflight_dma_option": 0,
+          "resolution": "blocked: processor table/backend not supported by this survey",
+          "index": 4
+        },
+        {
+          "pin": "PB7",
+          "occurrence": 1,
+          "betaflight_dma_option": 0,
+          "resolution": "blocked: processor table/backend not supported by this survey",
+          "index": 5
+        },
+        {
+          "pin": "PB10",
+          "occurrence": 1,
+          "betaflight_dma_option": 0,
+          "resolution": "blocked: processor table/backend not supported by this survey",
+          "index": 6
+        },
+        {
+          "pin": "PB11",
+          "occurrence": 1,
+          "betaflight_dma_option": 1,
+          "resolution": "blocked: processor table/backend not supported by this survey",
+          "index": 7
+        },
+        {
+          "pin": "PA3",
+          "occurrence": 2,
+          "betaflight_dma_option": 1,
+          "resolution": "blocked: processor table/backend not supported by this survey",
+          "index": 8
+        },
+        {
+          "pin": "PA8",
+          "occurrence": 1,
+          "betaflight_dma_option": 0,
+          "resolution": "blocked: processor table/backend not supported by this survey",
+          "index": 9
+        }
+      ],
+      "shared_pin_roles": [
+        {
+          "pin": "PA3",
+          "roles": [
+            "RX_PPM_PIN",
+            "UART2_RX_PIN"
+          ]
+        }
+      ],
+      "swd_pin_roles": {},
+      "issues": [
+        "required: new MCU/startup/RTOS/peripheral backend",
+        "required: resolve SYSTEM_HSE_MHZ from full upstream defaults or reviewed hardware override",
+        "required: exact fitted IMU/revision or implement and validate every allowed alternative",
+        "required: native PiOS ICM42688P driver port",
+        "required: native PiOS BMI270 driver port",
+        "optional logging: SPI NAND backend, ECC/bad-block handling and storage integration",
+        "barometer: DPS310 port, async bus replacement and Pa-to-kPa conversion",
+        "required: mutually exclusive resources; do not enable every defined pin role"
+      ],
+      "board_macros": {
+        "ADC1_DMA_OPT": "0",
+        "ADC_CURR_PIN": "PC1",
+        "ADC_VBAT_PIN": "PC2",
+        "BARO_I2C_INSTANCE": "I2CDEV_1",
+        "BEEPER_INVERTED": "",
+        "BEEPER_PIN": "PC13",
+        "BOARD_NAME": "IFLIGHT_BLITZ_F722",
+        "DEFAULT_BLACKBOX_DEVICE": "BLACKBOX_DEVICE_FLASH",
+        "DEFAULT_CURRENT_METER_SCALE": "200",
+        "DEFAULT_CURRENT_METER_SOURCE": "CURRENT_METER_ADC",
+        "DEFAULT_DSHOT_BITBANG": "DSHOT_BITBANG_ON",
+        "DEFAULT_VOLTAGE_METER_SOURCE": "VOLTAGE_METER_ADC",
+        "FC_TARGET_MCU": "STM32F722",
+        "FLASH_CS_PIN": "PA15",
+        "FLASH_SPI_INSTANCE": "SPI3",
+        "GYRO_1_CS_PIN": "PA4",
+        "GYRO_1_EXTI_PIN": "PC4",
+        "GYRO_1_SPI_INSTANCE": "SPI1",
+        "I2C1_SCL_PIN": "PB8",
+        "I2C1_SDA_PIN": "PB9",
+        "LED0_PIN": "PC15",
+        "LED_STRIP_PIN": "PA8",
+        "MAG_I2C_INSTANCE": "I2CDEV_1",
+        "MANUFACTURER_ID": "IFRC",
+        "MAX7456_SPI_CS_PIN": "PB12",
+        "MAX7456_SPI_INSTANCE": "SPI2",
+        "MOTOR1_PIN": "PB1",
+        "MOTOR2_PIN": "PB0",
+        "MOTOR3_PIN": "PC8",
+        "MOTOR4_PIN": "PC9",
+        "MOTOR5_PIN": "PB6",
+        "MOTOR6_PIN": "PB7",
+        "MOTOR7_PIN": "PB10",
+        "MOTOR8_PIN": "PB11",
+        "RX_PPM_PIN": "PA3",
+        "SPI1_SCK_PIN": "PA5",
+        "SPI1_SDI_PIN": "PA6",
+        "SPI1_SDO_PIN": "PA7",
+        "SPI2_SCK_PIN": "PB13",
+        "SPI2_SDI_PIN": "PB14",
+        "SPI2_SDO_PIN": "PB15",
+        "SPI3_SCK_PIN": "PB3",
+        "SPI3_SDI_PIN": "PB4",
+        "SPI3_SDO_PIN": "PB5",
+        "TIMER_PIN_MAPPING": "TIMER_PIN_MAP( 0, PB1 , 2, 0) TIMER_PIN_MAP( 1, PB0 , 2, 0) TIMER_PIN_MAP( 2, PC8 , 2, 1) TIMER_PIN_MAP( 3, PC9 , 2, 0) TIMER_PIN_MAP( 4, PB6 , 1, 0) TIMER_PIN_MAP( 5, PB7 , 1, 0) TIMER_PIN_MAP( 6, PB10, 1, 0) TIMER_PIN_MAP( 7, PB11, 1, 1) TIMER_PIN_MAP( 8, PA3 , 2, 1) TIMER_PIN_MAP( 9, PA8 , 1, 0)",
+        "UART1_RX_PIN": "PA10",
+        "UART1_TX_PIN": "PA9",
+        "UART2_RX_PIN": "PA3",
+        "UART2_TX_PIN": "PA2",
+        "UART3_RX_PIN": "PC11",
+        "UART3_TX_PIN": "PC10",
+        "UART4_RX_PIN": "PA1",
+        "UART4_TX_PIN": "PA0",
+        "UART5_RX_PIN": "PD2",
+        "UART5_TX_PIN": "PC12",
+        "UART6_RX_PIN": "PC7",
+        "UART6_TX_PIN": "PC6",
+        "USB_DETECT_PIN": "PB2",
+        "USE_ACC": "",
+        "USE_ACCGYRO_BMI270": "",
+        "USE_ACC_SPI_ICM42688P": "",
+        "USE_ACC_SPI_MPU6000": "",
+        "USE_BARO": "",
+        "USE_BARO_DPS310": "",
+        "USE_FLASH": "",
+        "USE_FLASH_M25P16": "",
+        "USE_FLASH_W25N01G": "",
+        "USE_GYRO": "",
+        "USE_GYRO_SPI_ICM42688P": "",
+        "USE_GYRO_SPI_MPU6000": "",
+        "USE_MAX7456": ""
+      }
+    },
+    {
+      "target": "KAKUTEH7V2",
+      "source": "upstream/config/configs/HBRO/KAKUTEH7V2/config.h",
+      "mcu": "STM32H743",
+      "processor_backend_available": false,
+      "installable": false,
+      "imu_alternatives": [
+        "BMI270"
+      ],
+      "gyro": {
+        "bus": "SPI4",
+        "cs": "PE4",
+        "drdy": "PE1",
+        "alignment": "CW0_DEG",
+        "alignment_source": "pg/gyrodev.c default block",
+        "external_clock_pin": null
+      },
+      "spi_buses": {
+        "SPI1": {
+          "SCK": "PA5",
+          "SDI": "PA6",
+          "SDO": "PA7"
+        },
+        "SPI2": {
+          "SCK": "PB13",
+          "SDI": "PB14",
+          "SDO": "PB15"
+        },
+        "SPI4": {
+          "SCK": "PE2",
+          "SDI": "PE5",
+          "SDO": "PE6"
+        }
+      },
+      "hse_mhz_explicit": null,
+      "motor_pins": {
+        "MOTOR1_PIN": "PB0",
+        "MOTOR2_PIN": "PB1",
+        "MOTOR3_PIN": "PB3",
+        "MOTOR4_PIN": "PB10",
+        "MOTOR5_PIN": "PA0",
+        "MOTOR6_PIN": "PA2",
+        "MOTOR7_PIN": "PC8",
+        "MOTOR8_PIN": "PC9"
+      },
+      "timer_mappings": [
+        {
+          "pin": "PB0",
+          "occurrence": 2,
+          "betaflight_dma_option": 0,
+          "resolution": "blocked: processor table/backend not supported by this survey",
+          "index": 0
+        },
+        {
+          "pin": "PB1",
+          "occurrence": 2,
+          "betaflight_dma_option": 1,
+          "resolution": "blocked: processor table/backend not supported by this survey",
+          "index": 1
+        },
+        {
+          "pin": "PB3",
+          "occurrence": 1,
+          "betaflight_dma_option": 2,
+          "resolution": "blocked: processor table/backend not supported by this survey",
+          "index": 2
+        },
+        {
+          "pin": "PB10",
+          "occurrence": 1,
+          "betaflight_dma_option": 3,
+          "resolution": "blocked: processor table/backend not supported by this survey",
+          "index": 3
+        },
+        {
+          "pin": "PA0",
+          "occurrence": 2,
+          "betaflight_dma_option": 4,
+          "resolution": "blocked: processor table/backend not supported by this survey",
+          "index": 4
+        },
+        {
+          "pin": "PA2",
+          "occurrence": 2,
+          "betaflight_dma_option": 5,
+          "resolution": "blocked: processor table/backend not supported by this survey",
+          "index": 5
+        },
+        {
+          "pin": "PC8",
+          "occurrence": 2,
+          "betaflight_dma_option": 6,
+          "resolution": "blocked: processor table/backend not supported by this survey",
+          "index": 6
+        },
+        {
+          "pin": "PC9",
+          "occurrence": 2,
+          "betaflight_dma_option": 7,
+          "resolution": "blocked: processor table/backend not supported by this survey",
+          "index": 7
+        },
+        {
+          "pin": "PD12",
+          "occurrence": 1,
+          "betaflight_dma_option": 14,
+          "resolution": "blocked: processor table/backend not supported by this survey",
+          "index": 8
+        },
+        {
+          "pin": "PE9",
+          "occurrence": 1,
+          "betaflight_dma_option": -1,
+          "resolution": "blocked: processor table/backend not supported by this survey",
+          "index": 9
+        }
+      ],
+      "shared_pin_roles": [],
+      "swd_pin_roles": {},
+      "issues": [
+        "required: new MCU/startup/RTOS/peripheral backend",
+        "required: resolve SYSTEM_HSE_MHZ from full upstream defaults or reviewed hardware override",
+        "required: native PiOS BMI270 driver port",
+        "optional logging: SPI NAND backend, ECC/bad-block handling and storage integration",
+        "barometer: DPS310 port, async bus replacement and Pa-to-kPa conversion"
+      ],
+      "board_macros": {
+        "ADC1_DMA_OPT": "8",
+        "ADC3_DMA_OPT": "9",
+        "ADC_CURR_PIN": "PC1",
+        "ADC_RSSI_PIN": "PC5",
+        "ADC_VBAT_PIN": "PC0",
+        "BARO_I2C_INSTANCE": "I2CDEV_1",
+        "BEEPER_INVERTED": "",
+        "BEEPER_PIN": "PC13",
+        "BOARD_NAME": "KAKUTEH7V2",
+        "CAMERA_CONTROL_PIN": "PE9",
+        "DEFAULT_BLACKBOX_DEVICE": "BLACKBOX_DEVICE_FLASH",
+        "DEFAULT_CURRENT_METER_SCALE": "168",
+        "DEFAULT_CURRENT_METER_SOURCE": "CURRENT_METER_ADC",
+        "DEFAULT_VOLTAGE_METER_SCALE": "109",
+        "DEFAULT_VOLTAGE_METER_SOURCE": "VOLTAGE_METER_ADC",
+        "FC_TARGET_MCU": "STM32H743",
+        "FLASH_CS_PIN": "PA4",
+        "FLASH_SPI_INSTANCE": "SPI1",
+        "GYRO_1_CS_PIN": "PE4",
+        "GYRO_1_EXTI_PIN": "PE1",
+        "GYRO_1_SPI_INSTANCE": "SPI4",
+        "I2C1_SCL_PIN": "PB6",
+        "I2C1_SDA_PIN": "PB7",
+        "LED0_PIN": "PC2",
+        "LED_STRIP_PIN": "PD12",
+        "MAG_I2C_INSTANCE": "I2CDEV_1",
+        "MANUFACTURER_ID": "HBRO",
+        "MAX7456_SPI_CS_PIN": "PB12",
+        "MAX7456_SPI_INSTANCE": "SPI2",
+        "MOTOR1_PIN": "PB0",
+        "MOTOR2_PIN": "PB1",
+        "MOTOR3_PIN": "PB3",
+        "MOTOR4_PIN": "PB10",
+        "MOTOR5_PIN": "PA0",
+        "MOTOR6_PIN": "PA2",
+        "MOTOR7_PIN": "PC8",
+        "MOTOR8_PIN": "PC9",
+        "PINIO1_BOX": "0",
+        "PINIO1_CONFIG": "129",
+        "PINIO1_PIN": "PE13",
+        "PINIO2_BOX": "40",
+        "PINIO2_CONFIG": "129",
+        "PINIO2_PIN": "PB11",
+        "SPI1_SCK_PIN": "PA5",
+        "SPI1_SDI_PIN": "PA6",
+        "SPI1_SDO_PIN": "PA7",
+        "SPI1_TX_DMA_OPT": "13",
+        "SPI2_SCK_PIN": "PB13",
+        "SPI2_SDI_PIN": "PB14",
+        "SPI2_SDO_PIN": "PB15",
+        "SPI4_SCK_PIN": "PE2",
+        "SPI4_SDI_PIN": "PE5",
+        "SPI4_SDO_PIN": "PE6",
+        "TIMER_PIN_MAPPING": "TIMER_PIN_MAP( 0, MOTOR1_PIN , 2, 0) TIMER_PIN_MAP( 1, MOTOR2_PIN , 2, 1) TIMER_PIN_MAP( 2, MOTOR3_PIN , 1, 2) TIMER_PIN_MAP( 3, MOTOR4_PIN , 1, 3) TIMER_PIN_MAP( 4, MOTOR5_PIN , 2, 4) TIMER_PIN_MAP( 5, MOTOR6_PIN , 2, 5) TIMER_PIN_MAP( 6, MOTOR7_PIN , 2, 6) TIMER_PIN_MAP( 7, MOTOR8_PIN , 2, 7) TIMER_PIN_MAP( 8, LED_STRIP_PIN , 1, 14) TIMER_PIN_MAP( 9, CAMERA_CONTROL_PIN, 1, -1)",
+        "TIMUP1_DMA_OPT": "0",
+        "TIMUP2_DMA_OPT": "0",
+        "TIMUP3_DMA_OPT": "2",
+        "TIMUP4_DMA_OPT": "0",
+        "TIMUP5_DMA_OPT": "3",
+        "TIMUP8_DMA_OPT": "1",
+        "UART1_RX_PIN": "PA10",
+        "UART1_TX_PIN": "PA9",
+        "UART2_RX_PIN": "PD6",
+        "UART2_TX_PIN": "PD5",
+        "UART3_RX_PIN": "PD9",
+        "UART3_TX_PIN": "PD8",
+        "UART4_RX_PIN": "PD0",
+        "UART4_TX_PIN": "PD1",
+        "UART6_RX_PIN": "PC7",
+        "UART6_TX_PIN": "PC6",
+        "UART7_RX_PIN": "PE7",
+        "USB_DETECT_PIN": "PA8",
+        "USE_ACC": "",
+        "USE_ACCGYRO_BMI270": "",
+        "USE_BARO": "",
+        "USE_BARO_BMP280": "",
+        "USE_BARO_DPS310": "",
+        "USE_FLASH": "",
+        "USE_FLASH_W25N01G": "",
+        "USE_GYRO": "",
+        "USE_MAX7456": ""
+      }
+    }
+  ],
+  "dependencies": {
+    "drivers": [
+      {
+        "source": "src/main/drivers/accgyro/accgyro_mpu.c",
+        "lines": 565,
+        "quoted_includes": [
+          "platform.h",
+          "build/atomic.h",
+          "build/build_config.h",
+          "build/debug.h",
+          "common/maths.h",
+          "common/utils.h",
+          "drivers/bus.h",
+          "drivers/bus_i2c.h",
+          "drivers/bus_spi.h",
+          "drivers/exti.h",
+          "drivers/io.h",
+          "drivers/nvic.h",
+          "drivers/sensor.h",
+          "drivers/system.h",
+          "drivers/time.h",
+          "drivers/accgyro/accgyro.h",
+          "drivers/accgyro/accgyro_mpu6050.h",
+          "drivers/accgyro/accgyro_mpu6500.h",
+          "drivers/accgyro/accgyro_spi_bmi160.h",
+          "drivers/accgyro/accgyro_spi_bmi270.h",
+          "drivers/accgyro/accgyro_spi_bmi423.h",
+          "drivers/accgyro/accgyro_spi_icm20649.h",
+          "drivers/accgyro/accgyro_spi_icm20689.h",
+          "drivers/accgyro/accgyro_spi_icm426xx.h",
+          "drivers/accgyro/accgyro_spi_icm456xx.h",
+          "drivers/accgyro/accgyro_spi_icm56686.h",
+          "drivers/accgyro/accgyro_spi_lsm6dso.h",
+          "drivers/accgyro/accgyro_spi_mpu6000.h",
+          "drivers/accgyro/accgyro_spi_mpu6500.h",
+          "drivers/accgyro/accgyro_spi_mpu9250.h",
+          "drivers/accgyro/accgyro_spi_l3gd20.h",
+          "drivers/accgyro/accgyro_spi_lsm6dsv16x.h",
+          "drivers/accgyro/accgyro_mpu.h",
+          "drivers/accgyro/accgyro_spi_icm40609.h",
+          "pg/pg.h",
+          "pg/gyrodev.h"
+        ],
+        "boundary_symbols": [
+          "EXTIConfig",
+          "EXTIEnable",
+          "EXTIHandlerInit",
+          "IOConfigGPIO",
+          "IOGetByTag",
+          "IOHi",
+          "IOInit",
+          "IORead",
+          "busDeviceRegister",
+          "busReadRegisterBuffer",
+          "delay",
+          "mpu6050FindRevision",
+          "mpuAccRead",
+          "mpuAccReadSPI",
+          "mpuDetect",
+          "mpuGyroDLPF",
+          "mpuGyroInit",
+          "mpuGyroRead",
+          "mpuGyroReadRegister",
+          "mpuGyroReadSPI",
+          "mpuIntCallback",
+          "mpuIntExtiHandler",
+          "mpuIntExtiInit",
+          "mpuPreInit",
+          "spiCalculateDivider",
+          "spiSequence",
+          "spiSetBusInstance",
+          "spiSetClkDivisor",
+          "spiUseDMA",
+          "spiWait"
+        ],
+        "scope": "lexical inventory; not complete preprocessed/link dependency closure"
+      },
+      {
+        "source": "src/main/drivers/accgyro/accgyro_spi_bmi270.c",
+        "lines": 599,
+        "quoted_includes": [
+          "platform.h",
+          "drivers/accgyro/accgyro.h",
+          "drivers/accgyro/accgyro_spi_bmi270.h",
+          "drivers/bus_spi.h",
+          "drivers/exti.h",
+          "drivers/io.h",
+          "drivers/nvic.h",
+          "drivers/sensor.h",
+          "drivers/system.h",
+          "drivers/time.h",
+          "sensors/gyro.h"
+        ],
+        "boundary_symbols": [
+          "EXTIConfig",
+          "EXTIEnable",
+          "EXTIHandlerInit",
+          "IOGetByTag",
+          "IOHi",
+          "IOInit",
+          "IOLo",
+          "delay",
+          "gyroConfig",
+          "spiCalculateDivider",
+          "spiReadRegMskBufRB",
+          "spiReadWriteBuf",
+          "spiSequence",
+          "spiSetClkDivisor",
+          "spiUseDMA",
+          "spiWait",
+          "spiWriteReg",
+          "spiWriteRegBuf"
+        ],
+        "scope": "lexical inventory; not complete preprocessed/link dependency closure"
+      },
+      {
+        "source": "src/main/drivers/accgyro/accgyro_spi_icm426xx.c",
+        "lines": 537,
+        "quoted_includes": [
+          "platform.h",
+          "common/axis.h",
+          "common/utils.h",
+          "build/build_config.h",
+          "build/debug.h",
+          "drivers/accgyro/accgyro.h",
+          "drivers/accgyro/accgyro_mpu.h",
+          "drivers/accgyro/accgyro_spi_icm426xx.h",
+          "drivers/bus_spi.h",
+          "drivers/exti.h",
+          "drivers/gyro_clkin.h",
+          "drivers/io.h",
+          "drivers/sensor.h",
+          "drivers/time.h",
+          "sensors/gyro.h",
+          "pg/gyrodev.h"
+        ],
+        "boundary_symbols": [
+          "IOGetByTag",
+          "delay",
+          "gyroConfig",
+          "gyroDeviceConfig",
+          "mpuGyroInit",
+          "spiCalculateDivider",
+          "spiReadRegMsk",
+          "spiSetClkDivisor",
+          "spiWriteReg"
+        ],
+        "scope": "lexical inventory; not complete preprocessed/link dependency closure"
+      },
+      {
+        "source": "src/main/drivers/accgyro/accgyro_spi_lsm6dso.c",
+        "lines": 97,
+        "quoted_includes": [
+          "platform.h",
+          "drivers/accgyro/accgyro.h",
+          "drivers/accgyro/accgyro_spi_lsm6dso.h",
+          "drivers/bus_spi.h",
+          "drivers/exti.h",
+          "drivers/io.h"
+        ],
+        "boundary_symbols": [
+          "busReadRegisterBuffer"
+        ],
+        "scope": "lexical inventory; not complete preprocessed/link dependency closure"
+      },
+      {
+        "source": "src/main/drivers/accgyro/accgyro_spi_lsm6dso_init.c",
+        "lines": 207,
+        "quoted_includes": [
+          "platform.h",
+          "drivers/accgyro/accgyro.h",
+          "drivers/accgyro/accgyro_spi_lsm6dso.h",
+          "drivers/bus_spi.h",
+          "drivers/exti.h",
+          "drivers/io.h",
+          "drivers/nvic.h",
+          "drivers/sensor.h",
+          "drivers/time.h"
+        ],
+        "boundary_symbols": [
+          "EXTIConfig",
+          "EXTIEnable",
+          "EXTIHandlerInit",
+          "IOGetByTag",
+          "IOInit",
+          "busReadRegisterBuffer",
+          "busWriteRegister",
+          "delay",
+          "delayMicroseconds",
+          "spiCalculateDivider",
+          "spiSetClkDivisor"
+        ],
+        "scope": "lexical inventory; not complete preprocessed/link dependency closure"
+      },
+      {
+        "source": "src/main/drivers/accgyro/accgyro_spi_lsm6dsv16x.c",
+        "lines": 1284,
+        "quoted_includes": [
+          "platform.h",
+          "accgyro_spi_lsm6dsv16x.h",
+          "common/utils.h",
+          "sensors/gyro.h",
+          "drivers/system.h",
+          "drivers/time.h"
+        ],
+        "boundary_symbols": [
+          "delay",
+          "delayMicroseconds",
+          "gyroConfig",
+          "mpuGyroInit",
+          "mpuIntCallback",
+          "spiCalculateDivider",
+          "spiReadRegMsk",
+          "spiSequence",
+          "spiSetClkDivisor",
+          "spiUseDMA",
+          "spiWait",
+          "spiWriteReg"
+        ],
+        "scope": "lexical inventory; not complete preprocessed/link dependency closure"
+      },
+      {
+        "source": "src/main/drivers/accgyro/accgyro_spi_mpu6000.c",
+        "lines": 234,
+        "quoted_includes": [
+          "platform.h",
+          "common/axis.h",
+          "common/maths.h",
+          "drivers/accgyro/accgyro.h",
+          "drivers/accgyro/accgyro_mpu.h",
+          "drivers/accgyro/accgyro_spi_mpu6000.h",
+          "drivers/bus_spi.h",
+          "drivers/exti.h",
+          "drivers/io.h",
+          "drivers/time.h",
+          "drivers/sensor.h",
+          "drivers/system.h"
+        ],
+        "boundary_symbols": [
+          "delay",
+          "delayMicroseconds",
+          "mpu6000AccAndGyroInit",
+          "mpu6000SpiAccDetect",
+          "mpu6000SpiAccInit",
+          "mpu6000SpiDetect",
+          "mpu6000SpiGyroDetect",
+          "mpu6000SpiGyroInit",
+          "mpuGyroDLPF",
+          "mpuGyroInit",
+          "mpuGyroRead",
+          "spiCalculateDivider",
+          "spiReadRegMsk",
+          "spiSetClkDivisor",
+          "spiWriteReg"
+        ],
+        "scope": "lexical inventory; not complete preprocessed/link dependency closure"
+      },
+      {
+        "source": "src/main/drivers/accgyro/accgyro_spi_mpu6500.c",
+        "lines": 155,
+        "quoted_includes": [
+          "platform.h",
+          "common/axis.h",
+          "common/maths.h",
+          "drivers/bus_spi.h",
+          "drivers/exti.h",
+          "drivers/io.h",
+          "drivers/sensor.h",
+          "drivers/time.h",
+          "accgyro.h",
+          "accgyro_mpu.h",
+          "accgyro_mpu6500.h",
+          "accgyro_spi_mpu6500.h"
+        ],
+        "boundary_symbols": [
+          "delay",
+          "delayMicroseconds",
+          "mpu6500AccInit",
+          "mpu6500GyroInit",
+          "mpu6500SpiAccDetect",
+          "mpu6500SpiAccInit",
+          "mpu6500SpiDetect",
+          "mpu6500SpiGyroDetect",
+          "mpu6500SpiGyroInit",
+          "mpu6500SpiInit",
+          "spiCalculateDivider",
+          "spiReadRegMsk",
+          "spiSetClkDivisor",
+          "spiWriteReg"
+        ],
+        "scope": "lexical inventory; not complete preprocessed/link dependency closure"
+      },
+      {
+        "source": "src/main/drivers/barometer/barometer_bmp280.c",
+        "lines": 327,
+        "quoted_includes": [
+          "platform.h",
+          "build/build_config.h",
+          "build/debug.h",
+          "barometer.h",
+          "drivers/bus.h",
+          "drivers/bus_i2c.h",
+          "drivers/bus_i2c_busdev.h",
+          "drivers/bus_spi.h",
+          "drivers/io.h",
+          "drivers/time.h",
+          "barometer_bmp280.h",
+          "drivers/time.h"
+        ],
+        "boundary_symbols": [
+          "IOConfigGPIO",
+          "IOHi",
+          "IOInit",
+          "busBusy",
+          "busDeviceRegister",
+          "busReadRegisterBuffer",
+          "busReadRegisterBufferStart",
+          "busWriteRegister",
+          "busWriteRegisterStart",
+          "delay",
+          "spiCalculateDivider",
+          "spiSetClkDivisor"
+        ],
+        "scope": "lexical inventory; not complete preprocessed/link dependency closure"
+      },
+      {
+        "source": "src/main/drivers/barometer/barometer_dps310.c",
+        "lines": 437,
+        "quoted_includes": [
+          "platform.h",
+          "build/build_config.h",
+          "build/debug.h",
+          "common/utils.h",
+          "common/maths.h",
+          "drivers/io.h",
+          "drivers/bus.h",
+          "drivers/bus_spi.h",
+          "drivers/time.h",
+          "drivers/barometer/barometer.h",
+          "drivers/barometer/barometer_dps310.h",
+          "drivers/resource.h"
+        ],
+        "boundary_symbols": [
+          "IOConfigGPIO",
+          "IOHi",
+          "IOInit",
+          "busBusy",
+          "busDeviceRegister",
+          "busReadBuf",
+          "busReadRegister",
+          "busReadRegisterBufferStart",
+          "busWrite",
+          "delay",
+          "spiCalculateDivider",
+          "spiSetClkDivisor"
+        ],
+        "scope": "lexical inventory; not complete preprocessed/link dependency closure"
+      },
+      {
+        "source": "src/main/drivers/flash/flash_m25p16.c",
+        "lines": 709,
+        "quoted_includes": [
+          "platform.h",
+          "build/debug.h",
+          "drivers/bus_spi.h",
+          "drivers/bus_quadspi.h",
+          "drivers/flash/flash.h",
+          "drivers/flash/flash_impl.h",
+          "drivers/io.h",
+          "drivers/time.h",
+          "pg/flash.h",
+          "drivers/flash/flash_m25p16.h"
+        ],
+        "boundary_symbols": [
+          "spiCalculateDivider",
+          "spiIsBusy",
+          "spiReadWriteBuf",
+          "spiSequence",
+          "spiSetClkDivisor",
+          "spiWait"
+        ],
+        "scope": "lexical inventory; not complete preprocessed/link dependency closure"
+      },
+      {
+        "source": "src/main/drivers/flash/flash_w25n.c",
+        "lines": 1028,
+        "quoted_includes": [
+          "platform.h",
+          "drivers/flash/flash.h",
+          "drivers/flash/flash_impl.h",
+          "drivers/flash/flash_w25n.h",
+          "drivers/bus_spi.h",
+          "drivers/bus_quadspi.h",
+          "drivers/io.h",
+          "drivers/time.h"
+        ],
+        "boundary_symbols": [
+          "spiCalculateDivider",
+          "spiIsBusy",
+          "spiLinkSegments",
+          "spiSequence",
+          "spiSetClkDivisor",
+          "spiWait"
+        ],
+        "scope": "lexical inventory; not complete preprocessed/link dependency closure"
+      },
+      {
+        "source": "src/main/drivers/flash/flash_w25q128fv.c",
+        "lines": 599,
+        "quoted_includes": [
+          "platform.h",
+          "build/debug.h",
+          "common/utils.h",
+          "drivers/time.h",
+          "drivers/flash/flash.h",
+          "drivers/flash/flash_impl.h",
+          "drivers/flash/flash_w25q128fv.h",
+          "drivers/bus_quadspi.h",
+          "drivers/bus_octospi.h",
+          "drivers/bus.h"
+        ],
+        "boundary_symbols": [],
+        "scope": "lexical inventory; not complete preprocessed/link dependency closure"
+      },
+      {
+        "source": "src/main/drivers/max7456.c",
+        "lines": 818,
+        "quoted_includes": [
+          "platform.h",
+          "build/debug.h",
+          "pg/max7456.h",
+          "pg/vcd.h",
+          "drivers/bus_spi.h",
+          "drivers/dma.h",
+          "drivers/io.h",
+          "drivers/light_led.h",
+          "drivers/max7456.h",
+          "drivers/nvic.h",
+          "drivers/osd.h",
+          "drivers/osd_symbols.h",
+          "drivers/time.h"
+        ],
+        "boundary_symbols": [
+          "IOConfigGPIO",
+          "IOGetByTag",
+          "IOHi",
+          "IOInit",
+          "IOIsFreeOrPreinit",
+          "IOLo",
+          "IO_CONFIG",
+          "IO_TAG",
+          "delay",
+          "delayMicroseconds",
+          "spiCalculateClock",
+          "spiCalculateDivider",
+          "spiIsBusy",
+          "spiReadRegMsk",
+          "spiReadWriteBuf",
+          "spiSequence",
+          "spiSetBusInstance",
+          "spiSetClkDivisor",
+          "spiUseSDO_DMA",
+          "spiWait",
+          "spiWrite",
+          "spiWriteReg"
+        ],
+        "scope": "lexical inventory; not complete preprocessed/link dependency closure"
+      },
+      {
+        "source": "src/main/drivers/sdcard_spi.c",
+        "lines": 1118,
+        "quoted_includes": [
+          "platform.h",
+          "drivers/bus_spi.h",
+          "drivers/dma.h",
+          "drivers/dma_reqmap.h",
+          "drivers/io.h",
+          "drivers/nvic.h",
+          "drivers/time.h",
+          "pg/bus_spi.h",
+          "pg/sdcard.h",
+          "sdcard.h",
+          "sdcard_impl.h",
+          "sdcard_standard.h"
+        ],
+        "boundary_symbols": [
+          "IOConfigGPIO",
+          "IOGetByTag",
+          "IOHi",
+          "IOInit",
+          "busy ",
+          "delay",
+          "delayMicroseconds",
+          "spiCalculateDivider",
+          "spiIsBusy",
+          "spiReadWrite",
+          "spiReadWriteBuf",
+          "spiRelease",
+          "spiSequence",
+          "spiSetBusInstance",
+          "spiSetClkDivisor",
+          "spiUseDMA",
+          "spiWait"
+        ],
+        "scope": "lexical inventory; not complete preprocessed/link dependency closure"
+      }
+    ],
+    "bmi270_config_blob_bytes": 328
+  }
+}

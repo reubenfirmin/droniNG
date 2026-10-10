@@ -142,7 +142,6 @@ private slots:
     void onConnectClicked();
     void devChanged(IConnection *connection);
 
-    void onConnectionDestroyed(QObject *obj);
     void connectionsCallBack(); // used to call devChange after all the plugins are loaded
     void reconnectSlot();
     void reconnectCheckSlot();
@@ -172,6 +171,9 @@ private:
     QList<IConnection *> connectionBackup;
     QTimer *reconnect;
     QTimer *reconnectCheck;
+    ConnectionError m_connectionError;
+    QMetaObject::Connection m_connectionDestroyed;
+    quint64 m_connectionGeneration = 0;
 
     void connectDeviceFailed(DevListItem &device);
 };

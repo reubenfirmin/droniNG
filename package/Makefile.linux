@@ -30,13 +30,24 @@ DEB_ASSETS_FILES	:= $(shell ls $(DEB_ASSETS))
 ALL_DEB_FILES  = $(foreach f, $(DEB_CFG_FILES), $(DEB_BUILD_DIR)/$(f))
 ALL_DEB_FILES += $(foreach f, $(DEB_ASSETS_FILES), $(DEB_BUILD_DIR)/$(f))
 
+PACKAGE_SOURCE_MATERIALS ?= NO
+QT_SOURCE_ARCHIVES ?= $(TOOLS_DIR)/runtime-sources/qt$(QT_VERSION)
+SDK_DEPENDENCY_CACHE ?= $(TOOLS_DIR)/runtime-sources
+ifeq ($(PACKAGE_SOURCE_MATERIALS),YES)
+SOURCE_MATERIAL_ARGS := --qt-source-archives "$(QT_SOURCE_ARCHIVES)" \
+  --sdk-dependency-cache "$(SDK_DEPENDENCY_CACHE)" \
+  --application-source-root "$(ROOT_DIR)"
+else ifneq ($(PACKAGE_SOURCE_MATERIALS),NO)
+$(error PACKAGE_SOURCE_MATERIALS must be YES or NO)
+endif
+
 standalone: $(STANDALONE_DEPENDENCIES) | $(PACKAGE_DIR)
 	@echo $@ starting
 	$(V1) rm -rf "$(GCS_PACKAGE_STAGE)"
 	$(V1) mkdir -p "$(GCS_PACKAGE_STAGE)"
 	$(V1) cp -a "$(BUILD_DIR)/ground/gcs/bin" "$(BUILD_DIR)/ground/gcs/share" "$(BUILD_DIR)/ground/gcs/lib" "$(GCS_PACKAGE_STAGE)/"
 	$(V1) $(HOST_PYTHON) "$(ROOT_DIR)/package/deploy_linux.py" --qmake "$(QMAKE)" \
-	  --application "$(GCS_PACKAGE_STAGE)"
+	  --application "$(GCS_PACKAGE_STAGE)" $(SOURCE_MATERIAL_ARGS)
 
 .PHONY: gcs
 gcs:
