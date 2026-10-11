@@ -2,6 +2,9 @@
 .DS_Store
 *.swp
 
+# Python bytecode caches
+__pycache__/
+
 # Eclipse project and workspace files
 .classpath
 .cproject
@@ -30,6 +33,7 @@
 /downloads
 /tools
 /build
+/aqtinstall.log
 
 # Ignore jenkins stuff
 /Nodes

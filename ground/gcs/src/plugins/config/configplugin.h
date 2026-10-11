@@ -52,13 +52,11 @@ public:
     bool initialize(const QStringList &arguments, QString *errorString);
     void shutdown();
 
-signals:
-    void launchSetupWizard();
-
 private slots:
     void eraseAllSettings();
     void onAutopilotConnect();
     void onAutopilotDisconnect();
+    void updateControllerSetupState();
     void eraseDone(UAVObject *);
     void eraseFailed();
 

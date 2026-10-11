@@ -31,6 +31,7 @@
 #include <QtCore/QtPlugin>
 #include <QtCore/QMutexLocker>
 #include <QDebug>
+#include <QSet>
 
 #include "rawhid_const.h"
 #include "usbsignalfilter.h"
@@ -84,7 +85,6 @@ void RawHIDConnection::onDeviceDisconnected()
  */
 QList<Core::IDevice *> RawHIDConnection::availableDevices()
 {
-    QList<Core::IDevice *> devices;
     QList<USBPortInfo> portsList;
 
     // Loop for all vendorIDs known by the board manager
@@ -92,18 +92,38 @@ QList<Core::IDevice *> RawHIDConnection::availableDevices()
     QList<int> brdVID = brdMgr->getKnownVendorIDs();
     foreach (int vendorID, brdVID) {
         RAW_HID_QXTLOG_DEBUG("[rawhidplugin] VendorID type known: ", vendorID);
-        portsList = m_usbMonitor->availableDevices(vendorID, -1, -1, USBMonitor::Running);
-        // We currently list devices by their serial number
-        USBDevice *dev = new USBDevice();
-        foreach (USBPortInfo prt, portsList) {
+        portsList.append(m_usbMonitor->availableDevices(vendorID, -1, -1, USBMonitor::Running));
+    }
+    return devicesForPorts(portsList);
+}
+
+QList<Core::IDevice *> RawHIDConnection::devicesForPorts(const QList<USBPortInfo> &ports)
+{
+    QList<Core::IDevice *> devices;
+    QSet<QString> present;
+    for (const auto &prt : ports) {
+        present.insert(prt.path);
+        auto *dev = m_devices.value(prt.path).data();
+        // Repeated inventory queries must preserve device identity. Otherwise
+        // the manager treats an unchanged USB controller as unplugged/replugged.
+        if (!dev || dev->getName() != prt.serialNumber || dev->getVendorID() != prt.vendorID
+            || dev->getProductID() != prt.productID) {
+            dev = new USBDevice();
+            dev->setParent(this);
             dev->setName(prt.serialNumber);
-            dev->setDisplayName(prt.product);
+            dev->setControllerCandidate(true);
             dev->setVendorID(prt.vendorID);
             dev->setProductID(prt.productID);
             dev->setPath(prt.path);
-            devices.append(dev);
+            dev->setUsbTopologyPath(Core::IDevice::usbTopologyForDeviceNode(prt.path));
+            m_devices.insert(prt.path, dev);
         }
+        dev->setDisplayName(prt.product);
+        devices.append(dev);
     }
+    for (auto it = m_devices.begin(); it != m_devices.end();)
+        if (!present.contains(it.key())) it = m_devices.erase(it);
+        else ++it;
     return devices;
 }
 

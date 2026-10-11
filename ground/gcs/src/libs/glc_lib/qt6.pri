@@ -1,5 +1,5 @@
 !linux:error("GLC integration supports Linux only")
-!equals(QT_MAJOR_VERSION, 6):error("Use the legacy GLC project with Qt 5")
+!equals(QT_MAJOR_VERSION, 6):error("Qt 6 is required")
 
 # Must match make/tools.mk. Keep upstream source unmodified and reproducible.
 GLC_QT6_REV = b292ccf7851576d71ee9bed7ced4c340b910159a
@@ -34,7 +34,6 @@ DEPENDPATH = $$GLC_QT6_SOURCE
 # Replace upstream system installation and output locations with GCS rules.
 INSTALLS =
 VERSION =
-# Avoid qmake prepending this wrapper's legacy source directory to the header
-# search path: identically named Qt 5 headers must never enter the Qt 6 build.
+# Use only the pinned upstream headers.
 CONFIG += c++17 warn_off no_include_pwd
 include(../../gcslibrary.pri)

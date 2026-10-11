@@ -33,6 +33,7 @@
 #define UPLOADERGADGETWIDGET_H
 
 #include <QPointer>
+#include <QDialogButtonBox>
 #include "tl_dfu.h"
 #include <coreplugin/iboardtype.h>
 #include "uploader_global.h"
@@ -45,6 +46,7 @@
 
 class QNetworkAccessManager;
 class Ui_UploaderWidget;
+namespace Core { class FirmwarePage; }
 
 using namespace tl_dfu;
 
@@ -117,6 +119,9 @@ private:
     bool saveSettings(const QByteArray &settingsDump);
 
     bool askIfShouldContinue();
+    int promptFirmware(const QString &text, const QString &details,
+                       QDialogButtonBox::StandardButtons buttons);
+    bool m_promptActive = false;
     bool downloadSettings();
     void stepChangeAndDelay(QEventLoop &loop, int delayMs,
                             UpgradeAssistantDialog::UpgradeAssistantStep step);
@@ -126,6 +131,8 @@ private:
     bool haveSettingsPart() const;
 
     Ui_UploaderWidget *m_widget;
+    Core::FirmwarePage *m_firmwarePage = nullptr;
+    QWidget *m_advancedTools = nullptr;
 
     UpgradeAssistantDialog m_dialog;
 
@@ -141,7 +148,7 @@ private:
     ExtensionSystem::PluginManager *pm;
     TelemetryManager *telMngr;
     UAVObjectUtilManager *utilMngr;
-    Core::ConnectionManager *conMngr;
+    Core::ConnectionManager *conMngr = nullptr;
     QNetworkAccessManager *netMngr;
     UAVSettingsImportExportManager *importMngr;
 

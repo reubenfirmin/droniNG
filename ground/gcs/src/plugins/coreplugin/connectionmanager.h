@@ -44,16 +44,19 @@
 #include <QPushButton>
 #include <QComboBox>
 #include <QPointer>
+#include <QSet>
 #include <QMessageBox>
 
 #include "core_global.h"
 #include <QTimer>
+#include <QJsonArray>
 
 QT_BEGIN_NAMESPACE
 class QTabWidget;
 QT_END_NAMESPACE
 
 namespace Core {
+struct FirmwareBoardProfile;
 
 class IConnection;
 class IDevice;
@@ -111,6 +114,10 @@ public:
     QList<DevListItem> getAvailableDevices() { return m_devList; }
 
     bool isConnected() { return m_ioDev != nullptr; }
+    bool firmwareInstallationActive() const { return m_firmwareInstalling; }
+    bool firmwareDetectionActive() const { return m_firmwareDetecting; }
+    bool flightDataAvailable() const { return m_flightDataAvailable; }
+    bool controllerSetupRequired() const { return m_controllerSetupRequired; }
 
     bool connectDevice(DevListItem device);
     bool disconnectDevice();
@@ -118,6 +125,27 @@ public:
     void resumePolling();
     TelemetryMonitorWidget *getTelemetryMonitorWidget() { return m_monitorWidget; }
     bool getAutoconnect();
+    QString firmwareVariant() const { return m_firmwareVariant; }
+    QString firmwareBoardTarget() const { return m_firmwareBoardTarget; }
+    bool hasMspFirmware() const { return m_mspFirmwareDetected; }
+    QString firmwareVersion() const { return m_firmwareVersion; }
+    QString detectedBoard() const { return m_detectedBoard; }
+    QString detectedFirmware() const { return m_detectedFirmware; }
+    QString detectedBootloader() const { return m_detectedBootloader; }
+    QString firmwareStatus() const { return m_firmwareStatus; }
+    ConnectionError firmwareError() const { return m_firmwareError; }
+    void setFirmwareIdentity(const QString &variant, const QString &boardTarget,
+                             bool mspDetected = false, const QString &version = {});
+    void setNativeFirmwareIdentity(const QString &board, const QString &firmware,
+                                   const QString &bootloader = {});
+    void setFirmwareStatus(const QString &message);
+    void setFirmwareDetectionActive(bool active);
+    void beginFirmwareInstallation();
+    void endFirmwareInstallation();
+    void reportFirmwareDescription(const QByteArray &description);
+    void reportFlightDataReceived();
+    void setControllerSetupRequired(bool required);
+    void requestControllerSetup();
 
 protected:
     void updateConnectionList(IConnection *connection);
@@ -129,11 +157,25 @@ signals:
     void deviceAboutToDisconnect();
     void deviceDisconnected();
     void availableDevicesChanged(const QList<Core::DevListItem> devices);
+    void firmwareDescriptionReceived(const QByteArray &description);
+    void flightDataReady();
+    void boardSettingsRequested(const QJsonArray &settings);
+    void boardSettingsFinished(bool success, const QString &message);
+    void boardSettingsCancelled();
+    void firmwareBootRequested(const QString &usbPath, const QByteArray &descriptor);
+    void firmwareBootFinished(bool success, const QString &message);
+    void firmwareBootCancelled();
+    void firmwareStateChanged();
+    void firmwarePageRequested();
+    void setupWizardRequested();
 
 public slots:
     void telemetryConnected();
     void telemetryDisconnected();
     void telemetryUpdated(double txRate, double rxRate);
+    void telemetryConnectionFailed(const Core::ConnectionError &error);
+    void telemetryHandshakeCompleted();
+    void showFirmwarePage();
 
 private slots:
     void objectAdded(QObject *obj);
@@ -167,6 +209,11 @@ protected:
 private:
     bool connectDevice();
     bool polling;
+    bool m_firmwareInstalling = false;
+    bool m_firmwareDetecting = false;
+    bool m_flightDataAvailable = false;
+    bool m_controllerSetupRequired = false;
+    QSet<IConnection *> m_enumeratedConnections;
     Internal::MainWindow *m_mainWindow;
     QList<IConnection *> connectionBackup;
     QTimer *reconnect;
@@ -174,6 +221,11 @@ private:
     ConnectionError m_connectionError;
     QMetaObject::Connection m_connectionDestroyed;
     quint64 m_connectionGeneration = 0;
+    QString m_firmwareVariant, m_firmwareBoardTarget;
+    QString m_firmwareVersion, m_detectedBoard, m_detectedFirmware, m_detectedBootloader;
+    QString m_firmwareStatus;
+    ConnectionError m_firmwareError;
+    bool m_mspFirmwareDetected = false;
 
     void connectDeviceFailed(DevListItem &device);
 };

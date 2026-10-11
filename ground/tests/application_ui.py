@@ -34,6 +34,8 @@ def wait_for(description, callback, process, seconds=15):
 
 
 def run(arguments):
+    if arguments.check_firmware_installation:
+        assert not Path("/dev/bus/usb").exists(), "Firmware UI checks require isolated USB device access"
     application = arguments.application.resolve(strict=True)
     source = arguments.profile.resolve(strict=True)
     original_hash = digest(source)
@@ -77,7 +79,13 @@ def run(arguments):
     display.test.XTestFakeButtonEvent.argtypes = [c.c_void_p, c.c_uint, c.c_int, c.c_ulong]
     display.test.XTestFakeButtonEvent.restype = c.c_int
     capture = xdisplay.Display()
-    disabled = ("RawHID", "Serial", "IPconnection", "Uploader", "UsageStats", "SetupWizard")
+    disabled = ("RawHID", "Serial", "IPconnection", "UsageStats", "SetupWizard")
+    if arguments.check_firmware_installation:
+        disabled = tuple(name for name in disabled if name != "RawHID")
+    else:
+        disabled += ("Uploader",)
+    if arguments.check_controller_setup:
+        disabled = tuple(name for name in disabled if name != "SetupWizard")
     command = [str(application / "bin/droning-gcs"), "--multiple-ok"]
     for name in disabled:
         command.extend(["--no-load", name])
@@ -146,8 +154,135 @@ def run(arguments):
                     assert display.test.XTestFakeButtonEvent(display.display, 1, pressed, 0)
                 display.x.XSync(display.display, False)
 
+            def named_window(title):
+                for child in capture.screen().root.query_tree().children:
+                    try:
+                        name = child.get_full_property(
+                            capture.intern_atom("_NET_WM_NAME"), capture.intern_atom("UTF8_STRING"))
+                        name = name.value.decode("utf-8") if name else child.get_wm_name()
+                        if name == title:
+                            return child.id
+                    except xerror.BadWindow:
+                        continue
+                return None
+
             # Keyboard navigation exercises the actual application mode shortcuts.
+            try:
+                wait_for("startup Welcome selection", lambda: any(node.name == "Welcome" and node.getRoleName() == "page tab"
+                           and node.getState().contains(pyatspi.STATE_SELECTED)
+                           for node in visible_nodes()), process)
+            except AssertionError:
+                record("startup-selection-failure")
+                raise
+            try:
+                wait_for("Welcome introduction", lambda: any(node.name == "Welcome to DroniNG"
+                         for node in visible_nodes()), process)
+            except AssertionError:
+                record("welcome-render-failure")
+                raise
             record("initial")
+            assert not any(node.name == "Connections:" for node in visible_nodes()), \
+                "Welcome must use the controller CTA without the legacy connection footer"
+            assert not any(node.getRoleName() == "combo box" for node in visible_nodes()), \
+                "Welcome must not expose a second controller selector"
+            if arguments.check_usb_access_startup:
+                assert any(node.name == "Enable USB connections" for node in visible_nodes()), \
+                    "Missing USB rules must be explained on startup"
+                assert not any(node.name.startswith("sudo install -m 0644 ") for node in visible_nodes()), \
+                    "Keep the command collapsed in the introduction"
+                copy = next((node for node in visible_nodes()
+                    if node.name == "Copy setup command"
+                    and node.getRoleName() in ("button", "push button")), None)
+                assert copy, "Startup setup needs a Copy command action"
+                assert not any(node.getRoleName() == "dialog" for node in visible_nodes()), \
+                    "Startup USB setup must be inline"
+                click(copy)
+                wait_for("setup command copied", lambda: any(node.name == "Command copied"
+                    and node.getRoleName() in ("button", "push button") for node in visible_nodes()), process)
+                assert any(node.name == "Welcome" and node.getRoleName() == "page tab"
+                    and node.getState().contains(pyatspi.STATE_SELECTED) for node in visible_nodes())
+                record("startup-usb-access")
+                view = next(node for node in visible_nodes() if node.name == "View command"
+                            and node.getRoleName() in ("button", "push button"))
+                click(view)
+                command = wait_for("expanded setup command", lambda: next((node.name for node in visible_nodes()
+                    if node.name.startswith("sudo install -m 0644 ")), None), process)
+                rules = application / "rules.udev"
+                if not rules.exists():
+                    rules = application.parents[1] / "shared/usb_ids/droning.udev"
+                assert rules.is_file() and str(rules) in command, command
+                assert command.endswith("/etc/udev/rules.d/45-droning.rules && sudo udevadm control --reload-rules"), command
+                record("startup-usb-command")
+                # Change only the rules directory bound into this private mount
+                # namespace. Never install rules into the host system.
+                installed = Path(environment["DRONING_TEST_RULES_DIR"]) / "45-droning.rules"
+                shutil.copyfile(rules, installed)
+                wait_for("automatic USB setup completion", lambda: any(node.name == "Ready to connect"
+                    for node in visible_nodes()), process)
+                assert not any(node.name in ("Copy setup command", "Command copied", "View command", "Hide command")
+                    for node in visible_nodes()), "Completed setup must clear its instructions and actions"
+                record("startup-usb-ready")
+                controller_cta = next(node for node in visible_nodes() if node.name == "Connect controller"
+                    and node.getRoleName() in ("button", "push button"))
+                click(controller_cta)
+                wait_for("connection CTA navigation", lambda: any(node.name == "Connect your controller"
+                    for node in visible_nodes()), process)
+                display.keys(window, "Control_L", "1")
+                wait_for("return to Welcome", lambda: any(node.name == "Welcome to DroniNG"
+                    for node in visible_nodes()), process)
+                installed.unlink()
+                wait_for("USB setup needed again", lambda: any(node.name == "Copy setup command"
+                    for node in visible_nodes()), process)
+                view = next(node for node in visible_nodes() if node.name == "View command"
+                            and node.getRoleName() in ("button", "push button"))
+                click(view)
+                wait_for("setup command redisclosure", lambda: any(node.name.startswith("sudo install -m 0644 ")
+                    for node in visible_nodes()), process)
+                hide = next(node for node in visible_nodes() if node.name == "Hide command"
+                            and node.getRoleName() in ("button", "push button"))
+                click(hide)
+                wait_for("collapsed setup command", lambda: not any(node.name.startswith("sudo install -m 0644 ")
+                    for node in visible_nodes()), process)
+                display.x.XMoveResizeWindow(display.display, window, 120, 80, 800, 740)
+                display.x.XSync(display.display, False)
+                wait_for("narrow Welcome layout", lambda: display.geometry(window)[2] == 800, process)
+                time.sleep(0.4)
+                record("startup-usb-narrow")
+                display.resize(window)
+                community = next(node for node in visible_nodes()
+                    if " ".join(node.name.replace("&", "").split()) == "Community updates"
+                    and node.getRoleName() in ("button", "push button", "check box"))
+                click(community)
+                wait_for("expanded community toggle", lambda: any(
+                    " ".join(node.name.replace("&", "").split()) == "Hide community updates"
+                    for node in visible_nodes()), process)
+                left, top, width, height = display.geometry(window)
+                assert display.test.XTestFakeMotionEvent(display.display, -1, left + 15, top + height // 2, 0)
+                for direction in (5, 4):
+                    for _ in range(12):
+                        for pressed in (True, False):
+                            assert display.test.XTestFakeButtonEvent(display.display, direction, pressed, 0)
+                    display.x.XSync(display.display, False)
+                    time.sleep(0.4)
+                    if direction == 5:
+                        wait_for("visible community section", lambda: any(node.name == "Community updates"
+                            for node in visible_nodes()), process)
+                        record("welcome-community")
+                community = next(node for node in visible_nodes()
+                    if " ".join(node.name.replace("&", "").split()) == "Hide community updates"
+                    and node.getRoleName() in ("button", "push button", "check box"))
+                click(community)
+                wait_for("collapsed community section", lambda: not any(node.name == "Community updates"
+                    for node in visible_nodes()), process)
+                firmware = next(node for node in visible_nodes() if node.name == "Firmware"
+                                and node.getRoleName() in ("button", "push button"))
+                click(firmware)
+                wait_for("Firmware from Welcome action", lambda: any(node.name == "Firmware"
+                    and node.getRoleName() == "page tab" and node.getState().contains(pyatspi.STATE_SELECTED)
+                    for node in visible_nodes()), process)
+                assert not any(node.name == "Enable USB connections" for node in visible_nodes()), \
+                    "Welcome setup must not occupy other workspaces"
+                print("PASS: Welcome setup card, copy, disclosure, automatic completion and responsive workspace actions", flush=True)
             for shortcut, label, title in ((1, "welcome", "Welcome"), (2, "flight", "Flight data"),
                                            (3, "configuration", "Configuration"),
                                            (4, "system", "System"), (5, "scopes", "Scopes"),
@@ -159,10 +294,171 @@ def run(arguments):
                                   and node.getState().contains(pyatspi.STATE_SELECTED)))
                          for node in visible_nodes()), process)
                 time.sleep(0.5)
+                assert not any(node.name == "Connections:" for node in visible_nodes()), \
+                    "Workspaces must not restore the legacy connection footer"
+                if arguments.check_usb_access_startup and title != "Welcome":
+                    assert not any(node.name == "Enable USB connections" for node in visible_nodes()), \
+                        "Setup belongs to the Welcome page"
                 record(label)
+
+            if arguments.check_firmware_installation:
+                tab = wait_for("Firmware workspace", lambda: next((node for node in visible_nodes()
+                    if node.name == "Firmware" and node.getRoleName() == "page tab"), None), process)
+                click(tab)
+                assert not named_window("Find dRonin firmware")
+                wait_for("controller connection page", lambda: any(node.name == "Connect your controller"
+                    for node in visible_nodes()), process)
+                assert not any(node.name == "Connections:" for node in visible_nodes()), \
+                    "Firmware owns its connection controls"
+                assert not any(node.name == "FlightTime" for node in visible_nodes()), \
+                    "The firmware journey should occupy the entire workspace"
+                controller_list = next(node for node in visible_nodes()
+                    if node.name in ("Controller", "Waiting for a controller…") and node.getRoleName() == "combo box")
+                connect_action = next(node for node in visible_nodes()
+                    if node.name == "Connect controller" and node.getRoleName() in ("button", "push button"))
+                assert not connect_action.getState().contains(pyatspi.STATE_ENABLED), \
+                    "Connect stays disabled with no plausible USB controller"
+                assert any(node.name == "Plug in your controller" for node in visible_nodes())
+                assert not any(node.name == "Controller already in BOOT mode?" for node in visible_nodes())
+                assert not any(node.name in ("1  Connect", "2  Identify", "3  Install", "4  Ready")
+                    for node in visible_nodes()), "Connection must not assume installation intent"
+                assert not any(node.name == "Detected firmware:" for node in visible_nodes()), \
+                    "Disconnected state should guide connection rather than show empty identity fields"
+                record("firmware-connect")
+                if arguments.check_controller_setup:
+                    assert not named_window("droniNG Setup Wizard"), "Connecting must not launch setup"
+                    assert not any(node.name == "Firmware maintenance" for node in visible_nodes()), \
+                        "Maintenance stays collapsed until requested"
+                    click(next(node for node in visible_nodes()
+                        if node.name == "Tools" and node.getRoleName() in ("menu", "menu item")))
+                    wizard_action = wait_for("setup wizard menu action", lambda: next((node for node in visible_nodes()
+                        if node.name == "Vehicle Setup Wizard" and node.getRoleName() == "menu item"), None), process)
+                    click(wizard_action)
+                    wait_for("explicitly launched setup wizard", lambda: named_window("droniNG Setup Wizard"), process)
+                    record("controller-setup-wizard")
+                    cancel = next(node for node in visible_nodes()
+                        if node.name == "Cancel" and node.getRoleName() in ("button", "push button"))
+                    click(cancel)
+                    wait_for("setup wizard closed", lambda: not named_window("droniNG Setup Wizard"), process)
+                    assert not named_window("Setup Wizard Cancelled"), "Cancellation must not prompt again"
+                    assert tab.getState().contains(pyatspi.STATE_SELECTED), "Wizard preserves the Firmware workspace"
+                    record("controller-setup-cancelled")
+                maintenance = next(node for node in visible_nodes()
+                    if node.name.replace("&", "").replace("  ", " ") == "Maintenance recovery")
+                click(maintenance)
+                install_entry = wait_for("explicit installation choice", lambda: next((node for node in visible_nodes()
+                    if node.name == "Install DroniNG…" and node.getRoleName() in ("button", "push button")), None), process)
+                click(install_entry)
+                wait_for("BOOT-mode board selection", lambda: any(node.name == "Board model"
+                    for node in visible_nodes()), process)
+                assert not any(node.name in ("Firmware", "Bootloader", "Not detected")
+                    and node.getRoleName() == "label"
+                    for node in visible_nodes()), "Manual installation should not show empty identity fields"
+                record("firmware-detection")
+                board = wait_for("board selector", lambda: next((node for node in visible_nodes()
+                    if node.name in ("Board model", "Select board…")
+                    and node.getRoleName() == "combo box"), None), process)
+                assert board.queryComponent().getExtents(pyatspi.DESKTOP_COORDS)[2] <= 360, \
+                    "Board selector must stay compact in a wide workspace"
+                assert board.queryAction().doAction(0), "Board selector did not open"
+                wait_for("board selector popup", lambda: any(node.getRoleName() == "list item"
+                         and node.name == "Select board…" for node in visible_nodes()), process)
+                record("firmware-board-popup")
+                send("Home")
+                # The catalog order is deterministic; use the shipped catalog's board index.
+                catalog_data = json.loads((Path(__file__).resolve().parents[2]
+                    / "shared/firmware/board-catalog.json").read_text())
+                index = next(i for i, item in enumerate(catalog_data["boards"])
+                             if item["id"] == "hglrc-f4-v6pro") + 1
+                for _ in range(index):
+                    send("Down")
+                send("Return")
+                wait_for("selected board model", lambda: board.name == "HGLRC F4 V6PRO", process)
+                assert not any(node.name.startswith("STM32 system bootloader")
+                    or "Recommended firmware: Revolution." in node.name
+                    or node.name == "Install the recommended firmware to continue."
+                    for node in visible_nodes()), "Keep the overview focused on the board and installation action"
+                assert sum(node.name == "HGLRC F4 V6PRO" for node in visible_nodes()) == 1, \
+                    "Board model must appear once"
+                assert any(node.name == "Currently installed" for node in visible_nodes())
+                assert any(node.name == "Will install" for node in visible_nodes())
+                product = json.loads((Path(__file__).resolve().parents[2]
+                    / "shared/product-version.json").read_text())
+                release = product["name"] + " " + product["version"]
+                assert any(node.name == release + " · Revolution" for node in visible_nodes()), \
+                    "Explain the firmware family that will be installed"
+                assert any(node.name == "DroniNG" and node.getRoleName() == "label"
+                    for node in visible_nodes()), "Show the bootloader that will be installed"
+                assert any(node.name == "Board hardware settings will be applied automatically."
+                    for node in visible_nodes())
+                record("firmware-board-selected")
+                install = wait_for("validated installation image", lambda: next((node for node in visible_nodes()
+                    if node.name == "Install DroniNG" and node.getRoleName() in ("button", "push button")
+                    and node.getState().contains(pyatspi.STATE_ENABLED)), None), process)
+                record("firmware-install-available")
+                assert any("Existing firmware and settings will be replaced." in node.name
+                           for node in visible_nodes()), "Show the installation effect before authorizing it"
+                click(install)
+                title = "Install dRonin — HGLRC F4 V6PRO"
+                assert not named_window(title), "Installation must stay in the Firmware tab"
+                wait_for("hardware BOOT guidance", lambda: any("BOOT button" in node.name
+                    for node in visible_nodes()), process)
+                assert not any(node.name == "Install DroniNG"
+                    and node.getRoleName() in ("button", "push button") for node in visible_nodes()), \
+                    "Installation must continue automatically without a second Install button"
+                wait_for("installation discovery state", lambda: any(
+                    "Installation starts automatically" in node.name
+                    or "Linux USB access is unavailable" in node.name for node in visible_nodes()), process)
+                assert any("BOOT button beside the USB socket" in node.name for node in visible_nodes()) \
+                    and any("flight battery" in node.name for node in visible_nodes()), \
+                    "Show the selected board's boot procedure"
+                assert any(node.name == "Board manual" for node in visible_nodes()), \
+                    "Provide the selected board's manual during bootloader entry"
+                discovery_failed = any("Linux USB access is unavailable" in node.name for node in visible_nodes())
+                assert any(node.name == "Retry" for node in visible_nodes()) == discovery_failed, \
+                    "Retry should appear only when an operation fails"
+                assert sum("BOOT button" in node.name for node in visible_nodes()) == 1, \
+                    "BOOT instructions must appear once"
+                assert not any(node.name == "Installation log" for node in visible_nodes()), \
+                    "Installation log must start collapsed"
+                progress_bars = [node for node in visible_nodes() if node.getRoleName() == "progress bar"]
+                assert len(progress_bars) == (0 if discovery_failed else 1), \
+                    "Show one progress bar for the active installation task"
+                if progress_bars:
+                    assert progress_bars[0].name == "Detecting BOOT mode…"
+                    assert any(node.name == "Detecting BOOT mode…" and node.getRoleName() == "label"
+                               for node in visible_nodes()), "Name the task beside its progress bar"
+                record("firmware-install-started")
+                details_toggle = next(node for node in visible_nodes() if node.name == "View log")
+                click(details_toggle)
+                wait_for("expanded installation log", lambda: any(node.name == "Installation log"
+                    for node in visible_nodes()), process)
+                assert sum("BOOT button" in node.name for node in visible_nodes()) == 1
+                record("firmware-install-details")
+                click(details_toggle)
+                wait_for("collapsed installation log", lambda: not any(node.name == "Installation log"
+                    for node in visible_nodes()), process)
+                cancel = next(node for node in visible_nodes()
+                    if node.name == "Cancel" and node.getRoleName() in ("button", "push button"))
+                click(cancel)
+                wait_for("firmware installation cancellation", lambda: not any("BOOT button" in node.name
+                    for node in visible_nodes()), process)
+                assert not named_window("Find dRonin firmware")
+                assert any(node.name == "Board model" for node in visible_nodes())
+                record("firmware-install-cancelled")
+                report["firmware_installation_checked"] = {
+                    "board": "hglrc-f4-v6pro", "target": "revolution",
+                    "image": "validated packaged image", "entry": "hardware BOOT",
+                    "authorization": "single Install click; no second Install button",
+                    "usb": "isolated /dev; no physical USB device nodes",
+                    "write": "cancelled with physical USB devices isolated"}
+                print("PASS: Firmware tab detection, validated image, inline BOOT guidance and cancellation", flush=True)
 
             if arguments.check_replay_seek:
                 display.keys(window, "Control_L", "4")
+                wait_for("System workspace before replay input", lambda: any(node.name == "System"
+                    and node.getRoleName() == "page tab" and node.getState().contains(pyatspi.STATE_SELECTED)
+                    for node in visible_nodes()), process)
                 nodes = list(visible_nodes())
                 label_index = next(index for index, node in enumerate(nodes)
                                    if node.name == "Jump to:")
@@ -173,8 +469,20 @@ def run(arguments):
                 send("1")
                 send("0")
                 send("Return")
-                wait_for("idle replay seek to ten seconds",
-                         lambda: position.queryValue().currentValue == 10, process)
+                try:
+                    wait_for("idle replay seek to ten seconds",
+                             lambda: position.queryValue().currentValue == 10, process)
+                except AssertionError:
+                    print("Replay control bounds:", position.queryComponent().getExtents(pyatspi.DESKTOP_COORDS), flush=True)
+                    print("Focused controls:", [(node.getRoleName(), node.name) for node in visible_nodes()
+                        if node.getState().contains(pyatspi.STATE_FOCUSED)], flush=True)
+                    parent = position
+                    while parent and parent.getRoleName() != "application":
+                        print("Replay ancestor:", parent.getRoleName(), parent.name,
+                              parent.queryComponent().getExtents(pyatspi.DESKTOP_COORDS), flush=True)
+                        parent = parent.parent
+                    record("replay-seek-failure")
+                    raise
                 record("replay-seek-idle")
                 click(position)
                 send("Control_L", "a")
@@ -185,12 +493,16 @@ def run(arguments):
                 report["idle_replay_seek_checked"] = True
                 print("PASS: actual replay position control works with no log loaded", flush=True)
 
-            # These clicks select configuration pages, with every controller transport disabled.
+            # Keyboard selection keeps the selected configuration page visible
+            # when the navigation list needs to scroll.
             display.keys(window, "Control_L", "3")
-            for title in ("Vehicle", "Input", "Output", "Attitude", "Stabilization", "Modules", "Camera Stab"):
+            for index, title in enumerate(("Vehicle", "Input", "Output", "Attitude", "Stabilization", "Modules", "Camera Stab")):
                 tab = wait_for(title + " tab", lambda: next((node for node in visible_nodes()
                                if node.name == title and node.getRoleName() == "list item"), None), process)
-                click(tab)
+                if index:
+                    send("Down")
+                else:
+                    click(tab)
                 wait_for(title + " tab selection", lambda: tab.getState().contains(pyatspi.STATE_SELECTED), process)
                 time.sleep(0.3)
                 record("config-" + title.lower().replace(" ", "-"))
@@ -275,6 +587,12 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--check-replay-seek", action="store_true",
                         help="Exercise the System workspace's position control without a log")
+    parser.add_argument("--check-firmware-installation", action="store_true",
+                        help="Check the Firmware tab and installation flow with physical USB access isolated")
+    parser.add_argument("--check-controller-setup", action="store_true",
+                        help="Check explicit wizard launch and cancellation from the Firmware workspace")
+    parser.add_argument("--check-usb-access-startup", action="store_true",
+                        help="Check Welcome setup and recovery with USB rules isolated")
     parser.add_argument("--expected-uavo-hash",
                         help="Check the telemetry definition hash displayed by About")
     parser.add_argument("--expected-revision",
@@ -301,10 +619,33 @@ def main():
             path.mkdir(mode=0o700)
             environment[variable] = str(path)
         try:
-            result = subprocess.run(["dbus-run-session", "--", "xvfb-run", "-d",
-                                     "--server-args=-screen 0 1440x1000x24", sys.executable,
-                                     str(Path(__file__).resolve()), *sys.argv[1:],
-                                     "--inside-private-session"], env=environment, timeout=150)
+            command = ["dbus-run-session", "--", "xvfb-run", "-d",
+                       "--server-args=-screen 0 1440x1000x24", sys.executable,
+                       str(Path(__file__).resolve()), *sys.argv[1:], "--inside-private-session"]
+            if arguments.check_firmware_installation or arguments.check_usb_access_startup:
+                # The Install click authorizes automatic flashing. Hide physical USB
+                # devices from the entire test session before launching the real GCS.
+                bwrap = shutil.which("bwrap")
+                if not bwrap:
+                    raise RuntimeError("Firmware UI checks require bubblewrap for USB isolation")
+                output = arguments.output.resolve()
+                rule_isolation = []
+                if arguments.check_usb_access_startup:
+                    private_rules = session / "usb-rules"
+                    private_rules.mkdir()
+                    environment["DRONING_TEST_RULES_DIR"] = str(private_rules)
+                    for directory in ("/etc/udev/rules.d", "/run/udev/rules.d",
+                                      "/usr/lib/udev/rules.d", "/usr/local/lib/udev/rules.d"):
+                        if Path(directory).is_dir():
+                            if directory == "/etc/udev/rules.d":
+                                rule_isolation.extend(("--bind", str(private_rules), directory))
+                            else:
+                                rule_isolation.extend(("--tmpfs", directory))
+                command = [bwrap, "--ro-bind", "/", "/", "--dev", "/dev",
+                           "--tmpfs", "/sys", "--tmpfs", "/run/udev",
+                           "--bind", "/tmp", "/tmp", "--bind", str(output), str(output),
+                           *rule_isolation, *command]
+            result = subprocess.run(command, env=environment, timeout=150)
         finally:
             shutil.rmtree(session)
         raise SystemExit(result.returncode)

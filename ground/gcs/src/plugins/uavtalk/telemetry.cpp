@@ -526,6 +526,10 @@ void Telemetry::processObjectTransaction(ObjectTransactionInfo *transInfo)
 void Telemetry::processObjectUpdates(UAVObject *obj, EventMask event, bool allInstances,
                                      bool priority)
 {
+    // Suppress both explicit handshake requests and the periodic GCS heartbeat
+    // after identifying a port that speaks MSP. Incoming objects still flow.
+    if (!connectionRequestsEnabled && obj->getObjID() == GCSTelemetryStats::OBJID
+        && event != EV_UNPACKED) return;
     // Push event into queue
     ObjectQueueInfo objInfo;
     objInfo.obj = obj;

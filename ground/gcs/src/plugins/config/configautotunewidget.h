@@ -42,10 +42,6 @@
 #include <QWizardPage>
 #include <QtNetwork/QNetworkReply>
 
-#if QT_VERSION < 0x060000
-QT_CHARTS_USE_NAMESPACE
-#endif
-
 #include "ui_autotune.h"
 #include "ui_autotunebeginning.h"
 #include "ui_autotuneproperties.h"

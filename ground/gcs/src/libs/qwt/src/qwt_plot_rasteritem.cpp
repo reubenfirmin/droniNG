@@ -14,11 +14,9 @@
 #include <qpainter.h>
 #include <qpaintengine.h>
 #include <qmath.h>
-#if QT_VERSION >= 0x040400
 #include <qthread.h>
 #include <qfuture.h>
 #include <qtconcurrentrun.h>
-#endif
 #include <float.h>
 
 class QwtPlotRasterItem::PrivateData
@@ -371,9 +369,6 @@ static bool qwtUseCache( QwtPlotRasterItem::CachePolicy policy,
         {
             case QPaintEngine::SVG:
             case QPaintEngine::Pdf:
-#if QT_VERSION < 0x060000
-            case QPaintEngine::PostScript:
-#endif
             case QPaintEngine::MacPrinter:
             case QPaintEngine::Picture:
                 break;
@@ -851,7 +846,7 @@ QImage QwtPlotRasterItem::compose(
     {
         QImage alphaImage( image.size(), QImage::Format_ARGB32 );
 
-#if QT_VERSION >= 0x040400 && !defined(QT_NO_QFUTURE)
+#if !defined(QT_NO_QFUTURE)
         uint numThreads = renderThreadCount();
 
         if ( numThreads <= 0 )

@@ -382,6 +382,19 @@ def xtrim(string, suffix, length):
         assert n > 0, "length of truncated string+suffix exceeds maximum length"
         return ''.join([string[:n], '+', suffix])
 
+def product_version(path):
+    """Read the product release independently of Git build provenance."""
+    if not path.is_file():
+        return None
+    product = json.loads(path.read_text(encoding='utf-8'))
+    if (not isinstance(product, dict) or product.get('schemaVersion') != 1
+            or product.get('name') != 'DroniNG'
+            or not isinstance(product.get('version'), str)
+            or not re.fullmatch(r'[0-9]+\.[0-9]+(?:\.[0-9]+)?', product['version'])
+            or len(product['name'] + ' ' + product['version']) > 25):
+        raise ValueError('Invalid product version')
+    return product
+
 def GetHashofDirs(directory, verbose=0, raw=0, what_to_hash='..*.xml$'):
     import os
     if not os.path.isdir(directory):
@@ -477,6 +490,9 @@ string given.
                         help='use preserved repository inputs for a source-archive build')
     parser.add_argument('--write-metadata', type=Path,
                         help='preserve repository inputs and hashes of generated outputs')
+    parser.add_argument('--product', type=Path,
+                        default=Path(__file__).resolve().parents[2] / 'shared/product-version.json',
+                        help='product release definition, separate from Git revision metadata')
     parser.add_argument('pos', metavar='a=b', nargs='*',
                         help='Additional predefined words for template subst')
     args = parser.parse_args()
@@ -497,6 +513,8 @@ string given.
     if args.write_metadata and len({Path(name).name for name in args.outfile}) != len(args.outfile):
         raise ValueError('Preserved output names must be unique')
 
+    product = product_version(args.product)
+    product_label = product['name'] + ' ' + product['version'] if product else ''
     dictionary = dict(
         TEMPLATE = args.template,
         OUTFILENAME = args.outfile,
@@ -509,7 +527,10 @@ string given.
         TAG_OR_BRANCH = r.tag(r.branch('unreleased')),
         TAG_OR_HASH8 = r.tag(r.hash(8, 'untagged')),
         DIRTY = r.dirty(),
-        FWTAG = xtrim(r.tag(r.branch('unreleased')), r.dirty(), 25),
+        FWTAG = product_label or xtrim(r.tag(r.branch('unreleased')), r.dirty(), 25),
+        PRODUCT_NAME = product['name'] if product else '',
+        PRODUCT_VERSION = product['version'] if product else '',
+        PRODUCT_LABEL = product_label,
         UNIXTIME = r.time(),
         DATE = r.time('%Y%m%d'),
         DATETIME = r.time('%Y%m%d %H:%M'),
@@ -547,6 +568,8 @@ string given.
                         generated_files_sha256={Path(name).name:
                             hashlib.sha256(Path(name).read_bytes()).hexdigest()
                             for name in args.outfile})
+        if product:
+            metadata['product'] = product
         contents = json.dumps(metadata, indent=2, ensure_ascii=False) + '\n'
         if not args.write_metadata.exists() or args.write_metadata.read_text(encoding='utf-8') != contents:
             args.write_metadata.write_text(contents, encoding='utf-8')

@@ -667,7 +667,8 @@ bool UAVObjectUtilManager::getBoardDescriptionStruct(deviceDescriptorStruct &dev
 
 bool UAVObjectUtilManager::descriptionToStructure(QByteArray desc, deviceDescriptorStruct &struc)
 {
-    if (desc.startsWith("TlFw") || desc.startsWith("OpFw")) {
+    if (desc.size() == 100 && (desc.startsWith("TlFw") || desc.startsWith("OpFw"))) {
+        struc.description = desc;
         /*
          * This looks like a binary with a description at the end
          *  4 bytes: header: "TlFw"

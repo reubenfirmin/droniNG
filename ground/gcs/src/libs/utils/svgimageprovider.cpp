@@ -32,9 +32,6 @@
 #include <QRegularExpression>
 
 SvgImageProvider::SvgImageProvider(const QString &basePath):
-#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
-    QObject(),
-#endif
     QQuickImageProvider(QQuickImageProvider::Image),
     m_basePath(basePath)
 {

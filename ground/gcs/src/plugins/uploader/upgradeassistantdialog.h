@@ -30,7 +30,7 @@
 #ifndef UPGRADEASSISTANT_H
 #define UPGRADEASSISTANT_H
 
-#include <QDialog>
+#include <QWidget>
 #include <QLabel>
 #include <QMap>
 #include <QString>
@@ -39,7 +39,7 @@ namespace Ui {
 class UpgradeAssistant;
 }
 
-class UpgradeAssistantDialog : public QDialog
+class UpgradeAssistantDialog : public QWidget
 {
     Q_OBJECT
 public:
@@ -67,6 +67,10 @@ public:
 
     // public slots:
     void onStepChanged(UpgradeAssistantStep step);
+    void open() { show(); }
+    void reject() { hide(); emit finished(0); }
+signals:
+    void finished(int result);
 
 protected:
     void closeEvent(QCloseEvent *event);

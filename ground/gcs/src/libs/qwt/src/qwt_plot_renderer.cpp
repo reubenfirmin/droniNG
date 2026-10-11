@@ -255,29 +255,10 @@ void QwtPlotRenderer::renderDocument( QwtPlot *plot,
         render( plot, &painter, documentRect );
 #endif
     }
-    else if ( fmt == "ps" )
-    {
-#if QT_VERSION < 0x050000
-#ifndef QT_NO_PRINTER
-        QPrinter printer;
-        printer.setOutputFormat( QPrinter::PostScriptFormat );
-        printer.setColorMode( QPrinter::Color );
-        printer.setFullPage( true );
-        printer.setPaperSize( sizeMM, QPrinter::Millimeter );
-        printer.setDocName( title );
-        printer.setOutputFileName( fileName );
-        printer.setResolution( resolution );
-
-        QPainter painter( &printer );
-        render( plot, &painter, documentRect );
-#endif
-#endif
-    }
     else if ( fmt == "svg" )
     {
 #ifndef QWT_NO_SVG
 #ifdef QT_SVG_LIB
-#if QT_VERSION >= 0x040500
         QSvgGenerator generator;
         generator.setTitle( title );
         generator.setFileName( fileName );
@@ -286,7 +267,6 @@ void QwtPlotRenderer::renderDocument( QwtPlot *plot,
 
         QPainter painter( &generator );
         render( plot, &painter, documentRect );
-#endif
 #endif
 #endif
     }
@@ -369,7 +349,6 @@ void QwtPlotRenderer::renderTo(
 
 #ifndef QWT_NO_SVG
 #ifdef QT_SVG_LIB
-#if QT_VERSION >= 0x040500
 
 /*!
   \brief Render the plot to a QSvgGenerator
@@ -395,7 +374,6 @@ void QwtPlotRenderer::renderTo(
     QPainter p( &generator );
     render( plot, &p, rect );
 }
-#endif
 #endif
 #endif
 

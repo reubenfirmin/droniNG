@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check Qt 5/6 settings migration without modifying any input profiles."""
+"""Check Qt 6 settings persistence without modifying any input profiles."""
 
 import argparse
 import hashlib
@@ -60,10 +60,8 @@ def compare(expected, actual, context):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("reference", type=Path)
-    parser.add_argument("candidate", type=Path)
-    parser.add_argument("--reference-libraries", required=True)
-    parser.add_argument("--candidate-libraries", required=True)
+    parser.add_argument("binary", type=Path)
+    parser.add_argument("--libraries", required=True)
     parser.add_argument("--profile", type=Path, action="append", default=[])
     parser.add_argument("--output", type=Path, required=True)
     arguments = parser.parse_args()
@@ -73,50 +71,37 @@ def main():
     arguments.output.mkdir(parents=True, exist_ok=True)
     output = Path(tempfile.mkdtemp(prefix="settings-check-",
                                   dir=arguments.output)).resolve()
-    reference = Runtime("qt5", arguments.reference,
-                        arguments.reference_libraries, output)
-    candidate = Runtime("qt6", arguments.candidate,
-                        arguments.candidate_libraries, output)
-    runtimes = (reference, candidate)
-    for runtime in runtimes:
-        path = output / f"{runtime.name}-model.xml"
-        runtime.run("--write-model", path)
-        profiles.append((path, True))
+    runtime = Runtime("qt6", arguments.binary, arguments.libraries, output)
+    model_path = output / "model.xml"
+    runtime.run("--write-model", model_path)
+    profiles.append((model_path, True))
 
     for index, (source, model) in enumerate(profiles):
         directory = output / f"profile-{index:02}"
         directory.mkdir()
-        expected = reference.normalize(source, directory / "original-qt5.json")
-        actual = candidate.normalize(source, directory / "original-qt6.json")
-        compare(expected, actual, f"{source.name} initial Qt 5/6 read")
+        expected = runtime.normalize(source, directory / "original.json")
         if model:
-            for runtime in runtimes:
-                runtime.run("--verify-model", source)
+            runtime.run("--verify-model", source)
 
-        for first, second in ((reference, candidate), (candidate, reference)):
-            direction = f"{first.name}-to-{second.name}"
-            current = source
-            for step, writer in enumerate((first, second)):
-                rewritten = directory / f"{direction}-{step}.xml"
-                writer.run("--rewrite", current, rewritten)
-                for reader in runtimes:
-                    normalized = reader.normalize(
-                        rewritten, directory / f"{direction}-{step}-{reader.name}.json")
-                    compare(expected, normalized,
-                            f"{source.name} {direction} step {step}, {reader.name} read")
-                    if model:
-                        reader.run("--verify-model", rewritten)
-                current = rewritten
+        current = source
+        for step in range(2):
+            rewritten = directory / f"rewrite-{step}.xml"
+            runtime.run("--rewrite", current, rewritten)
+            normalized = runtime.normalize(rewritten, directory / f"rewrite-{step}.json")
+            compare(expected, normalized, f"{source.name} rewrite {step}")
+            if model:
+                runtime.run("--verify-model", rewritten)
+            current = rewritten
         digest = hashlib.sha256(json.dumps(expected, sort_keys=True,
                                           separators=(",", ":")).encode()).hexdigest()
-        print(f"PASS: {source.name}: {len(expected)} settings; both migration directions; "
+        print(f"PASS: {source.name}: {len(expected)} settings; two Qt 6 rewrites; "
               f"canonical SHA-256 {digest}")
 
     for source, digest in original_hashes.items():
         if hashlib.sha256(source.read_bytes()).hexdigest() != digest:
             raise AssertionError(f"Input profile was modified: {source.name}")
     print("PASS: input profiles unchanged; model values, arrays, dock layouts, geometry "
-          "and splitter state restore in both Qt versions")
+          "and splitter state restore in Qt 6")
     print(f"Evidence: {output}")
 
 

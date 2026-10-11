@@ -12,11 +12,6 @@
 #include "qwt_math.h"
 #include <qpainter.h>
 
-#if QT_VERSION < 0x040601
-#define qAtan2(y, x) ::atan2(y, x)
-#define qFastSin(x) qSin(x)
-#define qFastCos(x) qCos(x)
-#endif
 
 class QwtIntervalSymbol::PrivateData
 {

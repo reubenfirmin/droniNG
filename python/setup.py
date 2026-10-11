@@ -60,10 +60,9 @@ setup(
         # Specify the Python versions you support here. In particular, ensure
         # that you indicate whether you support Python 2, Python 3 or both.
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.3',
-        'Programming Language :: Python :: 3.4',
-        'Programming Language :: Python :: 3.5',
-        'Programming Language :: Python :: 3.6'
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12'
     ],
 
     # What does your project relate to?
@@ -75,11 +74,9 @@ setup(
 
     # Just requires the base python system to run
     install_requires=[],
-
-    # 'all' target requires python3 because there are only PyQt5 wheels for
-    # python3.
+    python_requires='>=3.10',
     extras_require={
-        'all': ['pyserial', 'numpy', 'matplotlib', 'dronin-pyqtgraph', 'PyQt5'],
+        'all': ['pyserial', 'numpy', 'matplotlib', 'pyqtgraph>=0.14,<0.15', 'PyQt6>=6.10,<7'],
     },
 
     scripts = [ 'droning-dumplog', 'droning-halt',

@@ -24,6 +24,7 @@
  * with this program; if not, see <http://www.gnu.org/licenses/>
  */
 #include "uavtalkplugin.h"
+#include "boardsettingsinstaller.h"
 
 #include <coreplugin/icore.h>
 #include <coreplugin/connectionmanager.h>
@@ -60,6 +61,11 @@ bool UAVTalkPlugin::initialize(const QStringList &arguments, QString *errorStrin
 
     // Connect to connection manager so we get notified when the user connect to his device
     Core::ConnectionManager *cm = Core::ICore::instance()->connectionManager();
+    auto *settings = new BoardSettingsInstaller(objMngr, this);
+    connect(cm, &Core::ConnectionManager::boardSettingsRequested, settings, &BoardSettingsInstaller::start);
+    connect(cm, &Core::ConnectionManager::deviceDisconnected, settings, &BoardSettingsInstaller::disconnected);
+    connect(cm, &Core::ConnectionManager::boardSettingsCancelled, settings, &BoardSettingsInstaller::cancel);
+    connect(settings, &BoardSettingsInstaller::finished, cm, &Core::ConnectionManager::boardSettingsFinished);
     QObject::connect(cm, &Core::ConnectionManager::deviceConnected, this,
                      &UAVTalkPlugin::onDeviceConnect);
     QObject::connect(cm, &Core::ConnectionManager::deviceAboutToDisconnect, this,

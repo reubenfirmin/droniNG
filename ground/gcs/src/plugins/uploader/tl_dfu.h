@@ -92,7 +92,7 @@ class DFUObject : public QThread
 
 public:
     static quint32 CRCFromQBArray(QByteArray array, quint32 Size);
-    DFUObject();
+    explicit DFUObject(int replyTimeoutMs = 10000);
     ~DFUObject();
 
     // Service commands:
@@ -136,8 +136,9 @@ private:
 
     // USB coms:
     int SendData(bl_messages);
-    int ReceiveData(bl_messages &data, int timeoutMS = 10000);
+    int ReceiveData(bl_messages &data, int timeoutMS = -1);
     hid_device *m_hidHandle;
+    int m_replyTimeoutMs;
 
     bool StartUpload(qint32 const &numberOfBytes, const dfu_partition_label &label, quint32 crc);
     bool UploadData(qint32 const &numberOfPackets, QByteArray &data);

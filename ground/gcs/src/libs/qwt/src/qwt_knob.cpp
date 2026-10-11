@@ -21,12 +21,6 @@
 #include <qmath.h>
 #include <qapplication.h>
 
-#if QT_VERSION < 0x040601
-#define qAtan2(y, x) ::atan2(y, x)
-#define qFabs(x) ::fabs(x)
-#define qFastCos(x) qCos(x)
-#define qFastSin(x) qSin(x)
-#endif
 
 static QSize qwtKnobSizeHint( const QwtKnob *knob, int min )
 {

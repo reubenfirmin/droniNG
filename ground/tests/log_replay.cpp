@@ -265,11 +265,6 @@ private slots:
         const QString directory = qEnvironmentVariable("GCS_LOG_REFERENCE_DIR");
         QVERIFY(!directory.isEmpty());
         const QString reference = directory + "/flight.opl";
-#if QT_VERSION < 0x060000
-        QVERIFY(QDir().mkpath(directory));
-        QFile::remove(reference);
-        QVERIFY(QFile::copy(filename, reference));
-#endif
         const QString warning = qEnvironmentVariable("GCS_LOG_EXPECT_WARNING",
             qEnvironmentVariableIsSet("GCS_LOG_EXPECT_VERSION_WARNING")
                 ? QStringLiteral("Possible log file incompatibility.") : QString{});

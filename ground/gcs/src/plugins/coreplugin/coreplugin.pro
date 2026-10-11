@@ -2,8 +2,8 @@ TEMPLATE = lib
 TARGET = Core
 DEFINES += CORE_LIBRARY
 
-QT += widgets
-greaterThan(QT_MAJOR_VERSION, 5):QT += svgwidgets
+QT += widgets serialport
+QT += svgwidgets
 QT += xml \
     network \
     svg \
@@ -50,6 +50,12 @@ SOURCES += mainwindow.cpp \
     dialogs/ioptionspage.cpp \
     dialogs/iwizard.cpp \
     connectionmanager.cpp \
+    firmwarecatalog.cpp \
+    firmwarepage.cpp \
+    firmwareinstallimage.cpp \
+    dfuinstaller.cpp \
+    firmwareinstallwidget.cpp \
+    usbaccesssetup.cpp \
     iconnection.cpp \
     iuavgadgetconfiguration.cpp \
     uavgadgetinstancemanager.cpp \
@@ -67,6 +73,7 @@ SOURCES += mainwindow.cpp \
     alarmsmonitorwidget.cpp
 
 HEADERS += mainwindow.h \
+    firmwareuicomponents.h \
     generalsettings.h \
     uniqueidmanager.h \
     iuavgadget.h \
@@ -104,6 +111,12 @@ HEADERS += mainwindow.h \
     styleanimator.h \
     minisplitter.h \
     connectionmanager.h \
+    firmwarecatalog.h \
+    firmwarepage.h \
+    firmwareinstallimage.h \
+    dfuinstaller.h \
+    firmwareinstallwidget.h \
+    usbaccesssetup.h \
     iconnection.h \
     iuavgadgetconfiguration.h \
     uavgadgetinstancemanager.h \

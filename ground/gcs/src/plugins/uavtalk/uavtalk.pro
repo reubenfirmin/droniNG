@@ -12,6 +12,8 @@ include(../../plugins/coreplugin/coreplugin.pri)
 include(../../plugins/uavobjects/uavobjects.pri)
 
 HEADERS += uavtalk.h \
+    boardsettingsinstaller.h \
+    mspfirmwareprobe.h \
     uavtalkplugin.h \
     telemetrymonitor.h \
     telemetrymanager.h \
@@ -19,6 +21,8 @@ HEADERS += uavtalk.h \
     telemetry.h
 
 SOURCES += uavtalk.cpp \
+    boardsettingsinstaller.cpp \
+    mspfirmwareprobe.cpp \
     uavtalkplugin.cpp \
     telemetrymonitor.cpp \
     telemetrymanager.cpp \

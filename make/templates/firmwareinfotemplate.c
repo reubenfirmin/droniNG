@@ -36,7 +36,7 @@
  *   4 bytes: GIT commit tag (short version of SHA1).
  *   4 bytes: Unix timestamp of compile time.
  *   2 bytes: target platform. Should follow same rule as BOARD_TYPE and BOARD_REVISION in board define files.
- *  26 bytes: commit tag if it is there, otherwise branch name. '-dirty' may be added if needed. Zero-padded.
+ *  26 bytes: product release name, zero-padded.
  *  20 bytes: SHA1 sum of the firmware.
  *  20 bytes: SHA1 sum of the uavo definitions.
  *  8 bytes: GIT commit tag of ancestor common with next

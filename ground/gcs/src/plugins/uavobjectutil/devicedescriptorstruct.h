@@ -41,6 +41,7 @@ public:
     QString nextAncestor;
     QByteArray fwHash;
     QByteArray uavoHash;
+    QByteArray description;
     quint8 boardType;
     quint8 boardRevision;
     quint16 boardID();

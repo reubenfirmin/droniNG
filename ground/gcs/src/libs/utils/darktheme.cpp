@@ -2,6 +2,7 @@
 #include "darktheme.h"
 
 #include <QApplication>
+#include <QFile>
 #include <QPalette>
 #include <QStyleFactory>
 
@@ -27,18 +28,27 @@ void Utils::applyDarkTheme()
     palette.setColor(QPalette::Dark, QColor(20, 22, 24));
     palette.setColor(QPalette::Shadow, QColor(12, 13, 14));
     palette.setColor(QPalette::BrightText, QColor(252, 252, 252));
-    palette.setColor(QPalette::Highlight, QColor(61, 174, 233));
+    const QColor accent(120, 168, 255);
+    palette.setColor(QPalette::Highlight, accent);
     palette.setColor(QPalette::HighlightedText, QColor(20, 22, 24));
-    palette.setColor(QPalette::Link, QColor(61, 174, 233));
-    palette.setColor(QPalette::LinkVisited, QColor(188, 132, 214));
-    palette.setColor(QPalette::PlaceholderText, QColor(161, 169, 177));
-#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
-    palette.setColor(QPalette::Accent, QColor(61, 174, 233));
-#endif
+    palette.setColor(QPalette::Link, accent);
+    palette.setColor(QPalette::LinkVisited, accent);
+    const QColor muted(161, 169, 177);
+    palette.setColor(QPalette::PlaceholderText, muted);
+    palette.setColor(QPalette::Accent, accent);
     for (QPalette::ColorRole role : {QPalette::WindowText, QPalette::Text,
                                     QPalette::ButtonText, QPalette::PlaceholderText})
-        palette.setColor(QPalette::Disabled, role, QColor(127, 134, 142));
+        palette.setColor(QPalette::Disabled, role, muted);
     palette.setColor(QPalette::Disabled, QPalette::Highlight, QColor(49, 54, 59));
     palette.setColor(QPalette::Disabled, QPalette::HighlightedText, QColor(127, 134, 142));
     QApplication::setPalette(palette);
+    QFile stylesheet(QStringLiteral(":/utils/application.qss"));
+    if (stylesheet.open(QIODevice::ReadOnly)) {
+        QString style = QString::fromUtf8(stylesheet.readAll());
+        style.replace(QStringLiteral("@muted@"), palette.color(QPalette::PlaceholderText).name());
+        style.replace(QStringLiteral("@highlightedText@"), palette.color(QPalette::HighlightedText).name());
+        qApp->setStyleSheet(style);
+    } else {
+        qFatal("The application stylesheet is missing.");
+    }
 }

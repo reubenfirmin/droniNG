@@ -17,11 +17,9 @@
 #include <qpainter.h>
 #include <qmath.h>
 #include <qalgorithms.h>
-#if QT_VERSION >= 0x040400
 #include <qthread.h>
 #include <qfuture.h>
 #include <qtconcurrentrun.h>
-#endif
 
 #define DEBUG_RENDER 0
 
@@ -427,7 +425,7 @@ QImage QwtPlotSpectrogram::renderImage(
     time.start();
 #endif
 
-#if QT_VERSION >= 0x040400 && !defined(QT_NO_QFUTURE)
+#if !defined(QT_NO_QFUTURE)
     uint numThreads = renderThreadCount();
 
     if ( numThreads <= 0 )

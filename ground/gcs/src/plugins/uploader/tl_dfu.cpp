@@ -43,8 +43,9 @@
 
 using namespace tl_dfu;
 
-DFUObject::DFUObject()
+DFUObject::DFUObject(int replyTimeoutMs)
     : m_hidHandle(NULL)
+    , m_replyTimeoutMs(replyTimeoutMs)
 {
     qRegisterMetaType<tl_dfu::Status>("TL_DFU::Status");
 }
@@ -59,7 +60,7 @@ DFUObject::~DFUObject()
   */
 bool DFUObject::EnterDFU()
 {
-    bl_messages message;
+    bl_messages message{};
     message.flags_command = BL_MSG_ENTER_DFU;
     message.v.enter_dfu.device_number = 0;
     int result = SendData(message);
@@ -320,7 +321,7 @@ int DFUObject::ResetDevice(void)
   */
 int DFUObject::AbortOperation(void)
 {
-    bl_messages message;
+    bl_messages message{};
     message.flags_command = BL_MSG_OP_ABORT;
     return SendData(message);
 }
@@ -352,7 +353,7 @@ DFUObject::messagePackets DFUObject::CalculatePadding(quint32 numberOfBytes)
   */
 int DFUObject::JumpToApp(bool safeboot)
 {
-    bl_messages message;
+    bl_messages message{};
     message.flags_command = BL_MSG_JUMP_FW;
 
     // 0x5afe must have the bytes flipped for consistency
@@ -399,9 +400,9 @@ DFUObject::statusReport DFUObject::StatusRequest()
   */
 device DFUObject::findCapabilities()
 {
-    device currentDevice;
+    device currentDevice{};
     TL_DFU_QXTLOG_DEBUG("FINDDEVICES BEGIN");
-    bl_messages message;
+    bl_messages message{};
     message.flags_command = BL_MSG_CAP_REQ;
     message.v.cap_req.device_number = 1;
     TL_DFU_QXTLOG_DEBUG(
@@ -779,9 +780,10 @@ int DFUObject::ReceiveData(bl_messages &data, int timeoutMS)
         return -1;
     }
 
-    char array[sizeof(bl_messages) + 1];
+    char array[sizeof(bl_messages) + 1]{};
     int received =
-        hid_read_timeout(m_hidHandle, reinterpret_cast<unsigned char *>(array), BUF_LEN, timeoutMS);
+        hid_read_timeout(m_hidHandle, reinterpret_cast<unsigned char *>(array), BUF_LEN,
+                         timeoutMS < 0 ? m_replyTimeoutMs : timeoutMS);
     memcpy(&data, array + 1, sizeof(bl_messages));
     return received;
 }

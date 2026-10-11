@@ -17,6 +17,7 @@ include(../../plugins/uavsettingsimportexport/uavsettingsimportexport.pri)
 include(../../plugins/uavtalk/uavtalk.pri)
 
 HEADERS += uploadergadget.h \
+    firmwarebootcontroller.h \
     uploadergadgetfactory.h \
     uploadergadgetwidget.h \
     uploaderplugin.h \
@@ -26,6 +27,7 @@ HEADERS += uploadergadget.h \
     upgradeassistantdialog.h
 
 SOURCES += uploadergadget.cpp \
+    firmwarebootcontroller.cpp \
     uploadergadgetfactory.cpp \
     uploadergadgetwidget.cpp \
     uploaderplugin.cpp \

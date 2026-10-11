@@ -4,16 +4,12 @@
 #include <QMediaPlayer>
 #include <QTimer>
 #include <QUrl>
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 #include <QAudioOutput>
-#endif
 
 SoundSequencePlayer::SoundSequencePlayer(QObject *parent)
     : QObject(parent), m_player(new QMediaPlayer(this))
 {
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     m_player->setAudioOutput(new QAudioOutput(m_player));
-#endif
     connect(m_player, &QMediaPlayer::mediaStatusChanged, this,
             [this](QMediaPlayer::MediaStatus status) {
         if (status == QMediaPlayer::EndOfMedia || status == QMediaPlayer::InvalidMedia)
@@ -25,12 +21,7 @@ SoundSequencePlayer::SoundSequencePlayer(QObject *parent)
         emit clipFailed(m_files.at(m_index), m_player->errorString());
         scheduleAdvance();
     };
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     connect(m_player, &QMediaPlayer::errorOccurred, this, reportError);
-#else
-    connect(m_player, QOverload<QMediaPlayer::Error>::of(&QMediaPlayer::error),
-            this, reportError);
-#endif
 }
 
 void SoundSequencePlayer::play(const QStringList &files)
@@ -64,11 +55,7 @@ void SoundSequencePlayer::loadCurrent()
     const quint64 generation = m_generation;
     const QString filename = m_files.at(m_index);
     const QUrl source = QUrl::fromLocalFile(filename);
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     m_player->setSource(source);
-#else
-    m_player->setMedia(source);
-#endif
     if (!m_playing || generation != m_generation)
         return;
     emit clipStarted(filename);

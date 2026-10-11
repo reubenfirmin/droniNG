@@ -28,14 +28,9 @@
 #define MODELVIEWGADGETWIDGET_H_
 
 #include <QtGlobal>
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 #include <QOpenGLWidget>
 #include <memory>
 using ModelViewWidgetBase = QOpenGLWidget;
-#else
-#include <QGLWidget>
-using ModelViewWidgetBase = QGLWidget;
-#endif
 #include <QTimer>
 
 #include <glc_factory.h>
@@ -83,19 +78,11 @@ private slots:
     void updateAttitude();
 
 private:
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     void cleanupGL();
     std::unique_ptr<GLC_Light> m_Light;
     std::unique_ptr<GLC_World> m_World;
     std::unique_ptr<GLC_Viewport> m_GlView;
     std::unique_ptr<GLC_MoverController> m_MoverController;
-#else
-    GLC_Factory *m_pFactory;
-    GLC_Light m_Light;
-    GLC_World m_World;
-    GLC_Viewport m_GlView;
-    GLC_MoverController m_MoverController;
-#endif
     GLC_BoundingBox m_ModelBoundingBox;
     // ! The timer used for motion
     QTimer m_MotionTimer;

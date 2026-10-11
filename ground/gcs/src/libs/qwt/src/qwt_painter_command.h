@@ -76,9 +76,6 @@ public:
         QBrush backgroundBrush;
         Qt::BGMode backgroundMode;
         QFont font;
-#if QT_VERSION < 0x060000
-        QMatrix matrix;
-#endif
         QTransform transform;
 
         Qt::ClipOperation clipOperation;

@@ -10,27 +10,11 @@
 #include "qwt_transform.h"
 #include "qwt_math.h"
 
-#if QT_VERSION < 0x040601
-#define qExp(x) ::exp(x)
-#endif
-
-#if QT_VERSION >= 0x050400
-
 //! Smallest allowed value for logarithmic scales: 1.0e-150
 const double QwtLogTransform::LogMin = 1.0e-150;
     
 //! Largest allowed value for logarithmic scales: 1.0e150
 const double QwtLogTransform::LogMax = 1.0e150;
-
-#else
-
-//! Smallest allowed value for logarithmic scales: 1.0e-150
-QT_STATIC_CONST_IMPL double QwtLogTransform::LogMin = 1.0e-150;
-
-//! Largest allowed value for logarithmic scales: 1.0e150
-QT_STATIC_CONST_IMPL double QwtLogTransform::LogMax = 1.0e150;
-
-#endif
 
 //! Constructor
 QwtTransform::QwtTransform()

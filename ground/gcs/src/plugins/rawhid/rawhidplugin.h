@@ -39,9 +39,12 @@
 
 #include <QtCore/QMutex>
 #include <QtCore/QThread>
+#include <QHash>
+#include <QPointer>
 
 class IConnection;
 class RawHIDConnection;
+class USBDevice;
 
 /**
 *   Define a connection via the IConnection interface
@@ -66,6 +69,9 @@ public:
 
     bool deviceOpened() { return (RawHidHandle != NULL); } // Pip
 
+protected:
+    QList<Core::IDevice *> devicesForPorts(const QList<USBPortInfo> &ports);
+
 protected slots:
     void onDeviceConnected();
     void onDeviceDisconnected();
@@ -75,6 +81,7 @@ private:
     bool enablePolling;
     USBMonitor *m_usbMonitor;
     USBSignalFilter *m_signalFilter;
+    QHash<QString, QPointer<USBDevice>> m_devices;
 };
 
 class RAWHID_EXPORT RawHIDPlugin : public ExtensionSystem::IPlugin

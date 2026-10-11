@@ -55,36 +55,13 @@ contains(QWT_CONFIG, QwtPkgConfig) {
 
     QMAKE_PKGCONFIG_DESTDIR = pkgconfig
 
-    greaterThan(QT_MAJOR_VERSION, 4) {
+    QMAKE_PKGCONFIG_FILE = Qt6$${QMAKE_PKGCONFIG_NAME}
+    QMAKE_PKGCONFIG_REQUIRES = Qt6Widgets Qt6Concurrent Qt6PrintSupport
 
-        QMAKE_PKGCONFIG_FILE = Qt$${QT_MAJOR_VERSION}$${QMAKE_PKGCONFIG_NAME}
-        QMAKE_PKGCONFIG_REQUIRES = Qt5Widgets Qt5Concurrent Qt5PrintSupport
-
-        contains(QWT_CONFIG, QwtSvg) {
-            QMAKE_PKGCONFIG_REQUIRES += Qt5Svg
-        }
-
-        contains(QWT_CONFIG, QwtOpenGL) {
-            QMAKE_PKGCONFIG_REQUIRES += Qt5OpenGL
-        }
-
-        QMAKE_DISTCLEAN += $${DESTDIR}/$${QMAKE_PKGCONFIG_DESTDIR}/$${QMAKE_PKGCONFIG_FILE}.pc
-    }
-    else {
-
-        # there is no QMAKE_PKGCONFIG_FILE fo Qt4
-        QMAKE_PKGCONFIG_REQUIRES = QtGui 
-
-        contains(QWT_CONFIG, QwtSvg) {
-            QMAKE_PKGCONFIG_REQUIRES += QtSvg
-        }
-
-        contains(QWT_CONFIG, QwtOpenGL) {
-            QMAKE_PKGCONFIG_REQUIRES += QtOpenGL
-        }
-
-        QMAKE_DISTCLEAN += $${DESTDIR}/$${QMAKE_PKGCONFIG_DESTDIR}/$${TARGET}.pc
+    contains(QWT_CONFIG, QwtSvg) {
+        QMAKE_PKGCONFIG_REQUIRES += Qt6Svg
     }
 
+    QMAKE_DISTCLEAN += $${DESTDIR}/$${QMAKE_PKGCONFIG_DESTDIR}/$${QMAKE_PKGCONFIG_FILE}.pc
     QMAKE_DISTCLEAN += $${DESTDIR}/libqwt.prl
 }

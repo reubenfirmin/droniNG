@@ -46,6 +46,7 @@ standalone: $(STANDALONE_DEPENDENCIES) | $(PACKAGE_DIR)
 	$(V1) rm -rf "$(GCS_PACKAGE_STAGE)"
 	$(V1) mkdir -p "$(GCS_PACKAGE_STAGE)"
 	$(V1) cp -a "$(BUILD_DIR)/ground/gcs/bin" "$(BUILD_DIR)/ground/gcs/share" "$(BUILD_DIR)/ground/gcs/lib" "$(GCS_PACKAGE_STAGE)/"
+	$(V1) test ! -d "$(BUILD_DIR)/ground/gcs/firmware" || cp -a "$(BUILD_DIR)/ground/gcs/firmware" "$(GCS_PACKAGE_STAGE)/"
 	$(V1) $(HOST_PYTHON) "$(ROOT_DIR)/package/deploy_linux.py" --qmake "$(QMAKE)" \
 	  --application "$(GCS_PACKAGE_STAGE)" $(SOURCE_MATERIAL_ARGS)
 

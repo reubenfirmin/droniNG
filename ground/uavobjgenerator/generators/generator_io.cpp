@@ -24,17 +24,11 @@
  */
 
 #include "generator_io.h"
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 #include <QStringConverter>
-#endif
 
 static void useUtf8(QTextStream &stream)
 {
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     stream.setEncoding(QStringConverter::Utf8);
-#else
-    stream.setCodec("UTF-8");
-#endif
 }
 
 using namespace std;

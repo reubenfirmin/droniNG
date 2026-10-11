@@ -20,6 +20,13 @@ include $(ROOT_DIR)/make/$(OSFAMILY).mk
 
 # include the tools makefile
 include $(ROOT_DIR)/make/tools.mk
+ifdef LINUX
+include $(ROOT_DIR)/make/firmware-installer.mk
+WITH_FIRMWARE_INSTALLER ?= YES
+ifeq ($(WITH_FIRMWARE_INSTALLER),YES)
+gcs: firmware_install_bundle
+endif
+endif
 
 # Function for converting an absolute path to one relative
 # to the top of the source tree.
@@ -263,6 +270,7 @@ endif
 
 GCS_QMAKE_DEPS := $(shell find $(ROOT_DIR)/ground -name '*.pr?') $(wildcard $(ROOT_DIR)/branding/*.pri)
 GCS_QMAKE_DEPS += $(ROOT_DIR)/make/scripts/version-info.py \
+                  $(ROOT_DIR)/shared/product-version.json \
                   $(ROOT_DIR)/make/templates/gcsversioninfotemplate.h \
                   $(ROOT_DIR)/make/templates/gcsauthorstemplate.html \
                   $(ROOT_DIR)/make/templates/gcsrelauthorstemplate.html \
@@ -832,6 +840,7 @@ ef_$(1)_%: $(5)
 		DFU_CMD="$(DFUUTIL_DIR)/bin/dfu-util" \
 		\
 		ROOT_DIR=$(ROOT_DIR) \
+		BUILD_DIR=$(BUILD_DIR) \
 		BOARD_ROOT_DIR=$$(BOARD_ROOT_DIR) \
 		BOARD_INFO_DIR=$$(BOARD_ROOT_DIR)/board-info \
 		TARGET=$$(TARGET) \
@@ -917,7 +926,7 @@ $(SHAREDUSBIDDIR)/board_usb_ids.h: $(ROOT_DIR)/shared/usb_ids/usb_ids.json
 	$(V1) $(ROOT_DIR)/shared/usb_ids/generate_usb_files.py -i "$<" -c "$@"
 
 $(SHAREDUSBIDDIR)/droning.udev: | $(SHAREDUSBIDDIR)
-$(SHAREDUSBIDDIR)/droning.udev: $(ROOT_DIR)/shared/usb_ids/usb_ids.json
+$(SHAREDUSBIDDIR)/droning.udev: $(ROOT_DIR)/shared/usb_ids/usb_ids.json $(ROOT_DIR)/shared/usb_ids/generate_usb_files.py
 	$(V1) $(ROOT_DIR)/shared/usb_ids/generate_usb_files.py -i "$<" -u "$@"
 
 # $(1) = Canonical board name all in lower case (e.g. coptercontrol)

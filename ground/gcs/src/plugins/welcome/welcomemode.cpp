@@ -30,9 +30,12 @@
 #include <extensionsystem/pluginmanager.h>
 
 #include <coreplugin/icore.h>
+#include <coreplugin/connectionmanager.h>
 #include <coreplugin/coreconstants.h>
 #include <coreplugin/uniqueidmanager.h>
 #include <coreplugin/modemanager.h>
+#include <coreplugin/usbaccesssetup.h>
+#include <coreplugin/actionmanager/actionmanager.h>
 
 #include <utils/styledbar.h>
 #include <utils/pathutils.h>
@@ -76,8 +79,13 @@ WelcomeMode::WelcomeMode(QString instUUID)
 {
     m_d->quickView = new QQuickView;
     m_d->quickView->setResizeMode(QQuickView::SizeRootObjectToView);
+    auto *connections = Core::ICore::instance()->connectionManager();
+    connect(connections, &Core::ConnectionManager::deviceConnected, this, &WelcomeMode::controllerStateChanged);
+    connect(connections, &Core::ConnectionManager::deviceDisconnected, this, &WelcomeMode::controllerStateChanged);
+    connect(connections, &Core::ConnectionManager::firmwareStateChanged, this, &WelcomeMode::controllerStateChanged);
 
     m_d->quickView->engine()->rootContext()->setContextProperty("welcomePlugin", this);
+    m_d->quickView->engine()->rootContext()->setContextProperty("usbAccessSetup", new Core::UsbAccessSetup(this));
     m_d->quickView->engine()->rootContext()->setContextProperty("instHash",
                                                                 QVariant::fromValue(qulonglong(qHash(instUUID))));
     m_d->quickView->engine()->rootContext()->setContextProperty(
@@ -140,9 +148,29 @@ void WelcomeMode::openPage(const QString &page)
     Core::ModeManager::instance()->activateModeByWorkspaceName(page);
 }
 
+bool WelcomeMode::controllerConnected() const
+{
+    return Core::ICore::instance()->connectionManager()->flightDataAvailable();
+}
+
+bool WelcomeMode::controllerSetupRequired() const
+{
+    return Core::ICore::instance()->connectionManager()->controllerSetupRequired();
+}
+
+void WelcomeMode::launchSetupWizard()
+{
+    Core::ICore::instance()->connectionManager()->requestControllerSetup();
+}
+
 void WelcomeMode::triggerAction(const QString &actionId)
 {
     Core::ModeManager::instance()->triggerAction(actionId);
+}
+
+bool WelcomeMode::hasAction(const QString &actionId) const
+{
+    return Core::ICore::instance()->actionManager()->command(actionId) != nullptr;
 }
 
 void WelcomeMode::modesChanged()

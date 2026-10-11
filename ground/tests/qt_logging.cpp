@@ -74,7 +74,7 @@ private slots:
     {
         QProcess process;
         auto environment = QProcessEnvironment::systemEnvironment();
-        // Fedora's Qt 5 defaults to journald; make the default sink observable.
+        // Make the default logging sink observable in the test environment.
         environment.insert("QT_FORCE_STDERR_LOGGING", "1");
         process.setProcessEnvironment(environment);
         process.start(QCoreApplication::applicationFilePath(), {"--probe-default-logging"});

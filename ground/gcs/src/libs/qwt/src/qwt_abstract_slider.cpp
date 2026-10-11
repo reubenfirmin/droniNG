@@ -14,9 +14,6 @@
 #include "qwt_scale_map.h"
 #include <qevent.h>
 
-#if QT_VERSION < 0x040601
-#define qFabs(x) ::fabs(x)
-#endif
 
 static double qwtAlignToScaleDiv( 
     const QwtAbstractSlider *slider, double value )

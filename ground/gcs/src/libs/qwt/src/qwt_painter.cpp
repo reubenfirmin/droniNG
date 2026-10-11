@@ -29,17 +29,7 @@
 #include <qapplication.h>
 #include <QScreen>
 
-#if QT_VERSION >= 0x050000
 #include <qwindow.h>
-#endif
-
-#if QT_VERSION < 0x050000 
-
-#ifdef Q_WS_X11
-#include <qx11info_x11.h>
-#endif
-
-#endif
 
 bool QwtPainter::d_polylineSplitting = true;
 bool QwtPainter::d_roundingAlignment = true;
@@ -1258,9 +1248,6 @@ QPixmap QwtPainter::backingStore( QWidget *widget, const QSize &size )
 {
     QPixmap pm;
 
-#define QWT_HIGH_DPI 1
-
-#if QT_VERSION >= 0x050000 && QWT_HIGH_DPI
     qreal pixelRatio = 1.0;
 
     if ( widget && widget->windowHandle() )
@@ -1275,20 +1262,6 @@ QPixmap QwtPainter::backingStore( QWidget *widget, const QSize &size )
 
     pm = QPixmap( size * pixelRatio );
     pm.setDevicePixelRatio( pixelRatio );
-#else
-    Q_UNUSED( widget )
-    pm = QPixmap( size );
-#endif
-
-#if QT_VERSION < 0x050000 
-#ifdef Q_WS_X11
-    if ( widget && isX11GraphicsSystem() )
-    {
-        if ( pm.x11Info().screen() != widget->x11Info().screen() )
-            pm.x11SetScreen( widget->x11Info().screen() );
-    }
-#endif
-#endif
 
     return pm;
 }

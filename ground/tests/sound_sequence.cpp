@@ -6,9 +6,7 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 #include <QAudioOutput>
-#endif
 
 class SoundSequenceTests : public QObject
 {
@@ -20,12 +18,8 @@ class SoundSequenceTests : public QObject
     {
         auto player = sequence.findChild<QMediaPlayer *>();
         QVERIFY(player);
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
         QVERIFY(player->audioOutput());
         player->audioOutput()->setMuted(true);
-#else
-        player->setMuted(true);
-#endif
     }
 
 private slots:

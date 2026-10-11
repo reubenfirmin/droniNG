@@ -19,11 +19,6 @@
 #include <qapplication.h>
 #include <QElapsedTimer>
 
-#if QT_VERSION < 0x040601
-#define qFabs(x) ::fabs(x)
-#define qFastSin(x) ::sin(x)
-#define qExp(x) ::exp(x)
-#endif
 
 class QwtWheel::PrivateData
 {

@@ -35,12 +35,10 @@
 #include "ui_upgradeassistant.h"
 
 UpgradeAssistantDialog::UpgradeAssistantDialog(QWidget *parent)
-    : QDialog(parent)
+    : QWidget(parent)
     , ui(new Ui::UpgradeAssistant)
 {
     ui->setupUi(this);
-
-    setModal(true);
 
     stepLabels[STEP_ENTERLOADER] = ui->lblEnterLoader;
     stepLabels[STEP_CHECKCLOUD] = ui->lblCheckCloud;
@@ -56,7 +54,7 @@ UpgradeAssistantDialog::UpgradeAssistantDialog(QWidget *parent)
         originalText[i] = new QString(stepLabels[i]->text());
     }
 
-    connect(ui->buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect(ui->buttonBox, &QDialogButtonBox::rejected, this, &UpgradeAssistantDialog::reject);
 }
 
 UpgradeAssistantDialog::~UpgradeAssistantDialog()

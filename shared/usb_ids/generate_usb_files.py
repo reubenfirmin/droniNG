@@ -22,14 +22,14 @@ def generate_udev(fp, defs):
             else:
                 print('# {} - {}'.format(group['name'], dev['name']), file=fp)
 
-            usb = ('SUBSYSTEM=="usb", ATTRS{{idVendor}}=="{:04x}", ATTRS{{idProduct}}=="{:04x}", '
-                   'MODE="0664", GROUP="plugdev", TAG+="uaccess", TAG+="udev-acl", '
+            usb = ('SUBSYSTEM=="usb", ENV{{DEVTYPE}}=="usb_device", ATTR{{idVendor}}=="{:04x}", ATTR{{idProduct}}=="{:04x}", '
+                   'MODE="0660", TAG+="uaccess", '
                    'ENV{{ID_MM_DEVICE_IGNORE}}="1"')
             print(usb.format(dev['vid'], dev['pid']), file=fp)
 
             if 'hid' in dev['type']:
-                hidraw = ('KERNEL=="hidraw*", ATTRS{{idVendor}}=="{:04x}", ATTRS{{idProduct}}=="{:04x}", '
-                          'MODE="0664", GROUP="plugdev", TAG+="uaccess", TAG+="udev-acl"')
+                hidraw = ('SUBSYSTEM=="hidraw", ATTRS{{idVendor}}=="{:04x}", ATTRS{{idProduct}}=="{:04x}", '
+                          'MODE="0660", TAG+="uaccess"')
                 print(hidraw.format(dev['vid'], dev['pid']), file=fp)
 
 def generate_header(fp, defs):

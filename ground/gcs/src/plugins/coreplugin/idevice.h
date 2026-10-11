@@ -50,6 +50,12 @@ public:
     void setName(QString theName) { name = theName; }
     QString getDisplayName() const { return displayName; }
     void setDisplayName(QString dn) { displayName = dn; }
+    QString usbTopologyPath() const { return usbPath; }
+    void setUsbTopologyPath(const QString &path) { usbPath = path; }
+    bool isControllerCandidate() const { return controllerCandidate; }
+    void setControllerCandidate(bool candidate) { controllerCandidate = candidate; }
+    static bool plausibleControllerUsb(quint16 vendor, quint16 product, const QString &description);
+    static QString usbTopologyForDeviceNode(const QString &node);
 
     /*
     bool operator==(const IDevice *idv) const {
@@ -65,6 +71,8 @@ public:
 private:
     QString name;
     QString displayName;
+    QString usbPath;
+    bool controllerCandidate = false;
 };
 }
 

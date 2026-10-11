@@ -196,7 +196,7 @@ void QwtPlot::initPlot( const QwtText &title )
   QwtPlot invokes methods of the canvas as meta methods ( see QMetaObject ).
   In opposite to using conventional C++ techniques like virtual methods
   they allow to use canvas implementations that are derived from 
-  QWidget or QGLWidget.
+  QWidget or QOpenGLWidget.
 
   The following meta methods could be implemented:
 

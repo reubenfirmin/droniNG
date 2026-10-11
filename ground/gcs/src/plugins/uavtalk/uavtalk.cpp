@@ -129,8 +129,29 @@ void UAVTalk::processInputStream()
         filledBytes += bytes;
         stats.rxBytes += bytes;
 
+        if (firmwareProbe.active()) {
+            sendFirmwareProbe(firmwareProbe.receive(QByteArray(
+                reinterpret_cast<const char *>(rxBuffer + filledBytes - bytes), bytes)));
+        }
+
         while (processInput());
     }
+}
+
+void UAVTalk::probeFirmware()
+{
+    sendFirmwareProbe(firmwareProbe.start());
+}
+
+void UAVTalk::sendFirmwareProbe(const QByteArray &requests)
+{
+    if (requests.isEmpty())
+        return;
+    const qint64 written = io && io->isWritable() ? io->write(requests) : -1;
+    if (written > 0)
+        stats.txBytes += written;
+    if (written != requests.size())
+        ++stats.txErrors;
 }
 
 /**

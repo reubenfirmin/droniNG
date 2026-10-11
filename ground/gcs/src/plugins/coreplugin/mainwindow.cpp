@@ -340,7 +340,6 @@ void MainWindow::extensionsInitialized()
     qs->beginGroup("General");
     m_config_description = qs->value("Description", "none").toString();
     m_config_details = qs->value("Details", "none").toString();
-    loadStyleSheet();
     qs->endGroup();
     m_uavGadgetInstanceManager = new UAVGadgetInstanceManager(this);
     connect(m_uavGadgetInstanceManager, SIGNAL(splashMessages(QString)), this,
@@ -348,6 +347,7 @@ void MainWindow::extensionsInitialized()
     m_uavGadgetInstanceManager->readSettings(qs);
 
     readSettings(qs);
+    m_modeManager->activateModeByWorkspaceName("Welcome");
     updateContext();
     emit splashMessages(tr("Preparing to open core"));
 
@@ -362,45 +362,6 @@ void MainWindow::extensionsInitialized()
     emit m_coreImpl->coreAboutToOpen();
     show();
     emit m_coreImpl->coreOpened();
-}
-
-void MainWindow::readStyleSheet(QFile *file, QString name, QString *style)
-{
-    QString tmp;
-    if (file->open(QFile::ReadOnly)) {
-        /* QTextStream... */
-        QTextStream styleIn(file);
-        /* ...read file to a string. */
-        tmp = styleIn.readAll();
-        file->close();
-        style->append(tmp);
-        emit splashMessages(QString(tr("Loading stylesheet %1")).arg(name));
-        qDebug() << "Loaded stylesheet:" << name;
-    } else {
-        qDebug() << "Failed to openstylesheet file" << name;
-    }
-}
-
-void MainWindow::loadStyleSheet()
-{
-    /* Let's use QFile and point to a resource... */
-    QDir directory(QCoreApplication::applicationDirPath());
-    directory.cdUp();
-    directory.cd("share");
-    directory.cd("stylesheets");
-    QFile global(directory.absolutePath() + QDir::separator() + "global.qss");
-    QFile data(directory.absolutePath() + QDir::separator() + "linux.qss");
-    QString style;
-    /* ...to open the file */
-
-    readStyleSheet(&global, "Global", &style);
-    readStyleSheet(&data, "OS", &style);
-
-    if (style.length() > 0) {
-        qApp->setStyleSheet(style);
-    } else {
-        qDebug() << "No stylesheets loaded.";
-    }
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)

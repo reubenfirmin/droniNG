@@ -112,6 +112,31 @@ class VersionInfoTests(unittest.TestCase):
         path.write_text(json.dumps(metadata), encoding="utf-8")
         return path, metadata
 
+    def test_product_release_preserves_dirty_build_provenance(self):
+        metadata, _ = self.preserved_metadata()
+        product = self.root / "product.json"
+        product.write_text(json.dumps({"schemaVersion": 1, "name": "DroniNG", "version": "1.0"}))
+        exported = self.root / "exported.json"
+        result = self.run_cli("--uavodir", str(self.definitions), "--metadata", str(metadata),
+                              "--product", str(product), "--write-metadata", str(exported),
+                              "--format", "${FWTAG}|${PRODUCT_LABEL}|${HASH8}${DIRTY}|${TAG_OR_BRANCH}")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(),
+                         "DroniNG 1.0|DroniNG 1.0|01234567-dirty|archive-fixture")
+        preserved = json.loads(exported.read_text())
+        self.assertTrue(preserved["repository"]["dirty"])
+        self.assertEqual(preserved["product"]["version"], "1.0")
+
+    def test_invalid_product_release_fails_before_output(self):
+        product = self.root / "product.json"
+        for version in ('1.0"', 'next-dirty', '1.0\n', '1' * 26 + '.0'):
+            with self.subTest(version=version):
+                product.write_text(json.dumps({"schemaVersion": 1, "name": "DroniNG", "version": version}))
+                result = self.run_cli("--product", str(product), "--format", "${FWTAG}")
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Invalid product version", result.stderr)
+                self.assertEqual(result.stdout, "")
+
     def test_archive_inputs_restore_revision_date_and_unicode_contributors_without_git(self):
         path, metadata = self.preserved_metadata()
         template = self.root / "template.h"
@@ -192,7 +217,7 @@ class VersionInfoTests(unittest.TestCase):
     def test_qmake_stops_when_metadata_generation_fails(self):
         qmake6 = os.environ.get("GCS_VERSION_QMAKE6",
                                 str(ROOT / "tools/Qt6.12.0/6.12.0/gcc_64/bin/qmake"))
-        for index, qmake in enumerate(("/usr/bin/qmake-qt5", qmake6)):
+        for index, qmake in enumerate((qmake6,)):
             with self.subTest(qmake=qmake):
                 project = self.root / str(index)
                 source = project / "source"

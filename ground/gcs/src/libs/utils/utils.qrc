@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/utils" >
+        <file alias="application.qss">../../../share/stylesheets/global.qss</file>
         <file>images/removesubmitfield.png</file>
     </qresource>
 </RCC>

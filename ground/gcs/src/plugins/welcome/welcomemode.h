@@ -45,6 +45,8 @@ struct WelcomeModePrivate;
 class WELCOME_EXPORT WelcomeMode : public Core::IMode
 {
     Q_OBJECT
+    Q_PROPERTY(bool controllerConnected READ controllerConnected NOTIFY controllerStateChanged)
+    Q_PROPERTY(bool controllerSetupRequired READ controllerSetupRequired NOTIFY controllerStateChanged)
 
 public:
     WelcomeMode(QString instUUID);
@@ -60,10 +62,17 @@ public:
     void activated();
     QString contextHelpId() const { return QLatin1String("droniNG GCS"); }
     void setPriority(int priority) { m_priority = priority; }
+    bool controllerConnected() const;
+    bool controllerSetupRequired() const;
+
+signals:
+    void controllerStateChanged();
 
 public slots:
     void openPage(const QString &page);
     void triggerAction(const QString &actionId);
+    void launchSetupWizard();
+    bool hasAction(const QString &actionId) const;
 
 private slots:
     void modesChanged();

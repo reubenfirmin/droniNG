@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
-import dronin_pyqtgraph as pg
-from dronin_pyqtgraph.Qt import QtCore, QtGui
+from PyQt6 import QtCore, QtGui, QtWidgets
+import pyqtgraph as pg
 import numpy as np
 
 from droning.logviewer.plotdockarea import PlotDockArea
 
-from dronin_pyqtgraph.dockarea import *
+from pyqtgraph.dockarea import Dock
 
 def get_data_series(obj_name, fields):
     data = get_series(obj_name)
@@ -156,13 +156,12 @@ def handle_open(ignored=False, fname=None):
     from droning import telemetry, uavo
 
     if fname is None:
-        fname = QtGui.QFileDialog.getOpenFileName(win, 'Open file', filter="Log files (*.drlog *.txt)")
+        fname, _ = QtWidgets.QFileDialog.getOpenFileName(win, 'Open file', filter="Log files (*.drlog *.txt)")
+    if not fname:
+        return
 
     with pg.ProgressDialog("0 objects read...", wait=500, maximum=1000, cancelText=None) as dlg:
         global t
-
-        if (len(fname[0]) > 1):
-            fname = fname[0]
 
         f = open(fname, 'rb')
         num_bytes = 1000000000
@@ -184,7 +183,7 @@ def handle_open(ignored=False, fname=None):
 
             # should not happen, but cover the case anyways
             if (permille > 900.0): permille = 900.0
-            dlg.setValue(permille)
+            dlg.setValue(int(permille))
             dlg.setLabelText("%d objects read..." % n_objs)
 
         t = telemetry.FileTelemetry(f, parse_header=True, service_in_iter=True,
@@ -258,14 +257,14 @@ def enableContextuals(enabled):
 
     for dock in docks.values():
         for w in dock.widgets:
-            if isinstance(w, pg.widgets.PlotWidget.PlotWidget):
+            if isinstance(w, pg.PlotWidget):
                 w.setMenuEnabled(enabled)
 
 # Create our application, consisting of dockarea stuff.
 # For now fix the size at 1024x680, so that we can make it work well in this
 # size
-app = QtGui.QApplication([])
-win = QtGui.QMainWindow()
+app = QtWidgets.QApplication([])
+win = QtWidgets.QMainWindow()
 area = PlotDockArea()
 
 win.setCentralWidget(area)
@@ -277,11 +276,11 @@ win_num = 0
 menus_enabled = False
 
 openAction = QtGui.QAction("&Open", win)
-openAction.setShortcut(QtGui.QKeySequence.Open)
+openAction.setShortcut(QtGui.QKeySequence.StandardKey.Open)
 openAction.triggered.connect(handle_open)
 
 quitAction = QtGui.QAction('&Quit', win)
-quitAction.setShortcut(QtGui.QKeySequence.Quit)
+quitAction.setShortcut(QtGui.QKeySequence.StandardKey.Quit)
 quitAction.triggered.connect(app.quit)
 
 fileMenu = menubar.addMenu('&File')
@@ -297,27 +296,27 @@ dui = Dock("UI", size=(224, 300))
 area.addDock(dui, 'right')     ## place d2 at right edge of dock area
 area.addDock(dl, 'left')
 
-dui.addWidget(QtGui.QLabel("Obj:"), 0, 0)
+dui.addWidget(QtWidgets.QLabel("Obj:"), 0, 0)
 
-objSel = QtGui.QComboBox()
+objSel = QtWidgets.QComboBox()
 objSel.setEnabled(False)
 dui.addWidget(objSel, 0, 1)
 
-dui.addWidget(QtGui.QLabel("Item:"), 1, 0)
+dui.addWidget(QtWidgets.QLabel("Item:"), 1, 0)
 
-itemSel = QtGui.QComboBox()
+itemSel = QtWidgets.QComboBox()
 itemSel.setEnabled(False)
-addPlotBtn = QtGui.QPushButton("&Add time-series plot")
+addPlotBtn = QtWidgets.QPushButton("&Add time-series plot")
 addPlotBtn.setEnabled(False)
 
-contextualCb = QtGui.QCheckBox("Enable contextual menus")
+contextualCb = QtWidgets.QCheckBox("Enable contextual menus")
 contextualCb.setChecked(False)
 
 dui.addWidget(itemSel, 1, 1)
 dui.addWidget(addPlotBtn, 2, 0, 1, 2)
-dui.layout.addItem(QtGui.QSpacerItem(20, 20, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding), 3, 0)
+dui.layout.addItem(QtWidgets.QSpacerItem(20, 20, QtWidgets.QSizePolicy.Policy.Minimum, QtWidgets.QSizePolicy.Policy.Expanding), 3, 0)
 dui.layout.addWidget(contextualCb, 4, 0, 1, 2)
-dui.layout.addItem(QtGui.QSpacerItem(20, 20, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding), 5, 0)
+dui.layout.addItem(QtWidgets.QSpacerItem(20, 20, QtWidgets.QSizePolicy.Policy.Minimum, QtWidgets.QSizePolicy.Policy.Expanding), 5, 0)
 
 objSel.currentIndexChanged.connect(updateItems)
 addPlotBtn.clicked.connect(addTimeSeries)
@@ -332,4 +331,4 @@ def main():
         handle_open(fname=sys.argv[1])
 
     if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
-        QtGui.QApplication.instance().exec_()
+        QtWidgets.QApplication.instance().exec()

@@ -17,8 +17,9 @@ from qt_source_materials import digest
 
 
 ARCHIVE_ROOT = "droning-source"
-NEW_SOURCE_ROOTS = ("ground/gcs/src", "ground/tests", "package")
-NEW_SOURCE_FILES = ("QT_MODERNIZATION_PLAN.md",)
+NEW_SOURCE_ROOTS = ("ground/gcs/src", "ground/gcs/share/welcome", "ground/tests", "package", "shared/firmware", "make/scripts")
+NEW_SOURCE_FILES = ("AGENTS.md", "QT_MODERNIZATION_PLAN.md", "FIRMWARE_PLAN.md", "make/firmware-installer.mk",
+                    "shared/product-version.json")
 VERSION_METADATA_SOURCE = "make/gcs-version-metadata.json"
 VERSION_METADATA_RUNTIME = "share/gcs-version-metadata.json"
 

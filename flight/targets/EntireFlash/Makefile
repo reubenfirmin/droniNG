@@ -36,7 +36,8 @@ FORCE:
 bin: $(OUTDIR)/$(TARGET).bin
 hex: $(OUTDIR)/$(TARGET).hex
 
-FW_BIN := $(ROOT_DIR)/build/fw_$(BOARD_NAME)/fw_$(BOARD_NAME).bin
+BUILD_DIR ?= $(ROOT_DIR)/build
+FW_BIN := $(BUILD_DIR)/fw_$(BOARD_NAME)/fw_$(BOARD_NAME).bin
 FWINFO_BIN := $(FW_BIN).firmwareinfo.bin
 INCLUDE_BOOTLOADER ?= yes
 
@@ -44,7 +45,7 @@ ifeq ($(INCLUDE_BOOTLOADER),no)
 BL_BIN :=
 FW_PRE_PAD := $(shell echo $$[$(FW_BANK_BASE)-$(EF_BANK_BASE)])
 else
-BL_BIN := $(ROOT_DIR)/build/bl_$(BOARD_NAME)/bl_$(BOARD_NAME).bin
+BL_BIN := $(BUILD_DIR)/bl_$(BOARD_NAME)/bl_$(BOARD_NAME).bin
 FW_PRE_PAD := $(shell echo $$[$(FW_BANK_BASE)-$(BL_BANK_BASE)-$(BL_BANK_SIZE)])
 endif # INCLUDE_BOOTLOADER
 
@@ -73,10 +74,7 @@ $(OUTDIR)/$(TARGET).hex: $(OUTDIR)/$(TARGET).bin
 .PHONY: dfu
 dfu: $(OUTDIR)/$(TARGET).bin
 	$(V0) @echo " DFU RESCUE $<"
-	$(V1) ( \
-		sudo $(DFU_CMD) -l && \
-		sudo $(DFU_CMD) -d 0483:df11 -c 1 -i 0 -a 0 -D $< -s $(BL_BANK_BASE) ; \
-		)
+	$(V1) $(DFU_CMD) -d ,0483:df11 -c 1 -i 0 -a 0 -D $< -s $(BL_BANK_BASE)
 
 # Add jtag targets (program and wipe)
 $(eval $(call JTAG_TEMPLATE,$(OUTDIR)/$(TARGET).bin,$(EF_BANK_BASE),$(EF_BANK_SIZE),$(OPENOCD_JTAG_CONFIG),$(OPENOCD_CONFIG)))

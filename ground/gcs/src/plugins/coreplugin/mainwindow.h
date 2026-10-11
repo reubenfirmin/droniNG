@@ -161,8 +161,6 @@ namespace Internal {
         void registerDefaultContainers();
         void registerDefaultActions();
         void createWorkspaces(QSettings *qs, bool diffOnly = false);
-        void readStyleSheet(QFile *file, QString name, QString *style);
-        void loadStyleSheet();
 
         CoreImpl *m_coreImpl;
         UniqueIDManager *m_uniqueIDManager;

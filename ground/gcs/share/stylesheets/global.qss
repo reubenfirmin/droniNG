@@ -64,13 +64,13 @@ SystemHealthGadgetWidget, PfdQmlGadgetWidget, LineardialGadgetWidget, ModelViewG
 
 #frameTopBar > QToolButton:pressed, #frameMapControls > QToolButton:pressed {
 	background: palette(Highlight);
-	color: palette(HighlightedText);
+	color: @highlightedText@;
 	border: 1px solid palette(Highlight);
 }
 
 #frameTopBar > QToolButton:checked, #frameMapControls > QToolButton:checked {
 	background: palette(Highlight);
-	color: palette(HighlightedText);
+	color: @highlightedText@;
 	border: 1px solid palette(Highlight);
 }
 
@@ -121,3 +121,124 @@ Utils--StyledBar > QToolButton:pressed {
 	background: palette(Highlight);
 	border: 0px;
 }
+
+QGroupBox { font-weight: bold; }
+
+/* Preserve channel direction; orange is a functional inversion cue. */
+QSlider::sub-page:horizontal[state="normal"], QSlider::add-page:vertical {
+    background: palette(Highlight);
+}
+QSlider::add-page:horizontal[state="inverted"] { background: #f67400; }
+
+Utils--StyledBar QComboBox QListView {
+    background: palette(Base);
+    color: palette(Text);
+    selection-background-color: palette(Highlight);
+    selection-color: @highlightedText@;
+}
+Utils--StyledBar QComboBox QListView::item { padding: 4px; }
+
+/* Shared page components inherit the same application palette in every workspace. */
+QFrame[uiCard="true"] {
+    background: palette(Button);
+    border: 1px solid palette(Mid);
+    border-radius: 14px;
+}
+QLabel[role="title"] { font-size: 28px; font-weight: 600; }
+QLabel[role="heading"] { font-size: 21px; font-weight: 600; }
+QLabel[role="section"] { font-size: 15px; font-weight: 600; }
+QLabel[role="muted"] { color: @muted@; font-size: 14px; }
+QLabel[role="value"] { font-size: 17px; font-weight: 600; }
+QLabel[role="stepNumber"] {
+    color: palette(Highlight);
+    background: palette(AlternateBase);
+    border-radius: 14px;
+    font-size: 14px;
+    font-weight: 600;
+}
+QLabel[role="step"] { font-size: 15px; }
+QLabel[role="support"] { font-size: 13px; }
+
+QWidget[pageLayout="true"] QPushButton {
+    background: palette(Button);
+    color: palette(ButtonText);
+    padding: 10px 16px;
+    border: 1px solid palette(Mid);
+    border-radius: 8px;
+    font-size: 14px;
+}
+QWidget[pageLayout="true"] QPushButton:hover,
+QWidget[pageLayout="true"] QComboBox:hover { border-color: palette(Highlight); }
+QWidget[pageLayout="true"] QPushButton:focus,
+QWidget[pageLayout="true"] QComboBox:focus { border: 2px solid palette(Highlight); }
+QPushButton[primary="true"], QWidget[pageLayout="true"] QPushButton[primary="true"] {
+    background: palette(Highlight);
+    color: @highlightedText@;
+    border-color: palette(Highlight);
+    font-weight: 600;
+}
+QWidget[pageLayout="true"] QPushButton:disabled {
+    color: @muted@;
+    background: palette(Button);
+    border-color: palette(Mid);
+}
+QWidget[pageLayout="true"] QComboBox {
+    background: palette(Base);
+    color: palette(Text);
+    padding: 10px 32px 10px 12px;
+    border: 1px solid palette(Mid);
+    border-radius: 8px;
+    font-size: 14px;
+    combobox-popup: 0;
+}
+QWidget[pageLayout="true"] QComboBox QAbstractItemView {
+    background: palette(Base);
+    color: palette(Text);
+    border: 1px solid palette(Mid);
+    border-radius: 8px;
+    padding: 6px;
+    font-size: 14px;
+    outline: 0;
+    selection-background-color: palette(Highlight);
+    selection-color: @highlightedText@;
+}
+QWidget[pageLayout="true"] QComboBox QAbstractItemView::item {
+    min-height: 24px;
+    padding: 8px 10px;
+    border-radius: 4px;
+}
+QWidget[pageLayout="true"] QComboBox QAbstractItemView::item:selected {
+    background: palette(Highlight);
+    color: @highlightedText@;
+}
+QWidget[pageLayout="true"] QComboBox::drop-down { border: none; width: 28px; }
+QWidget[pageLayout="true"] QComboBox::down-arrow {
+    image: url(:/core/images/firmware-chevron.svg);
+    width: 16px;
+    height: 16px;
+}
+QWidget[pageLayout="true"] QToolButton {
+    color: @muted@;
+    background: transparent;
+    border: none;
+    padding: 6px 0;
+    font-size: 13px;
+}
+QWidget[pageLayout="true"] QToolButton:hover { color: palette(Highlight); }
+QWidget[pageLayout="true"] QToolButton:focus { border: 1px solid palette(Highlight); border-radius: 4px; }
+QWidget[pageLayout="true"] QPlainTextEdit {
+    color: palette(Text);
+    background: palette(Base);
+    border: 1px solid palette(Mid);
+    border-radius: 8px;
+    padding: 10px;
+}
+QWidget[pageLayout="true"] QProgressBar {
+    border: none;
+    border-radius: 3px;
+    background: palette(Mid);
+    min-height: 6px;
+    max-height: 6px;
+}
+QWidget[pageLayout="true"] QProgressBar::chunk { background: palette(Highlight); border-radius: 3px; }
+QWidget[pageLayout="true"] QScrollArea { border: none; background: palette(Window); }

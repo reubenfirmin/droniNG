@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
  <class>UpgradeAssistant</class>
- <widget class="QDialog" name="UpgradeAssistant">
+ <widget class="QWidget" name="UpgradeAssistant">
   <property name="geometry">
    <rect>
     <x>0</x>

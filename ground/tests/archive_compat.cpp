@@ -79,12 +79,7 @@ private slots:
         const QString referenceDirectory = qEnvironmentVariable("GCS_ZIP_REFERENCE_DIR");
         QVERIFY(!referenceDirectory.isEmpty());
         const QString referenceFile = referenceDirectory + "/" + QString::fromLatin1(codec) + ".zip";
-        // Qt 5 produces fixtures; Qt 6 must read exactly those existing bytes.
-#if QT_VERSION < 0x060000
-        QVERIFY(QDir().mkpath(referenceDirectory));
-        QFile::remove(referenceFile);
-        QVERIFY(QFile::copy(filename, referenceFile));
-#endif
+        // Read the preserved archive bytes from the previous release.
         readArchive(referenceFile, codec.constData(), entryName);
     }
 

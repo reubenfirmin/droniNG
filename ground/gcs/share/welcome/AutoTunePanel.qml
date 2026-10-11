@@ -16,6 +16,7 @@ Item {
         id: header
         text: "Upstream AutoTune Results"
         width: parent.width
+        wrapMode: Text.WordWrap
         color: appPalette.windowText
         font {
             pointSize: 14

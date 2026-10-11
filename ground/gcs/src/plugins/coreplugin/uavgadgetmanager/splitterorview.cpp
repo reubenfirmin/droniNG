@@ -201,7 +201,9 @@ QSize SplitterOrView::minimumSizeHint() const
 {
     if (m_splitter)
         return m_splitter->minimumSizeHint();
-    return QSize(64, 64);
+    // Preserve the controls' minimum size when a workspace is resized. A fixed
+    // hint lets the splitter clip editors inside an otherwise visible panel.
+    return m_layout ? m_layout->minimumSize().expandedTo(QSize(64, 64)) : QSize(64, 64);
 }
 
 QSplitter *SplitterOrView::takeSplitter()
@@ -303,6 +305,19 @@ void SplitterOrView::unsplitAll_helper()
             }
         }
     }
+}
+
+bool SplitterOrView::showSingleGadget(IUAVGadget *gadget)
+{
+    bool contains = hasGadget(gadget);
+    if (m_splitter) {
+        for (int i = 0; i < m_splitter->count(); ++i) {
+            if (auto *child = qobject_cast<SplitterOrView *>(m_splitter->widget(i)))
+                contains = child->showSingleGadget(gadget) || contains;
+        }
+    }
+    setVisible(contains);
+    return contains;
 }
 
 void SplitterOrView::unsplit()

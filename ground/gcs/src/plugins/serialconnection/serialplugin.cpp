@@ -123,12 +123,14 @@ QList<IDevice *> SerialConnection::availableDevices()
                 SerialDevice *d = new SerialDevice();
                 QStringList disp;
                 if (port.description().length()) {
-                    QFontMetrics font((QFont()));
-                    disp.append(font.elidedText(port.description(), Qt::ElideRight, 150));
+                    disp.append(port.description());
                 }
                 disp.append(port.portName());
                 d->setDisplayName(disp.join(" - "));
                 d->setName(port.portName());
+                d->setUsbTopologyPath(IDevice::usbTopologyForDeviceNode(port.systemLocation()));
+                d->setControllerCandidate(IDevice::plausibleControllerUsb(port.vendorIdentifier(),
+                    port.productIdentifier(), port.description()));
                 m_available_device_list.append(d);
 
                 changed = true;

@@ -47,6 +47,7 @@
 
 namespace uploader {
 class UploaderGadgetFactory;
+class FirmwareBootController;
 }
 
 using namespace uploader;
@@ -65,6 +66,7 @@ public:
 
 private:
     UploaderGadgetFactory *mf;
+    FirmwareBootController *m_firmwareBoot = nullptr;
 private slots:
     void testStuff();
 };

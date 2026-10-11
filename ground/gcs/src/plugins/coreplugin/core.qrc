@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/core">
+        <file alias="firmware/board-catalog.json">../../../../../shared/firmware/board-catalog.json</file>
         <file>images/clean_pane_small.png</file>
         <file>images/clear.png</file>
         <file>images/closebutton.png</file>
@@ -64,5 +65,6 @@
         <file alias="gcs_logo_128">../../../../../branding/gcs_logo_128.png</file>
         <file>images/dropdown_button.png</file>
         <file>images/dropdown_button_dis.png</file>
+        <file>images/firmware-chevron.svg</file>
     </qresource>
 </RCC>

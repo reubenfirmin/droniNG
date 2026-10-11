@@ -30,7 +30,9 @@
  */
 
 #include <QFileDialog>
-#include <QMessageBox>
+#include <QVBoxLayout>
+#include <QToolButton>
+#include <coreplugin/firmwarepage.h>
 #include <QDesktopServices>
 #include <QHttpPart>
 #include <QHttpMultiPart>
@@ -44,6 +46,7 @@
 #include "firmwareiapobj.h"
 #include <coreplugin/coreconstants.h>
 #include <coreplugin/icore.h>
+#include <coreplugin/firmwarecatalog.h>
 #include <coreplugin/modemanager.h>
 #include <coreplugin/actionmanager/actionmanager.h>
 #include "rawhid/rawhidplugin.h"
@@ -153,6 +156,25 @@ UploaderGadgetWidget::UploaderGadgetWidget(QWidget *parent)
             &UploaderGadgetWidget::onStatusUpdate);
 
     conMngr = Core::ICore::instance()->connectionManager();
+    m_firmwarePage = new Core::FirmwarePage(conMngr, this);
+    m_widget->verticalLayout->insertWidget(0, m_firmwarePage, 1);
+    m_dialog.setParent(this);
+    m_widget->verticalLayout->insertWidget(1, &m_dialog);
+    m_dialog.hide();
+    auto *advanced = new QWidget(this);
+    m_advancedTools = advanced;
+    auto *advancedLayout = new QVBoxLayout(advanced);
+    advancedLayout->setContentsMargins(0, 0, 0, 0);
+    while (m_widget->verticalLayout->count() > 2) {
+        auto *item = m_widget->verticalLayout->takeAt(2);
+        if (auto *widget = item->widget()) { advancedLayout->addWidget(widget); delete item; }
+        else if (auto *childLayout = item->layout()) { childLayout->setParent(nullptr); advancedLayout->addLayout(childLayout); }
+        else advancedLayout->addItem(item);
+    }
+    m_firmwarePage->setRecoveryTools(advanced);
+    connect(conMngr, &Core::ConnectionManager::firmwareStateChanged, advanced, [this, advanced] {
+        advanced->setEnabled(!conMngr->firmwareInstallationActive() && !m_promptActive);
+    });
 
     /* Enter the loader if it's available */
     setUploaderStatus(uploader::ENTERING_LOADER);
@@ -246,6 +268,8 @@ void UploaderGadgetWidget::DeviceInformationUpdate(deviceInfo board)
     m_widget->blVer_lbl->setText(board.bl_version);
     bool bl_version_ok;
     int bl_version = board.bl_version.toInt(&bl_version_ok, 16);
+    conMngr->setNativeFirmwareIdentity(board.board->shortName(), {},
+        bl_version_ok ? tr("dRonin %1").arg(board.bl_version) : QString());
     m_widget->blVer_lbl->setStyleSheet(
         bl_version_ok && bl_version < board.board->minBootLoaderVersion() ? "color: red;" : "");
     m_widget->maxCode_lbl->setText(board.max_code_size);
@@ -262,6 +286,8 @@ void UploaderGadgetWidget::DeviceInformationUpdate(deviceInfo board)
  */
 void UploaderGadgetWidget::FirmwareOnDeviceUpdate(deviceDescriptorStruct firmware, QString crc)
 {
+    conMngr->setNativeFirmwareIdentity(Core::IBoardType::getBoardNameFromID(firmware.boardID()),
+        Core::FirmwareCatalog::firmwareName(firmware.description));
     m_widget->builtForOD_lbl->setText(Core::IBoardType::getBoardNameFromID(firmware.boardID()));
     m_widget->crcOD_lbl->setText(crc);
     m_widget->gitHashOD_lbl->setText(firmware.gitHash);
@@ -384,7 +410,7 @@ void UploaderGadgetWidget::onAutopilotReady()
     deviceDescriptorStruct device;
     if (utilMngr->getBoardDescriptionStruct(device)) {
         FirmwareOnDeviceUpdate(device, QString::number(utilMngr->getFirmwareCRC()));
-        if (FirmwareCheckForUpdate(device)) {
+        if (!conMngr->firmwareInstallationActive() && FirmwareCheckForUpdate(device)) {
             onRescueButtonClick();
 
             Core::ModeManager::instance()->activateModeByWorkspaceName("Firmware");
@@ -602,6 +628,11 @@ void UploaderGadgetWidget::onRescueButtonClick()
         return;
     }
 
+    if (conMngr->hasMspFirmware() && conMngr->firmwareVariant() != "DRON") {
+        conMngr->showFirmwarePage();
+        return;
+    }
+
     // Otherwise, this means "begin rescue".
     conMngr->suspendPolling();
     setUploaderStatus(uploader::ENTERING_LOADER);
@@ -641,20 +672,41 @@ bool UploaderGadgetWidget::downloadSettings()
 
 bool UploaderGadgetWidget::askIfShouldContinue()
 {
-    QMessageBox msgBox(this);
-    msgBox.setText(tr("Proceed without saving a configuration backup?"));
-    msgBox.setInformativeText(tr("It is strongly encouraged that you save a backup of the "
-                                 "configuration before proceeding with upgrade."));
-    msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-    msgBox.setDefaultButton(QMessageBox::No);
+    return promptFirmware(tr("Proceed without saving a configuration backup?"),
+        tr("Save a backup of the configuration before upgrading, or choose Yes to continue."),
+        QDialogButtonBox::Yes | QDialogButtonBox::No) == QDialogButtonBox::Yes;
+}
 
-    int val = msgBox.exec();
-
-    if (val == QMessageBox::Yes) {
-        return true;
-    }
-
-    return false;
+int UploaderGadgetWidget::promptFirmware(const QString &text, const QString &details,
+                                        QDialogButtonBox::StandardButtons buttons)
+{
+    if (m_promptActive) return QDialogButtonBox::Cancel;
+    m_promptActive = true;
+    m_advancedTools->setEnabled(false);
+    conMngr->showFirmwarePage();
+    m_firmwarePage->setOperationActive(true);
+    auto *prompt = new QWidget(this);
+    prompt->setObjectName("firmwarePrompt");
+    auto *layout = new QVBoxLayout(prompt);
+    auto *heading = new QLabel(text, prompt); heading->setWordWrap(true); heading->setTextFormat(Qt::PlainText);
+    auto *body = new QLabel(details, prompt); body->setWordWrap(true); body->setTextFormat(Qt::PlainText);
+    layout->addWidget(heading); layout->addWidget(body);
+    auto *actions = new QDialogButtonBox(buttons, prompt); layout->addWidget(actions);
+    m_widget->verticalLayout->insertWidget(1, prompt);
+    prompt->show();
+    QEventLoop loop;
+    int result = QDialogButtonBox::Cancel;
+    connect(actions, &QDialogButtonBox::clicked, &loop, [&](QAbstractButton *button) {
+        result = actions->standardButton(button); loop.quit();
+    });
+    connect(conMngr, &Core::ConnectionManager::deviceDisconnected, &loop, &QEventLoop::quit);
+    connect(&m_dialog, &UpgradeAssistantDialog::finished, &loop, &QEventLoop::quit);
+    loop.exec();
+    delete prompt;
+    m_promptActive = false;
+    m_advancedTools->setEnabled(!conMngr->firmwareInstallationActive());
+    m_firmwarePage->setOperationActive(active());
+    return result;
 }
 
 bool UploaderGadgetWidget::saveSettings(const QByteArray &settingsDump)
@@ -828,15 +880,7 @@ void UploaderGadgetWidget::upgradeError(QString why)
 
     setUploaderStatus(uploader::DISCONNECTED);
 
-    /* Pop up a proper error dialog */
-    QMessageBox msgBox(this);
-
-    msgBox.setIcon(QMessageBox::Critical);
-    msgBox.setText(tr("Automatic upgrade failed."));
-    msgBox.setInformativeText(why);
-
-    msgBox.setStandardButtons(QMessageBox::Ok);
-    msgBox.exec();
+    setStatusInfo(tr("Automatic upgrade failed. %1").arg(why), uploader::STATUSICON_FAIL);
 }
 
 void UploaderGadgetWidget::stepChangeAndDelay(QEventLoop &loop, int delayMs,
@@ -928,14 +972,11 @@ void UploaderGadgetWidget::doUpgradeOperation(bool blankFC, tl_dfu::device &dev)
             // Cloud service missing.  Pop up a dialog and ask user what to
             // do.
 
-            int val =
-                QMessageBox::critical(this, tr("Cloud upgrade service not available"),
-                                      tr("The cloud upgrade service is not reachable. "
-                                         "You may continue without migrating settings, "
-                                         "or cancel the upgrade."),
-                                      QMessageBox::Ok | QMessageBox::Cancel, QMessageBox::Cancel);
+            int val = promptFirmware(tr("Cloud upgrade service not available"),
+                tr("The cloud upgrade service is not reachable. Continue without migrating settings, or cancel the upgrade."),
+                QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
 
-            if (val != QMessageBox::Ok) {
+            if (val != QDialogButtonBox::Ok) {
                 aborted = true;
             } else {
                 blankFC = true;
@@ -944,19 +985,13 @@ void UploaderGadgetWidget::doUpgradeOperation(bool blankFC, tl_dfu::device &dev)
             // Cloud service doesn't know about source release.  Pop up a
             // dialog and ask what to do.
 
-            int val = QMessageBox::critical(this, tr("Cloud upgrade service: release unknown"),
-                                            tr("The cloud upgrade service does not know about "
-                                               "the firmware on the flight controller. "
-                                               "You may discard the existing settings, "
-                                               "cancel the upgrade, or ignore and attempt to "
-                                               "proceed with migration anyways."),
-                                            QMessageBox::Discard | QMessageBox::Cancel
-                                                | QMessageBox::Ignore,
-                                            QMessageBox::Cancel);
+            int val = promptFirmware(tr("Cloud upgrade service: release unknown"),
+                tr("The cloud upgrade service does not recognize this firmware. Discard the existing settings, cancel, or ignore and attempt migration."),
+                QDialogButtonBox::Discard | QDialogButtonBox::Cancel | QDialogButtonBox::Ignore);
 
-            if (val == QMessageBox::Discard) {
+            if (val == QDialogButtonBox::Discard) {
                 blankFC = true;
-            } else if (val != QMessageBox::Ignore) {
+            } else if (val != QDialogButtonBox::Ignore) {
                 aborted = true;
             }
         }
@@ -1224,6 +1259,7 @@ void UploaderGadgetWidget::doUpgradeOperation(bool blankFC, tl_dfu::device &dev)
     }
 
     upgraderActive = false;
+    m_firmwarePage->setOperationActive(active());
 }
 
 /**
@@ -1254,29 +1290,15 @@ void UploaderGadgetWidget::onExportButtonClick()
 
     /* make sure there's a setting partition */
     if (!haveSettingsPart()) {
-        QMessageBox msgBox(this);
-
-        msgBox.setText(tr("No settings partition accessible; can't export."));
-        msgBox.setInformativeText(tr("Please upgrade your bootloader."));
-        msgBox.setStandardButtons(QMessageBox::Ok);
-        msgBox.setDefaultButton(QMessageBox::Ok);
-
-        msgBox.exec();
-
+        setStatusInfo(tr("No settings partition is accessible. Upgrade the bootloader to export settings."), uploader::STATUSICON_FAIL);
         return;
     }
 
     /* get confirmation from user that using the cloud service is OK */
-    QMessageBox msgBox(this);
-    msgBox.setText(tr("Do you wish to export the settings partition as an XML settings file?"));
-    msgBox.setInformativeText(tr("This will send the raw configuration information to a droniNG "
-                                 "cloud service for translation."));
-    msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-    msgBox.setDefaultButton(QMessageBox::Yes);
-
-    int val = msgBox.exec();
-
-    if (val != QMessageBox::Yes) {
+    int val = promptFirmware(tr("Export the settings partition as an XML settings file?"),
+        tr("This sends the raw configuration to the droniNG cloud service for translation."),
+        QDialogButtonBox::Yes | QDialogButtonBox::No);
+    if (val != QDialogButtonBox::Yes) {
         return;
     }
 
@@ -1301,6 +1323,7 @@ void UploaderGadgetWidget::onExportButtonClick()
  */
 void UploaderGadgetWidget::onBootloaderDetected()
 {
+    if (conMngr->firmwareInstallationActive()) return;
     Core::BoardManager *brdMgr = Core::ICore::instance()->boardManager();
     QList<USBPortInfo> devices;
 
@@ -1324,6 +1347,7 @@ void UploaderGadgetWidget::onBootloaderDetected()
         setStatusInfo("No devices in bootloader state detected", uploader::STATUSICON_FAIL);
         return;
     }
+    conMngr->showFirmwarePage();
 
     USBPortInfo device = devices.first();
 
@@ -1366,15 +1390,9 @@ void UploaderGadgetWidget::onBootloaderDetected()
                         break;
                     }
                 } else {
-                    QMessageBox msgBox(this);
-                    msgBox.setText(tr("There appears to be no valid firmware on your device.."));
-                    msgBox.setInformativeText(tr("Do you want to install firmware?"));
-                    msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-                    msgBox.setDefaultButton(QMessageBox::Yes);
-
-                    int val = msgBox.exec();
-
-                    if (val == QMessageBox::Yes) {
+                    int val = promptFirmware(tr("No valid firmware is installed."),
+                        tr("Install DroniNG firmware on this controller?"), QDialogButtonBox::Yes | QDialogButtonBox::No);
+                    if (val == QDialogButtonBox::Yes) {
                         triggerUpgrading = true;
                         blankFC = true;
                     }
@@ -1556,6 +1574,9 @@ void UploaderGadgetWidget::onRescueTimer()
         setStatusInfo(tr("Failed to detect bootloader"), uploader::STATUSICON_FAIL);
         setUploaderStatus(uploader::DISCONNECTED);
         conMngr->resumePolling();
+        // Native rescue needs an existing dRonin bootloader. Offer ROM DFU first-install
+        // when that loader never appears, including boards already held in BOOT mode.
+        conMngr->showFirmwarePage();
     }
 }
 
@@ -1671,10 +1692,9 @@ void UploaderGadgetWidget::onPartitionFlash()
     if (tempArray.length() > size) {
         setStatusInfo(tr("File bigger than partition size"), uploader::STATUSICON_FAIL);
     }
-    if (QMessageBox::warning(this, tr("Warning"),
-                             tr("Are you sure you want to flash the selected partition?"),
-                             QMessageBox::Yes, QMessageBox::No)
-        != QMessageBox::Yes)
+    if (promptFirmware(tr("Flash the selected partition?"),
+        tr("This replaces the partition's contents."), QDialogButtonBox::Yes | QDialogButtonBox::No)
+        != QDialogButtonBox::Yes)
         return;
     setStatusInfo("", uploader::STATUSICON_RUNNING);
     setUploaderStatus(uploader::BL_BUSY);
@@ -1707,10 +1727,9 @@ void UploaderGadgetWidget::onPartitionErase()
 {
     int index = m_widget->partitionBrowserTW->selectedItems().first()->data(Qt::UserRole).toInt();
 
-    if (QMessageBox::warning(this, tr("Warning"),
-                             tr("Are you sure you want erase the selected partition?"),
-                             QMessageBox::Yes, QMessageBox::No)
-        != QMessageBox::Yes)
+    if (promptFirmware(tr("Erase the selected partition?"),
+        tr("This removes the partition's contents."), QDialogButtonBox::Yes | QDialogButtonBox::No)
+        != QDialogButtonBox::Yes)
         return;
     if (dfu.WipePartition((dfu_partition_label)index))
         setStatusInfo(tr("Partition erased"), uploader::STATUSICON_OK);
@@ -1793,6 +1812,7 @@ void UploaderGadgetWidget::setStatusInfo(QString str, uploader::StatusIcon ic)
 
     QPixmap px;
     m_widget->statusLabel->setText(str);
+    if (conMngr && !str.isEmpty()) conMngr->setFirmwareStatus(str);
     switch (ic) {
     case uploader::STATUSICON_RUNNING:
         px.load(QString(":/uploader/images/system-run.svg"));
@@ -1835,12 +1855,13 @@ bool UploaderGadgetWidget::haveSettingsPart() const
 void UploaderGadgetWidget::setUploaderStatus(const uploader::UploaderStatus &value)
 {
     uploaderStatus = value;
+    if (m_firmwarePage) m_firmwarePage->setOperationActive(m_promptActive || active());
     switch (uploaderStatus) {
     case uploader::DISCONNECTED:
         m_widget->progressBar->setVisible(false);
 
         m_widget->rescueButton->setEnabled(true);
-        m_widget->rescueButton->setText(tr("Rescue"));
+        m_widget->rescueButton->setText(tr("Recover DroniNG firmware"));
         m_widget->bootButton->setText(tr("Boot"));
 
         m_widget->openButton->setEnabled(true);
@@ -1853,7 +1874,7 @@ void UploaderGadgetWidget::setUploaderStatus(const uploader::UploaderStatus &val
     case uploader::ENTERING_LOADER:
         m_widget->progressBar->setVisible(true);
 
-        m_widget->rescueButton->setText(tr("Rescue"));
+        m_widget->rescueButton->setText(tr("Recover DroniNG firmware"));
         m_widget->bootButton->setText(tr("Boot"));
 
         m_widget->rescueButton->setEnabled(false);
@@ -1867,7 +1888,7 @@ void UploaderGadgetWidget::setUploaderStatus(const uploader::UploaderStatus &val
     case uploader::BL_SITTING:
         m_widget->progressBar->setVisible(false);
 
-        m_widget->rescueButton->setText(tr("Rescue"));
+        m_widget->rescueButton->setText(tr("Recover DroniNG firmware"));
         m_widget->bootButton->setText(tr("Boot"));
 
         m_widget->rescueButton->setEnabled(false);
@@ -1927,43 +1948,12 @@ void UploaderGadgetWidget::openHelp()
 
 QString UploaderGadgetWidget::getImagePath(QString boardName, QString imageType)
 {
-    QString imageName = QString("%1_%2").arg(imageType).arg(boardName.toLower());
-    QString imageNameWithSuffix = QString("%1.tlfw").arg(imageName);
-
-    QStringList paths = QStringList()
-        /* Relative paths first; try the portable package or build dir */
-        << "." // uh, right here?
-        << "../firmware" // portable package
-        /* Added ../build to these to make sure our assumptions are right
-         * about it being a build tree */
-        << "../../../../build" // Linux build
-        << "/usr/local/" GCS_PROJECT_BRANDING_PRETTY "/firmware"; // leenucks deb
-
-    foreach (QString path, paths) {
-        QDir pathDir = QDir(QCoreApplication::applicationDirPath());
-
-        if (pathDir.cd(path)) {
-            /* Two things to try. */
-            QString perTargetPath = QString("%1/%2/%3")
-                                        .arg(pathDir.absolutePath())
-                                        .arg(imageName)
-                                        .arg(imageNameWithSuffix);
-
-            if (QFile::exists(perTargetPath)) {
-                return perTargetPath;
-            }
-
-            QString directPath =
-                QString("%1/%2").arg(pathDir.absolutePath()).arg(imageNameWithSuffix);
-
-            if (QFile::exists(directPath)) {
-                return directPath;
-            }
-        }
-    }
-
-    /* This is sane for file dialogs, too. */
-    return QString("");
+    if (imageType != "fw" && imageType != "bu")
+        return {};
+    const auto board = Core::FirmwareCatalog::instance().board(boardName);
+    return Core::FirmwareCatalog::imagePath(board, imageType == "bu"
+        ? Core::FirmwareCatalog::ImageKind::BootloaderUpdate
+        : Core::FirmwareCatalog::ImageKind::Application);
 }
 
 bool UploaderGadgetWidget::FirmwareLoadFromFile(QString filename, QByteArray *contents)
@@ -1996,22 +1986,12 @@ bool UploaderGadgetWidget::FirmwareCheckForUpdate(deviceDescriptorStruct device)
     if (gcsRev.contains(':')) {
         QString gcsShort = gcsRev.mid(gcsRev.indexOf(':') + 1, 8);
         if ((gcsShort != device.gitHash) && (ignoredRev != device.gitHash)) {
-            QMessageBox msgBox;
-            msgBox.setText(
-                tr("The firmware version on your board does not match this version of GCS."));
-            msgBox.setInformativeText(
-                tr("Do you want to upgrade the firmware to a compatible version?"));
-            msgBox.setDetailedText(QString("Firmware git hash: %1\nGCS git hash: %2")
-                                       .arg(device.gitHash)
-                                       .arg(gcsShort));
-            msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::Ignore);
-            msgBox.setDefaultButton(QMessageBox::Yes);
-
-            int val = msgBox.exec();
-
-            if (val == QMessageBox::Yes)
+            int val = promptFirmware(tr("Firmware update available"),
+                tr("The installed firmware (%1) differs from this build (%2). Upgrade to the compatible firmware?").arg(device.gitHash, gcsShort),
+                QDialogButtonBox::Yes | QDialogButtonBox::Ignore);
+            if (val == QDialogButtonBox::Yes)
                 return true;
-            else if (val == QMessageBox::Ignore)
+            else if (val == QDialogButtonBox::Ignore)
                 ignoredRev = device.gitHash;
         }
     }

@@ -1,6 +1,6 @@
-from dronin_pyqtgraph.dockarea import DockArea, Dock
-import dronin_pyqtgraph as pg
-from dronin_pyqtgraph.dockarea.Container import VContainer, TContainer
+from pyqtgraph.dockarea import DockArea, Dock
+import pyqtgraph as pg
+from pyqtgraph.dockarea.Container import VContainer, TContainer
 
 # This code is so we can link plots automatically when time series 
 # are above each other...
@@ -55,7 +55,7 @@ class PlotDockArea(DockArea):
                 continue
 
             for w in dock.widgets:
-                if isinstance(w, pg.widgets.PlotWidget.PlotWidget):
+                if isinstance(w, pg.PlotWidget):
                     w.setXLink(x_link)
 
                     x_link = w

@@ -29,7 +29,7 @@ PLUGIN_GROUPS = (
 )
 QML_MODULES = (
     "QML", "Qt", "QtQml", "QtQml.2", "QtQuick", "QtQuick.2",
-    "QtCharts", "QtMultimedia", "Qt5Compat", "QtGraphicalEffects",
+    "QtCharts", "QtMultimedia", "Qt5Compat",
 )
 
 
@@ -55,8 +55,8 @@ def deploy(qmake, application, qt_source_archives=None, sdk_dependency_cache=Non
         raise RuntimeError("Use a fresh package stage to preserve existing source materials")
     version = query(qmake, "QT_VERSION")
     major = version.split(".")[0]
-    if major not in ("5", "6"):
-        raise RuntimeError(f"Unsupported Qt version: {version}")
+    if major != "6":
+        raise RuntimeError(f"Qt 6 is required for deployment: {version}")
     library_source = Path(query(qmake, "QT_INSTALL_LIBS")).resolve()
     plugin_source = Path(query(qmake, "QT_INSTALL_PLUGINS"))
     qml_source = Path(query(qmake, "QT_INSTALL_QML"))

@@ -175,13 +175,8 @@ bool verifyModel(const QString &path)
         const QVariant &wanted = entry.value();
         // Numeric settings are deliberately stored as strings in the legacy XML format.
         bool converted = true;
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
         if (actual.metaType() != wanted.metaType())
             converted = actual.convert(wanted.metaType());
-#else
-        if (actual.userType() != wanted.userType())
-            converted = actual.convert(wanted.type());
-#endif
         if (!converted || actual != wanted) {
             qWarning().noquote() << "Model value changed for key:" << entry.key();
             return false;

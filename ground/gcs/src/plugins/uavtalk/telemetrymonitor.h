@@ -75,6 +75,10 @@ private slots:
     void objectRetrieveTimeoutCB();
     void newInstanceSlot(UAVObject *);
     void handshakeTimeoutCB();
+    void startFirmwareProbe();
+    void finishFirmwareProbe();
+    void reportHandshakeFailure();
+    void liveDataTimeoutCB();
 
 private:
     static const int STATS_UPDATE_PERIOD_MS = 1600;
@@ -100,7 +104,13 @@ private:
     QElapsedTimer connectionTimer;
     QTimer *objectRetrieveTimeout;
     QTimer *handshakeTimeout;
+    QTimer *firmwareProbeTimeout;
+    QTimer *liveDataTimeout;
+    bool firmwareProbeAttempted = false;
+    bool mspPortIdentified = false;
     Telemetry::TelemetryStats handshakeStats{};
+    QString handshakeDiagnostic;
+    QPointer<QIODevice> transport;
     int requestsInFlight;
 
     void startRetrievingObjects();

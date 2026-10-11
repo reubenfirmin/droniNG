@@ -9,8 +9,7 @@ How To add translations to GCS
   country-specific variants.
   Skip this step if updating an existing translation, obviously.
 
-- Run "make gcs_ts". This will complain if you are not building against
-  Qt 5.15
+- Run "make gcs_ts" using the Qt 6.12.0 release SDK.
 
 - Fire up linguist and do the translation.
 

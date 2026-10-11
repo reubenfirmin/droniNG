@@ -13,9 +13,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-#if QT_VERSION < 0x040601
-#define qAtan(x) ::atan(x)
-#endif
 
 namespace QwtClip
 {

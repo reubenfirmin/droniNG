@@ -14,101 +14,13 @@
 #include <limits>
 #include <limits.h>
 
-#if QT_VERSION >= 0x050000
-
 typedef qint64 QwtJulianDay;
 static const QwtJulianDay minJulianDayD = Q_INT64_C( -784350574879 );
 static const QwtJulianDay maxJulianDayD = Q_INT64_C( 784354017364 );
 
-#else
-
-// QDate stores the Julian day as unsigned int, but
-// but it is QDate::fromJulianDay( int ). That's why
-// we have the range [ 1, INT_MAX ]
-typedef int QwtJulianDay;
-static const QwtJulianDay minJulianDayD = 1;
-static const QwtJulianDay maxJulianDayD = std::numeric_limits<int>::max();
-
-#endif
-
 static inline Qt::DayOfWeek qwtFirstDayOfWeek()
 {
-#if QT_VERSION >= 0x040800
     return QLocale().firstDayOfWeek();
-#else
-
-    switch( QLocale().country() )
-    {
-        case QLocale::Maldives:
-            return Qt::Friday;
-
-        case QLocale::Afghanistan:
-        case QLocale::Algeria:
-        case QLocale::Bahrain:
-        case QLocale::Djibouti:
-        case QLocale::Egypt:
-        case QLocale::Eritrea:
-        case QLocale::Ethiopia:
-        case QLocale::Iran:
-        case QLocale::Iraq:
-        case QLocale::Jordan:
-        case QLocale::Kenya:
-        case QLocale::Kuwait:
-        case QLocale::LibyanArabJamahiriya:
-        case QLocale::Morocco:
-        case QLocale::Oman:
-        case QLocale::Qatar:
-        case QLocale::SaudiArabia:
-        case QLocale::Somalia:
-        case QLocale::Sudan:
-        case QLocale::Tunisia:
-        case QLocale::Yemen:
-            return Qt::Saturday;
-
-        case QLocale::AmericanSamoa:
-        case QLocale::Argentina:
-        case QLocale::Azerbaijan:
-        case QLocale::Botswana:
-        case QLocale::Canada:
-        case QLocale::China:
-        case QLocale::FaroeIslands:
-        case QLocale::Georgia:
-        case QLocale::Greenland:
-        case QLocale::Guam:
-        case QLocale::HongKong:
-        case QLocale::Iceland:
-        case QLocale::India:
-        case QLocale::Ireland:
-        case QLocale::Israel:
-        case QLocale::Jamaica:
-        case QLocale::Japan:
-        case QLocale::Kyrgyzstan:
-        case QLocale::Lao:
-        case QLocale::Malta:
-        case QLocale::MarshallIslands:
-        case QLocale::Macau:
-        case QLocale::Mongolia:
-        case QLocale::NewZealand:
-        case QLocale::NorthernMarianaIslands:
-        case QLocale::Pakistan:
-        case QLocale::Philippines:
-        case QLocale::RepublicOfKorea:
-        case QLocale::Singapore:
-        case QLocale::SyrianArabRepublic:
-        case QLocale::Taiwan:
-        case QLocale::Thailand:
-        case QLocale::TrinidadAndTobago:
-        case QLocale::UnitedStates:
-        case QLocale::UnitedStatesMinorOutlyingIslands:
-        case QLocale::USVirginIslands:
-        case QLocale::Uzbekistan:
-        case QLocale::Zimbabwe:
-            return Qt::Sunday;
-
-        default:
-            return Qt::Monday;
-    }
-#endif
 }
 
 static inline void qwtFloorTime( 
@@ -202,34 +114,7 @@ static inline qint64 qwtFloorDiv( int a, int b )
 
 static inline QDate qwtToDate( int year, int month = 1, int day = 1 )
 {
-#if QT_VERSION >= 0x050000
     return QDate( year, month, day );
-#else
-    if ( year > 100000 )
-    {
-        // code from QDate but using doubles to avoid overflows
-        // for large values
-
-        const int m1 = ( month - 14 ) / 12;
-        const int m2 = ( 367 * ( month - 2 - 12 * m1 ) ) / 12;
-        const double y1 = ::floor( ( 4900.0 + year + m1 ) / 100 );
-
-        const double jd = ::floor( ( 1461.0 * ( year + 4800 + m1 ) ) / 4 ) + m2
-            - ::floor( ( 3 * y1 ) / 4 ) + day - 32075;
-
-        if ( jd > maxJulianDayD )
-        {
-            qWarning() << "qwtToDate: overflow";
-            return QDate();
-        }
-
-        return QDate::fromJulianDay( static_cast<QwtJulianDay>( jd ) );
-    }
-    else
-    {
-        return QDate( year, month, day );
-    }
-#endif
 }
 
 /*!

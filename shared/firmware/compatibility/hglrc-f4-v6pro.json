@@ -1,0 +1,42 @@
+{
+  "board": "hglrc-f4-v6pro",
+  "target": "revolution",
+  "manufacturerManual": "https://cdn.shopify.com/s/files/1/2672/8290/files/HGLRC_F4V6PRO-manual.pdf?9860837140640360721=",
+  "upstreamRepository": "betaflight/betaflight",
+  "upstreamCommit": "cb962eda1a1aa7575cf36001a8ad080c96a5d9fd",
+  "upstreamVersion": "3.2.3",
+  "sources": [
+    {"file": "betaflight-3.2.3/omnibus-target.h", "path": "src/main/target/OMNIBUSF4/target.h", "sha256": "d7e5e0a60dd0a28f446969009695634e9139813694f7ac399fa1ca91032f150c"},
+    {"file": "betaflight-3.2.3/omnibus-target.c", "path": "src/main/target/OMNIBUSF4/target.c", "sha256": "a44603e4a35025d1153dbf079f4628348e86fcb6e41c39f9868bbf425f44f22c"},
+    {"file": "betaflight-3.2.3/revo-target.h", "path": "src/main/target/REVO/target.h", "sha256": "9c37f93e37945bddc78e02052e2637a9a2d1562ab5898e589c9149da2f7eed07"},
+    {"file": "betaflight-3.2.3/LICENSE", "path": "LICENSE", "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"}
+  ],
+  "hardware": {
+    "mcu": "STM32F405RGT6",
+    "systemBootloader": "STM32 system bootloader (USB DFU)",
+    "systemBootloaderReference": "https://www.st.com/resource/en/application_note/an2606-stm32-microcontroller-system-memory-boot-mode-stmicroelectronics.pdf",
+    "imu": "MPU6000",
+    "imuBus": "SPI1",
+    "imuChipSelect": "PA4",
+    "imuInterrupt": "PC4",
+    "osdBus": "SPI3",
+    "osdChipSelect": "PA15",
+    "flashChipSelect": "PB3",
+    "motorPins": ["PB0", "PB1", "PA3", "PA2"],
+    "uart1": ["PA9", "PA10"],
+    "uart3": ["PB10", "PB11"],
+    "uart6": ["PC6", "PC7"],
+    "sbusInverter": "PC0",
+    "currentAdc": "PC1",
+    "voltageAdc": "PC2"
+  },
+  "configuration": {
+    "sensorOrientation": "OMNIBUSF4 uses CW180, while REVO uses CW270 in the same upstream coordinate convention. With Revolution's PiOS TOP180 transform, BoardRotation yaw -90 degrees produces the corresponding HGLRC body axes.",
+    "osd": "SPI3 slave 0 is MAX7456 on PA15; select MAX7456 OSD instead of the original Revolution radio.",
+    "magnetometer": "The board has no onboard magnetometer; select None.",
+    "motorTimer": "Motor 3 uses PA3 with TIM9 CH2 in PiOS and TIM2 CH4 in Betaflight. Both are STM32F405 alternate functions for PA3; the other three motor pins and timer channels match.",
+    "storage": "Revolution probes supported JEDEC capacities on PB3 and uses its internal settings partition when no supported external flash responds.",
+    "usb": "Revolution revision 3 uses the same PC5 VBUS sense input; USB telemetry is enabled by default. Missing original barometer/magnetometer hardware is handled by the clone initializer."
+  },
+  "verification": "python3 ground/tests/firmware_compatibility.py"
+}

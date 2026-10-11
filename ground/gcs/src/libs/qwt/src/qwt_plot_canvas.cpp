@@ -594,12 +594,7 @@ void QwtPlotCanvas::setPaintAttribute( PaintAttribute attribute, bool on )
 
                 if ( isVisible() )
                 {
-#if QT_VERSION >= 0x050000
                     *d_data->backingStore = grab( rect() );
-#else
-                    *d_data->backingStore = 
-                        QPixmap::grabWidget( this, rect() );
-#endif
                 }
             }
             else
@@ -939,7 +934,6 @@ void QwtPlotCanvas::drawBorder( QPainter *painter )
     }
     else
     {
-#if QT_VERSION >= 0x040500
         QStyleOptionFrame opt;
         opt.initFrom(this);
 
@@ -976,9 +970,6 @@ void QwtPlotCanvas::drawBorder( QPainter *painter )
             opt.state |= QStyle::State_Raised;
 
         style()->drawControl(QStyle::CE_ShapedFrame, &opt, painter, this);
-#else
-        drawFrame( painter );
-#endif
     }
 }
 

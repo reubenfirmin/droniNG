@@ -21,8 +21,7 @@ ifdef OPENOCD_FTDI
   endif
 endif
 
-# The release SDK is Qt 6.12.0. Use an explicit QMAKE and a separate BUILD_DIR
-# for the Qt 5.15 reference or a different development SDK.
+# Qt 6 is required. Use an explicit QMAKE and a separate BUILD_DIR for a different SDK.
 QT_VERSION ?= 6.12.0
 
 # These bits are not user serviceable
@@ -58,10 +57,9 @@ QT_SDK_DIR := $(TOOLS_DIR)/Qt$(QT_VERSION_FULL)
 tools_required_qt:
 	$(V1) qt_selected_version="$$("$(QMAKE)" -query QT_VERSION)" && \
 	  case "$$qt_selected_version" in \
-	    5.15.*) [ "$${qt_selected_version##*.}" -ge 2 ] ;; \
 	    6.*) qt_selected_minor="$${qt_selected_version#6.}"; [ "$${qt_selected_minor%%.*}" -ge 10 ] ;; \
 	    *) false ;; \
-	  esac || { echo "Select Qt 5.15.2+ or Qt 6.10+ using QMAKE; release target is Qt 6.12.0" >&2; exit 1; }; \
+	  esac || { echo "Select Qt 6.10+ using QMAKE; release target is Qt 6.12.0" >&2; exit 1; }; \
 	  qt_selected_qmake="$$(command -v "$(QMAKE)")"; \
 	  for qt_build_makefile in "$(BUILD_DIR)/ground/gcs/Makefile" "$(BUILD_DIR)/ground/uavobjgenerator/Makefile"; do \
 	    [ -f "$$qt_build_makefile" ] || continue; \
@@ -102,7 +100,7 @@ endef
 
 # Use distribution packages or an independently installed SDK.
 ifneq (,$(filter qt_sdk_install,$(MAKECMDGOALS)))
-  $(error The legacy qt_sdk_install recipe is retired. Install Qt 5.15 development packages or a separate SDK, then set QMAKE to its qmake executable)
+  $(error The legacy qt_sdk_install recipe is retired. Install Qt 6.10+ development packages or a separate SDK, then set QMAKE to its qmake executable)
 endif
 
 QT_SDK_QMAKE_PATH := $(QT_SDK_DIR)/$(QT_VERSION_FULL)/gcc_64/bin/qmake
@@ -122,11 +120,9 @@ endif
 arm_sdk_install: ARM_SDK_FILE := $(notdir $(ARM_SDK_URL))
 # order-only prereq on directory existance:
 arm_sdk_install: | $(DL_DIR) $(TOOLS_DIR)
-arm_sdk_install: arm_sdk_clean
-        # download the source only if it's newer than what we already have
-	$(V1) wget --no-check-certificate -N -P "$(DL_DIR)" "$(ARM_SDK_URL)"
-
-        # binary only release so just extract it
+        # Pinned upstream archive, verified before extraction; preserve a working SDK on download failure.
+	$(V1) test -f "$(DL_DIR)/$(ARM_SDK_FILE)" || curl -fL --retry 2 -o "$(DL_DIR)/$(ARM_SDK_FILE)" "$(ARM_SDK_URL)"
+	$(V1) echo "e68e4b2fe348ecb567c27985355dff75b65319a0f6595d44a18a8c5e05887cc3  $(DL_DIR)/$(ARM_SDK_FILE)" | sha256sum -c -
 	$(V1) tar -C $(TOOLS_DIR) -xjf "$(DL_DIR)/$(ARM_SDK_FILE)"
 
 .PHONY: arm_sdk_clean
@@ -370,7 +366,7 @@ zip_clean:
 	$(V1) [ ! -d "$(ZIP_DIR)" ] || $(RM) -rf $(ZIP_DIR)
 
 
-# Qt 6 graphics candidate. The Qt 5 build continues to use bundled GLC.
+# Pinned Qt 6 graphics library.
 # Must match ground/gcs/src/libs/glc_lib/qt6.pri.
 GLC6_REV := b292ccf7851576d71ee9bed7ced4c340b910159a
 GLC6_REPO := https://github.com/laumaya/GLC_lib.git
@@ -461,11 +457,7 @@ breakpad_test: | tools_required_breakpad
 ifneq ($(wildcard $(QT_SDK_QMAKE_PATH)),)
   QMAKE ?= $(QT_SDK_QMAKE_PATH)
 else
-  ifneq ($(filter 6.%,$(QT_VERSION)),)
-    QMAKE ?= $(or $(shell command -v qmake6 2>/dev/null),qmake)
-  else
-    QMAKE ?= $(or $(shell command -v qmake-qt5 2>/dev/null),qmake)
-  endif
+  QMAKE ?= $(or $(shell command -v qmake6 2>/dev/null),qmake)
 endif
 QT_PLUGINS_DIR := $(shell $(QMAKE) -query QT_INSTALL_PLUGINS 2>/dev/null)
 export QT_SDK_BIN_PATH := $(shell $(QMAKE) -query QT_INSTALL_BINS 2>/dev/null)

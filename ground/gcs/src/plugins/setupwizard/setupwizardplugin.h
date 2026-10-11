@@ -45,13 +45,11 @@ public:
     void shutdown();
 
 private slots:
-    void showSetupWizard(bool autoLaunched);
+    void showSetupWizard();
     void wizardTerminated();
-    void ignoreBoard(QByteArray uuid);
 
 private:
     bool wizardRunning;
-    QSet<QByteArray> ignoredBoards;
 };
 
 #endif // SETUPWIZARDPLUGIN_H

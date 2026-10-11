@@ -303,11 +303,7 @@ QBitmap QwtPanner::contentsMask() const
 */
 QPixmap QwtPanner::grab() const
 {
-#if QT_VERSION >= 0x050000
     return parentWidget()->grab( parentWidget()->rect() );
-#else
-    return QPixmap::grabWidget( parentWidget() );
-#endif
 }
 
 /*!

@@ -258,9 +258,9 @@ QBitmap QwtPlotPanner::contentsMask() const
 QPixmap QwtPlotPanner::grab() const
 {   
     const QWidget *cv = canvas();
-    if ( cv && cv->inherits( "QGLWidget" ) )
+    if ( cv && cv->inherits( "QOpenGLWidget" ) )
     {
-        // we can't grab from a QGLWidget
+        // Render the OpenGL canvas through the plot's painter interface.
 
         QPixmap pm( cv->size() );
         QwtPainter::fillPixmap( cv, pm );

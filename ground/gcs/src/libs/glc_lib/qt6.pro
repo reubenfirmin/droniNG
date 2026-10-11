@@ -1,2 +1,2 @@
-# Qt 6 build entry point; Qt 5 continues to use glc_lib.pro.
+# Qt 6 build entry point.
 include(qt6.pri)

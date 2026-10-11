@@ -27,6 +27,8 @@
  */
 
 #include "connectionmanager.h"
+#include "modemanager.h"
+#include "imode.h"
 #include <coreplugin/icore.h>
 #include <aggregation/aggregate.h>
 #include <coreplugin/iconnection.h>
@@ -70,21 +72,22 @@ ConnectionManager::ConnectionManager(Internal::MainWindow *mainWindow, QTabWidge
                                             m_monitorWidget->getBackgroundItem());
     layout->addWidget(m_monitorWidget, Qt::AlignHCenter | Qt::AlignVCenter);
 
-    layout->addWidget(new QLabel(tr("Connections:")));
-
-    m_availableDevList = new QComboBox;
+    m_availableDevList = new QComboBox(this);
     m_availableDevList->setMinimumWidth(100);
     m_availableDevList->setMaximumWidth(150);
     m_availableDevList->setContextMenuPolicy(Qt::CustomContextMenu);
-    layout->addWidget(m_availableDevList, Qt::AlignVCenter);
+    m_availableDevList->hide();
 
-    m_connectBtn = new QPushButton(tr("Connect"));
+    m_connectBtn = new QPushButton(tr("Connect"), this);
     m_connectBtn->setEnabled(false);
-    layout->addWidget(m_connectBtn, Qt::AlignVCenter);
+    m_connectBtn->hide();
 
     setLayout(layout);
 
+    // Keep telemetry and alarms in the flight workspaces. Firmware owns the
+    // connection controls; the internal selector also supports auto-reconnect.
     modeStack->setCornerWidget(this, Qt::TopRightCorner);
+    hide();
 
     QObject::connect(m_connectBtn, SIGNAL(clicked()), this, SLOT(onConnectClicked()));
 
@@ -105,6 +108,11 @@ ConnectionManager::~ConnectionManager()
 
 void ConnectionManager::init()
 {
+    if (auto *modes = ModeManager::instance()) {
+        connect(modes, &ModeManager::currentModeChanged, this, [this](IMode *mode) {
+            setVisible(mode && mode->name() != "Welcome" && mode->name() != "Firmware");
+        });
+    }
     // register to the plugin manager so we can receive
     // new connection object from plugins
     QObject::connect(ExtensionSystem::PluginManager::instance(), SIGNAL(objectAdded(QObject *)),
@@ -120,85 +128,134 @@ void ConnectionManager::init()
  */
 void ConnectionManager::connectDeviceFailed(DevListItem &device)
 {
-    auto *dialog = new QDialog(window());
-    dialog->setObjectName("connectionErrorDialog");
-    dialog->setWindowTitle(tr("Connection failed"));
-    dialog->setAttribute(Qt::WA_DeleteOnClose);
-    dialog->setMinimumWidth(480);
-    auto *layout = new QVBoxLayout(dialog);
-    layout->setContentsMargins(20, 20, 20, 20);
-    layout->setSpacing(14);
+    Q_UNUSED(device);
+    m_firmwareError = m_connectionError;
+    m_firmwareStatus = tr("Connection failed");
+    m_firmwareDetecting = false;
+    emit firmwareStateChanged();
+    showFirmwarePage();
+}
 
-    auto *heading = new QLabel(tr("Can't connect to %1")
-        .arg(device.device ? device.device->getDisplayName() : tr("your controller")), dialog);
-    heading->setTextFormat(Qt::PlainText);
-    heading->setWordWrap(true);
-    QFont headingFont = heading->font();
-    headingFont.setBold(true);
-    heading->setFont(headingFont);
-    layout->addWidget(heading);
-
-    auto *guidance = new QLabel(m_connectionError.message, dialog);
-    guidance->setObjectName("connectionErrorGuidance");
-    guidance->setTextFormat(Qt::PlainText);
-    guidance->setWordWrap(true);
-    guidance->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
-    layout->addWidget(guidance);
-
-    if (!m_connectionError.command.isEmpty()) {
-        auto *commandBlock = new QFrame(dialog);
-        commandBlock->setObjectName("connectionErrorCommandBlock");
-        commandBlock->setStyleSheet(QStringLiteral(
-            "QFrame#connectionErrorCommandBlock {"
-            " background-color: palette(base); border: none; border-radius: 6px; }"));
-        auto *commandRow = new QHBoxLayout(commandBlock);
-        commandRow->setContentsMargins(14, 12, 14, 12);
-        commandRow->setSpacing(16);
-        auto *command = new QLabel(m_connectionError.command, commandBlock);
-        command->setObjectName("connectionErrorCommand");
-        command->setAccessibleName(tr("Terminal command"));
-        command->setTextFormat(Qt::PlainText);
-        command->setWordWrap(true);
-        command->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
-        command->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
-        commandRow->addWidget(command, 1);
-        auto *copy = new QPushButton(tr("Copy command"), commandBlock);
-        copy->setObjectName("copyConnectionErrorCommand");
-        copy->setAutoDefault(false);
-        connect(copy, &QPushButton::clicked, dialog, [command, copy] {
-            QApplication::clipboard()->setText(command->text());
-            copy->setText(tr("Copied"));
-        });
-        commandRow->addWidget(copy);
-        layout->addWidget(commandBlock);
+void ConnectionManager::telemetryConnectionFailed(const ConnectionError &error)
+{
+    if (!m_ioDev || m_firmwareInstalling)
+        return;
+    m_flightDataAvailable = false;
+    setControllerSetupRequired(false);
+    m_connectBtn->setToolTip(tr("The port is open, but flight data is unavailable."));
+    ConnectionError diagnosis = error;
+    if (auto *serial = qobject_cast<QSerialPort *>(m_ioDev)) {
+        const QSerialPortInfo info(*serial);
+        diagnosis.details += tr("\nSerial port: %1 at %2 baud; USB manufacturer: %3; product: %4")
+            .arg(info.systemLocation()).arg(serial->baudRate())
+            .arg(info.manufacturer(), info.description());
     }
+    m_firmwareError = diagnosis;
+    m_firmwareDetecting = false;
+    m_firmwareStatus = m_mspFirmwareDetected && m_firmwareVariant != "DRON"
+        ? tr("Install DroniNG to load flight data.") : tr("Flight data unavailable");
+    emit firmwareStateChanged();
+}
 
-    if (!m_connectionError.details.isEmpty()) {
-        auto *toggle = new QToolButton(dialog);
-        toggle->setObjectName("connectionErrorDetailsToggle");
-        toggle->setText(tr("Technical details"));
-        toggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-        toggle->setArrowType(Qt::RightArrow);
-        toggle->setCheckable(true);
-        layout->addWidget(toggle, 0, Qt::AlignLeft);
-        auto *details = new QPlainTextEdit(m_connectionError.details, dialog);
-        details->setObjectName("connectionErrorDetails");
-        details->setAccessibleName(tr("Technical details"));
-        details->setReadOnly(true);
-        details->setMaximumHeight(120);
-        details->hide();
-        layout->addWidget(details);
-        connect(toggle, &QToolButton::toggled, dialog, [toggle, details, dialog](bool expanded) {
-            toggle->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
-            details->setVisible(expanded);
-            dialog->adjustSize();
-        });
-    }
+void ConnectionManager::setFirmwareIdentity(const QString &variant, const QString &boardTarget,
+                                             bool mspDetected, const QString &version)
+{
+    m_firmwareVariant = variant;
+    m_firmwareBoardTarget = boardTarget;
+    m_mspFirmwareDetected = mspDetected;
+    m_firmwareVersion = version;
+    QString family = variant;
+    if (variant == "BTFL") family = "Betaflight";
+    else if (variant == "CLFL") family = "Cleanflight";
+    else if (variant == "DRON") family = "dRonin";
+    else if (mspDetected && variant.isEmpty()) family = tr("MSP firmware");
+    m_detectedFirmware = family + (version.isEmpty() ? QString() : " " + version);
+    m_detectedBoard = boardTarget;
+    m_detectedBootloader.clear();
+    emit firmwareStateChanged();
+}
 
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, dialog);
-    connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
-    layout->addWidget(buttons);
-    dialog->open();
+void ConnectionManager::setNativeFirmwareIdentity(const QString &board, const QString &firmware,
+                                                  const QString &bootloader)
+{
+    if (!board.isEmpty()) m_detectedBoard = board;
+    if (!firmware.isEmpty()) m_detectedFirmware = firmware;
+    if (!bootloader.isEmpty()) m_detectedBootloader = bootloader;
+    emit firmwareStateChanged();
+}
+
+void ConnectionManager::setFirmwareStatus(const QString &message)
+{
+    if (m_firmwareStatus == message && m_firmwareError.message.isEmpty()
+        && m_firmwareError.details.isEmpty() && m_firmwareError.command.isEmpty()) return;
+    m_firmwareStatus = message;
+    m_firmwareError = {};
+    emit firmwareStateChanged();
+}
+
+void ConnectionManager::setFirmwareDetectionActive(bool active)
+{
+    if (m_firmwareDetecting == active) return;
+    m_firmwareDetecting = active;
+    emit firmwareStateChanged();
+}
+
+void ConnectionManager::showFirmwarePage()
+{
+    if (auto *modes = ModeManager::instance()) modes->activateModeByWorkspaceName("Firmware");
+    emit firmwarePageRequested();
+}
+
+void ConnectionManager::beginFirmwareInstallation()
+{
+    m_firmwareInstalling = true;
+    m_firmwareDetecting = false;
+    emit firmwareStateChanged();
+    disconnectDevice();
+    suspendPolling();
+}
+
+void ConnectionManager::endFirmwareInstallation()
+{
+    m_firmwareInstalling = false;
+    emit firmwareStateChanged();
+    resumePolling();
+}
+
+void ConnectionManager::reportFirmwareDescription(const QByteArray &description)
+{
+    emit firmwareDescriptionReceived(description);
+}
+
+void ConnectionManager::telemetryHandshakeCompleted()
+{
+    m_flightDataAvailable = false;
+    setControllerSetupRequired(false);
+    setFirmwareDetectionActive(true);
+    setFirmwareIdentity({}, {});
+    setFirmwareStatus(tr("Reading controller data…"));
+    m_connectBtn->setToolTip(tr("Reading controller data."));
+}
+
+void ConnectionManager::reportFlightDataReceived()
+{
+    m_flightDataAvailable = true;
+    setFirmwareDetectionActive(false);
+    setFirmwareStatus(tr("Connected. The controller is sending flight data."));
+    emit flightDataReady();
+}
+
+void ConnectionManager::setControllerSetupRequired(bool required)
+{
+    if (m_controllerSetupRequired == required) return;
+    m_controllerSetupRequired = required;
+    emit firmwareStateChanged();
+}
+
+void ConnectionManager::requestControllerSetup()
+{
+    if (isConnected() && m_flightDataAvailable && !m_firmwareInstalling)
+        emit setupWizardRequested();
 }
 
 /**
@@ -210,6 +267,11 @@ bool ConnectionManager::connectDevice(DevListItem device)
     const QString name = device.getConName();
     const auto fail = [&](const ConnectionError &error) {
         m_connectionError = error;
+        m_firmwareError = error;
+        m_firmwareStatus = tr("Connection failed");
+        m_firmwareDetecting = false;
+        emit firmwareStateChanged();
+        showFirmwarePage();
         qWarning().noquote() << QString("Connection failed for %1: %2")
             .arg(name.isEmpty() ? "unknown device" : name,
                  error.details.isEmpty() ? error.message : error.details);
@@ -221,6 +283,11 @@ bool ConnectionManager::connectDevice(DevListItem device)
     if (m_ioDev)
         return fail({tr("Another controller is already connected. Disconnect it first."), {}, {}});
 
+    m_flightDataAvailable = false;
+    setFirmwareDetectionActive(true);
+    setFirmwareIdentity({}, {});
+    setFirmwareStatus(tr("Connecting to %1…").arg(device.device->getDisplayName()));
+    showFirmwarePage();
     qInfo().noquote() << "Connecting to" << name;
 
     QIODevice *io_dev = device.connection->openDevice(device.device);
@@ -254,6 +321,7 @@ bool ConnectionManager::connectDevice(DevListItem device)
     // remember the connection/device details
     m_connectionDevice = device;
     m_ioDev = io_dev;
+    setFirmwareStatus(tr("Detecting board and firmware…"));
     qInfo().noquote() << "Transport opened for" << name << "- waiting for the UAVTalk handshake";
 
     const quint64 generation = ++m_connectionGeneration;
@@ -269,10 +337,11 @@ bool ConnectionManager::connectDevice(DevListItem device)
     // signal interested plugins that we connected to the device
     emit deviceConnected(io_dev);
     m_connectBtn->setText("Disconnect");
+    m_connectBtn->setToolTip(tr("The port is open. Waiting for the controller's telemetry handshake."));
     m_availableDevList->setEnabled(false);
 
-    // tell the monitorwidget we're conneced
-    m_monitorWidget->connected();
+    // Opening the transport does not mean that telemetry is connected.
+    m_monitorWidget->disconnect();
 
     return true;
 }
@@ -283,6 +352,13 @@ bool ConnectionManager::connectDevice(DevListItem device)
  */
 bool ConnectionManager::disconnectDevice()
 {
+    m_flightDataAvailable = false;
+    setControllerSetupRequired(false);
+    setFirmwareDetectionActive(false);
+    if (!m_firmwareInstalling) {
+        setFirmwareIdentity({}, {});
+        setFirmwareStatus(tr("Connect a controller to detect its board and firmware."));
+    }
     // tell the monitor widget we're disconnected
     m_monitorWidget->disconnect();
 
@@ -320,6 +396,7 @@ bool ConnectionManager::disconnectDevice()
 
     emit deviceDisconnected();
     m_connectBtn->setText("Connect");
+    m_connectBtn->setToolTip(QString());
     m_availableDevList->setEnabled(true);
 
     return true;
@@ -352,6 +429,7 @@ void ConnectionManager::aboutToRemoveObject(QObject *obj)
     IConnection *connection = Aggregation::query<IConnection>(obj);
     if (!connection)
         return;
+    m_enumeratedConnections.remove(connection);
 
     if (m_connectionDevice.connection
         && m_connectionDevice.connection
@@ -388,6 +466,10 @@ void ConnectionManager::onConnectClicked()
  */
 void ConnectionManager::telemetryConnected()
 {
+    // Object retrieval completes after the handshake. Preserve live data and
+    // board identity already received during retrieval.
+    m_connectBtn->setToolTip(m_flightDataAvailable ? tr("Flight data is connected.")
+                                                 : tr("Waiting for live flight data."));
     qInfo().noquote() << "Telemetry connected to" << m_connectionDevice.getConName();
 
     if (reconnectCheck->isActive())
@@ -404,7 +486,14 @@ void ConnectionManager::telemetryDisconnected()
 {
     qDebug() << "TelemetryMonitor: disconnected";
 
-    if (m_ioDev) {
+    const bool wasReady = m_flightDataAvailable;
+    m_flightDataAvailable = false;
+    setControllerSetupRequired(false);
+    if (wasReady && m_ioDev && !m_firmwareInstalling) {
+        setFirmwareDetectionActive(true);
+        setFirmwareStatus(tr("Flight data interrupted. Checking the controller connection…"));
+    }
+    if (m_ioDev && m_connectionDevice.connection) {
         if (m_connectionDevice.connection->reconnect()) // currently used with bluetooth only
         {
             if (!reconnect->isActive())
@@ -545,6 +634,7 @@ void ConnectionManager::updateConnectionList(IConnection *connection)
             registerDevice(connection, dev);
         }
     }
+    m_enumeratedConnections.insert(connection);
 }
 
 /**
@@ -557,6 +647,11 @@ void ConnectionManager::registerDevice(IConnection *conn, IDevice *device)
 {
     DevListItem d(conn, device);
     m_devList.append(d);
+    // The initial inventory must leave the startup workspace alone. Only a
+    // newly attached controller or an explicit connection selects Firmware.
+    if (m_enumeratedConnections.contains(conn) && !m_ioDev && !m_firmwareInstalling
+        && device->isControllerCandidate())
+        showFirmwarePage();
 }
 
 /**
@@ -601,7 +696,7 @@ void ConnectionManager::updateConnectionDropdown()
                 || m_mainWindow->generalSettings()->autoSelect())
                 m_availableDevList->setCurrentIndex(m_availableDevList->count() - 1);
 
-            if (m_mainWindow->generalSettings()->autoConnect() && polling) {
+            if (m_mainWindow->generalSettings()->autoConnect() && polling && !m_firmwareInstalling) {
                 qDebug() << "Automatically opening device";
                 connectDevice(d);
                 qDebug() << "ConnectionManager::devChanged autoconnected USB device";

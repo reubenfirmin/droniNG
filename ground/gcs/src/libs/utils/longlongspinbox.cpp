@@ -360,9 +360,6 @@ QSize LongLongSpinBox::minimumSizeHint() const
         QSize hint(w, h);
 
         m_cachedMinSize = style()->sizeFromContents(QStyle::CT_SpinBox, &opt, hint, this);
-#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
-        m_cachedMinSize = m_cachedMinSize.expandedTo(QApplication::globalStrut());
-#endif
     }
     return m_cachedMinSize;
 }

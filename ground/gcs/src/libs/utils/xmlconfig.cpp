@@ -207,7 +207,7 @@ QString XmlConfig::variantToString(const QVariant &v)
 
         case QVariant::String:
             // An empty XML text node disappears on reload. The existing variant
-            // encoding preserves an explicit empty string on both Qt 5 and Qt 6.
+            // encoding preserves an explicit empty string for legacy readers too.
             if (v.toString().isEmpty()) {
                 result = encodedVariant(v);
                 break;

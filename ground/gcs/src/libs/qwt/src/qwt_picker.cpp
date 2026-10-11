@@ -224,7 +224,7 @@ void QwtPicker::init( QWidget *parent,
         if ( parent->focusPolicy() == Qt::NoFocus )
             parent->setFocusPolicy( Qt::WheelFocus );
 
-        d_data->openGL = parent->inherits( "QGLWidget" );
+        d_data->openGL = parent->inherits( "QOpenGLWidget" );
         d_data->trackerFont = parent->font();
         d_data->mouseTracking = parent->hasMouseTracking();
 
