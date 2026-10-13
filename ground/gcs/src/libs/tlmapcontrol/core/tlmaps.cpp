@@ -306,6 +306,14 @@ namespace core {
     QByteArray TLMaps::GetImageFromServer(const MapType::Types &type,const Point &pos,const int &zoom)
     {
         QMutexLocker locker(&settingsProtect);
+        const bool memoryCache = useMemoryCache;
+        const auto mode = accessmode;
+        const auto proxy = Proxy;
+        const auto userAgent = UserAgent;
+        const auto language = LanguageStr;
+        // Protect shared settings, then release before cache access and I/O.
+        // Holding this lock during a download serializes every tile worker.
+        locker.unlock();
 #ifdef DEBUG_TIMINGS
         QElapsedTimer time;
         time.start();
@@ -315,7 +323,7 @@ namespace core {
 #endif //DEBUG_GMAPS
         QByteArray ret;
 
-        if(useMemoryCache)
+        if(memoryCache)
         {
 #ifdef DEBUG_GMAPS
             qDebug()<<"Try Tile from memory:Size="<<TilesInMemory.MemoryCacheSize();
@@ -336,7 +344,7 @@ namespace core {
 #endif //DEBUG_GMAPS
 
             //Attempt to read tile from cache
-            if(accessmode != (AccessMode::ServerOnly) && type != MapType::UserImage) //Don't use cache if the user supplies a file. This is because
+            if(mode != (AccessMode::ServerOnly) && type != MapType::UserImage) //Don't use cache if the user supplies a file. This is because
             {
 #ifdef DEBUG_GMAPS
                 qDebug()<<"Try tile from DataBase";
@@ -350,7 +358,7 @@ namespace core {
 #ifdef DEBUG_GMAPS
                     qDebug()<<"Tile found in Database";
 #endif //DEBUG_GMAPS
-                    if(useMemoryCache)
+                    if(memoryCache)
                     {
 #ifdef DEBUG_GMAPS
                         qDebug()<<"Add Tile to memory";
@@ -362,32 +370,35 @@ namespace core {
             }
 
             //Attempt to read file from original source
-            if(accessmode!=AccessMode::CacheOnly)
+            if(mode!=AccessMode::CacheOnly)
             {
                 { //Otherwise, we're getting the tiles from the internet
                     QEventLoop q;
                     QNetworkReply *reply;
                     QNetworkRequest qheader;
-                    QNetworkAccessManager network;
+                    // Pool connections within each tile worker, including TLS sessions.
+                    thread_local QNetworkAccessManager network;
                     QTimer tT;
                     tT.setSingleShot(true);
-                    connect(&network, SIGNAL(finished(QNetworkReply*)),
-                            &q, SLOT(quit()));
                     connect(&tT, SIGNAL(timeout()), &q, SLOT(quit()));
-                    network.setProxy(Proxy);
+                    network.setProxy(proxy);
     #ifdef DEBUG_GMAPS
                     qDebug()<<"Try Tile from the Internet";
     #endif //DEBUG_GMAPS
     #ifdef DEBUG_TIMINGS
                     qDebug()<<"opmaps before make image url"<<time.elapsed();
     #endif
-                    QString url=MakeImageUrl(type,pos,zoom,LanguageStr);
+                    QString url;
+                    {
+                        QMutexLocker urlLocker(&settingsProtect);
+                        url = MakeImageUrl(type, pos, zoom, language);
+                    }
     #ifdef DEBUG_TIMINGS
                     qDebug()<<"opmaps after make image url"<<time.elapsed();
     #endif		//url	"http://vec02.maps.yandex.ru/tiles?l=map&v=2.10.2&x=7&y=5&z=3"	string
                     //"http://map3.pergo.com.tr/tile/02/000/000/007/000/000/002.png"
                     qheader.setUrl(QUrl(url));
-                    qheader.setRawHeader("User-Agent",UserAgent);
+                    qheader.setRawHeader("User-Agent",userAgent);
                     qheader.setRawHeader("Accept","*/*");
                     switch(type)
                     {
@@ -463,10 +474,13 @@ namespace core {
                     qDebug() << "qheader: " << qheader.url();
 #endif //DEBUG_GMAPS
                     reply=network.get(qheader);
+                    connect(reply, &QNetworkReply::finished, &q, &QEventLoop::quit);
                     tT.start(Timeout);
                     q.exec();
 
                     if(!tT.isActive()){
+                        reply->abort();
+                        reply->deleteLater();
                         errorvars.lock();
                         ++diag.timeouts;
                         errorvars.unlock();
@@ -503,7 +517,7 @@ namespace core {
                 errorvars.unlock();
 
                 //Save tile to cache
-                if (useMemoryCache)
+                if (memoryCache)
                 {
 #ifdef DEBUG_GMAPS
                     qDebug()<<"Add Tile to memory cache";
@@ -512,7 +526,7 @@ namespace core {
                 }
 
                 //Save tile to database
-                if(accessmode!=AccessMode::ServerOnly)
+                if(mode!=AccessMode::ServerOnly)
                 {
 #ifdef DEBUG_GMAPS
                     qDebug()<<"Add tile to DataBase";

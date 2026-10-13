@@ -93,9 +93,10 @@ void ModeManager::addWidget(QWidget *widget)
 
 IMode *ModeManager::currentMode() const
 {
-    if (m_modes.count() > m_modeStack->currentIndex())
-        return m_modes.at(m_modeStack->currentIndex());
-    else
+    const int index = m_modeStack->currentIndex();
+    if (index >= 0 && index < m_modes.count())
+        return m_modes.at(index);
+    if (!m_modes.isEmpty())
         m_modeStack->setCurrentIndex(0); // Fix illegal Index.
     return nullptr;
 }
@@ -173,11 +174,14 @@ void ModeManager::objectAdded(QObject *obj)
 
 void ModeManager::setDefaultKeyshortcuts()
 {
+    const QStringList primary{"Welcome", "Map", "Configuration", "System", "Firmware"};
+    int secondary = primary.size() + 1;
     for (int i = 0; i < m_modeShortcuts.size(); ++i) {
         Command *currentCmd = m_modeShortcuts.at(i);
         bool currentlyHasDefaultSequence =
             (currentCmd->keySequence() == currentCmd->defaultKeySequence());
-        currentCmd->setDefaultKeySequence(QKeySequence(QString("Ctrl+%1").arg(i + 1)));
+        const int position = primary.indexOf(m_modes.at(i)->name());
+        currentCmd->setDefaultKeySequence(QKeySequence(QString("Ctrl+%1").arg(position >= 0 ? position + 1 : secondary++)));
         if (currentlyHasDefaultSequence)
             currentCmd->setKeySequence(currentCmd->defaultKeySequence());
     }

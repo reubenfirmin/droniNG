@@ -1,6 +1,6 @@
 TEMPLATE = lib
 TARGET = Welcome
-QT += network qml quick
+QT += network qml quick quickwidgets
 DEFINES += WELCOME_LIBRARY
 
 include(../../gcsplugin.pri)

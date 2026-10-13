@@ -46,7 +46,12 @@
 #include "shortcutsettings.h"
 #include "uavgadgetmanager.h"
 #include "uavgadgetinstancemanager.h"
+#include "iuavgadget.h"
+#include "iuavgadgetconfiguration.h"
 #include "workspacesettings.h"
+#include "workspacenavigation.h"
+#include "workspacelayout.h"
+#include "firmwarepage.h"
 #include "globalmessaging.h"
 #include "authorsdialog.h"
 #include "baseview.h"
@@ -79,6 +84,7 @@
 #include <QStatusBar>
 #include <QWizard>
 #include <QToolButton>
+#include <QTabBar>
 #include <QMessageBox>
 #include <QDesktopServices>
 #include "dialogs/importsettings.h"
@@ -163,17 +169,17 @@ MainWindow::MainWindow()
     registerDefaultContainers();
     registerDefaultActions();
 
-    QGridLayout *gridLayout = new QGridLayout();
-    gridLayout->setSizeConstraint(QLayout::SetNoConstraint);
+    QHBoxLayout *contentLayout = new QHBoxLayout();
+    contentLayout->setSizeConstraint(QLayout::SetNoConstraint);
 
     m_contentFrame = new QFrame(this);
     m_contentFrame->setObjectName(QString("MainContentFrame"));
-    m_contentFrame->setLayout(gridLayout);
+    m_contentFrame->setLayout(contentLayout);
 
     m_modeStack = new MyTabWidget(m_contentFrame);
     m_modeStack->setIconSize(QSize(24, 24));
-    m_modeStack->setTabPosition(QTabWidget::South);
     m_modeStack->setMovable(false);
+    m_modeStack->tabBar()->hide();
     m_modeStack->setMinimumWidth(512);
     m_modeStack->setMinimumHeight(384);
     m_modeStack->setMaximumWidth(16777215);
@@ -181,8 +187,8 @@ MainWindow::MainWindow()
     m_modeStack->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
     m_modeStack->setElideMode(Qt::ElideRight);
 
-    gridLayout->addWidget(m_modeStack, 0, 0);
-    gridLayout->setContentsMargins(0, 0, 0, 0);
+    contentLayout->setContentsMargins(0, 0, 0, 0);
+    contentLayout->setSpacing(0);
 
     m_globalMessaging = new GlobalMessaging(this);
 
@@ -190,14 +196,42 @@ MainWindow::MainWindow()
 
     m_connectionManager = new ConnectionManager(this, m_modeStack);
 
+    auto *navigation = new WorkspaceNavigation(m_modeManager, m_contentFrame);
+    navigation->setAdvancedMenuBar(menuBar());
+    connect(navigation, &WorkspaceNavigation::exitRequested, this, &MainWindow::exit);
+    contentLayout->addWidget(navigation);
+    auto *workspace = new QWidget(m_contentFrame);
+    auto *workspaceLayout = new QVBoxLayout(workspace);
+    workspaceLayout->setContentsMargins(0, 0, 0, 0); workspaceLayout->setSpacing(0);
+    auto *header = new QWidget(workspace);
+    header->setObjectName("workspaceHeader");
+    auto *headerLayout = new QHBoxLayout(header);
+    headerLayout->setContentsMargins(20, 8, 20, 8);
+    headerLayout->addWidget(navigation->systemTools());
+    headerLayout->addStretch();
+    header->hide();
+    connect(m_modeManager, &ModeManager::currentModeChanged, header, [header, navigation](IMode *) {
+        header->setVisible(!navigation->systemTools()->isHidden());
+    });
+    workspaceLayout->addWidget(header); workspaceLayout->addWidget(m_modeStack, 1);
+    auto *footer = new QFrame(workspace);
+    footer->setObjectName("applicationTelemetryFooter");
+    footer->setAccessibleName(tr("Flight status"));
+    m_telemetryLayout = new QHBoxLayout(footer);
+    m_telemetryLayout->setContentsMargins(16, 6, 16, 6);
+    m_telemetryLayout->setSpacing(12);
+    m_telemetryLayout->addStretch();
+    m_telemetryLayout->addWidget(m_connectionManager);
+    m_connectionManager->show();
+    workspaceLayout->addWidget(footer);
+    contentLayout->addWidget(workspace, 1);
+
     m_boardManager = new BoardManager();
 
     setCentralWidget(m_contentFrame);
 
     connect(QApplication::instance(), SIGNAL(focusChanged(QWidget *, QWidget *)), this,
             SLOT(updateFocusWidget(QWidget *, QWidget *)));
-    connect(m_workspaceSettings, SIGNAL(tabBarSettingsApplied(QTabWidget::TabPosition, bool)), this,
-            SLOT(applyTabBarSettings(QTabWidget::TabPosition, bool)));
     connect(m_modeManager, SIGNAL(newModeOrder(QVector<IMode *>)), m_workspaceSettings,
             SLOT(newModeOrder(QVector<IMode *>)));
     statusBar()->setProperty("p_styled", true);
@@ -780,13 +814,6 @@ void MainWindow::openFileWith()
 {
 }
 
-void MainWindow::applyTabBarSettings(QTabWidget::TabPosition pos, bool movable)
-{
-    if (m_modeStack->tabPosition() != pos)
-        m_modeStack->setTabPosition(pos);
-    m_modeStack->setMovable(movable);
-}
-
 void MainWindow::showHelp()
 {
     QDesktopServices::openUrl(QUrl(Constants::GCS_HELP, QUrl::StrictMode));
@@ -941,6 +968,11 @@ void MainWindow::shutdown()
                SLOT(updateFocusWidget(QWidget *, QWidget *)));
     m_activeContext = nullptr;
 
+    // The dashboard widgets live inside the uploader. Release their gadgets
+    // before the uploader destroys those widget parents.
+    while (!m_flightGadgets.isEmpty())
+        uavGadgetInstanceManager()->removeGadget(m_flightGadgets.takeLast());
+
     // We have to remove all the existing gagdets at his point, not
     // later!
     uavGadgetInstanceManager()->removeAllGadgets();
@@ -1052,6 +1084,9 @@ void MainWindow::readSettings(QSettings *qs, bool workspaceDiffOnly)
         return;
     }
 
+    while (!m_flightGadgets.isEmpty())
+        uavGadgetInstanceManager()->removeGadget(m_flightGadgets.takeLast());
+    migrateFlightWorkspace(qs);
     m_generalSettings->readSettings(qs);
     QNetworkProxy::setApplicationProxy(m_generalSettings->getNetworkProxy());
     m_actionManager->readSettings(qs);
@@ -1084,6 +1119,46 @@ void MainWindow::readSettings(QSettings *qs, bool workspaceDiffOnly)
     m_modeManager->reorderModes(map);
 
     qs->endGroup();
+    initializeFlightDashboard(qs);
+}
+
+void MainWindow::initializeFlightDashboard(QSettings *qs)
+{
+    auto *page = m_modeStack->findChild<FirmwarePage *>();
+    const QStringList types{"PfdQmlGadget", "ModelViewGadget", "SystemHealthGadget"};
+    const QStringList defaults{"NoTerrain", "Quadx", "default"};
+    for (int index = 0; page && index < types.size(); ++index) {
+        const QString key = "FlightDashboard/" + types[index] + "/configuration";
+        const QString configuration = qs->value(key, defaults[index]).toString();
+        auto *gadget = m_uavGadgetInstanceManager->createGadget(types[index], page, true, configuration);
+        if (!gadget) continue;
+        gadget->setParent(m_uavGadgetInstanceManager);
+        m_flightGadgets.append(gadget);
+        page->setFlightPanel(index, gadget->widget());
+        m_settings->setValue(key, configuration);
+    }
+    const QStringList configurations{"Flight Time", "Arm Status", "Flight mode"};
+    const QStringList names{tr("Flight time"), tr("Arm status"), tr("Flight mode and failsafe")};
+    for (int index = 0; index < configurations.size(); ++index) {
+        auto *gadget = m_uavGadgetInstanceManager->createGadget("LineardialGadget", m_contentFrame,
+                                                              true, configurations[index]);
+        if (!gadget) continue;
+        gadget->setParent(m_uavGadgetInstanceManager);
+        m_flightGadgets.append(gadget);
+        auto *widget = gadget->widget();
+        widget->setAccessibleName(names[index]);
+        widget->setFixedHeight(42);
+        widget->setMinimumWidth(80);
+        widget->setMaximumWidth(index == 0 ? 130 : index == 1 ? 100 : 150);
+        widget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+        m_telemetryLayout->insertWidget(index, widget);
+        const auto refresh = [this, widget] {
+            widget->setEnabled(m_connectionManager->flightDataAvailable());
+        };
+        connect(m_connectionManager, &ConnectionManager::firmwareStateChanged, widget, refresh);
+        refresh();
+    }
+    m_settings->setValue("Workspace/FlightDashboardVersion", 1);
 }
 
 void MainWindow::saveSettings(QSettings *qs)
@@ -1093,6 +1168,13 @@ void MainWindow::saveSettings(QSettings *qs)
 
     if (!qs) {
         qs = m_settings;
+    }
+
+    qs->setValue("Workspace/FlightDashboardVersion", 1);
+    for (auto *gadget : m_flightGadgets) {
+        if (gadget->classId() != "LineardialGadget" && gadget->activeConfiguration())
+            qs->setValue("FlightDashboard/" + gadget->classId() + "/configuration",
+                         gadget->activeConfiguration()->name());
     }
 
     m_workspaceSettings->saveSettings(qs);

@@ -120,6 +120,9 @@ public:
      */
     virtual QVector<QVector<int>> getChannelBanks() { return channelBanks; }
 
+    //! Whether this firmware supports digital DShot outputs.
+    virtual bool supportsDShot() const { return true; }
+
     /**
      * @brief getBoardPicture
      * @return provides a picture for the board. Uploader gadget or

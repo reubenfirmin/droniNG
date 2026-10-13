@@ -3,6 +3,7 @@
 
 No arguments: download and validate the pinned image without touching the board.
 --flash: back up internal flash, restore clean firmware, read back, boot and check MSP.
+--invalid: use the board's pinned startup-failure fixture for recovery testing.
 Requires Python 3 and dfu-util 0.11; no Python packages or root privileges.
 """
 
@@ -90,6 +91,8 @@ def decode_hex(data, profile):
 
 
 def prepare_image(profile, directory, supplied=None):
+    if profile.get("testState"):
+        return prepare_invalid_image(profile, directory, supplied)
     path = supplied or directory / profile["image"]
     if not path.exists():
         if supplied:
@@ -105,9 +108,78 @@ def prepare_image(profile, directory, supplied=None):
     image = decode_hex(data, profile)
     if digest(image) != profile["flashSha256"]:
         raise RestoreError("The decoded full-flash image differs from its checksum pin.")
-    if not path.exists():
-        path.write_bytes(data)
+    cache = directory / profile["image"]
+    if not cache.exists():
+        cache.write_bytes(data)
     return image
+
+
+def decode_invalid_elf(data, profile):
+    """Reconstruct the saved image exactly; never patch the current firmware."""
+    if len(data) != profile["sourceBytes"] or digest(data) != profile["sourceSha256"]:
+        raise RestoreError("The saved failure executable differs from its checksum pin.")
+    try:
+        if data[:7] != b"\x7fELF\x01\x01\x01" or struct.unpack_from("<HH", data, 16) != (2, 40):
+            raise ValueError("expected an ARM ELF32 executable")
+        start = struct.unpack_from("<I", data, 28)[0]
+        stride, count = struct.unpack_from("<HH", data, 42)
+        if stride != 32 or not count or start + stride * count > len(data):
+            raise ValueError("invalid program headers")
+        image = bytearray(profile["flashBytes"])
+        base, used = int(profile["flashBase"], 0), 0
+        descriptor = bytes.fromhex(profile["descriptorHex"])
+        descriptor_offset = len(image) - 100
+        if len(descriptor) != 100 or descriptor[:4] != b"TlFw":
+            raise ValueError("invalid saved firmware descriptor")
+        regions = ((0, 16384), (49152, 16384), (131072, descriptor_offset - 131072))
+        for index in range(count):
+            kind, offset, virtual, physical, size, memory, flags, alignment = struct.unpack_from(
+                "<8I", data, start + stride * index)
+            if kind != 1 or not size:
+                continue
+            relative = physical - base
+            if (memory < size or offset + size > len(data)
+                    or not any(a <= relative and relative + size <= a + b for a, b in regions)):
+                raise ValueError("load data crosses reserved space or flash bounds")
+            image[relative:relative + size] = data[offset:offset + size]
+            used = max(used, relative + size)
+        stack, reset = struct.unpack_from("<II", image)
+        if (not 0x20000000 < stack <= 0x20020000 or stack % 8
+                or not reset & 1 or not base + 131072 <= (reset & ~1) < base + used
+                or descriptor[40:60] != hashlib.sha1(image[:used]).digest()):
+            raise ValueError("invalid reset vectors or application checksum")
+        image[descriptor_offset:] = descriptor
+    except (ValueError, struct.error) as error:
+        raise RestoreError(f"Saved failure image validation failed: {error}") from error
+    return bytes(image)
+
+
+def prepare_invalid_image(profile, directory, supplied=None):
+    cache = directory / profile["image"]
+    if cache.exists() and not supplied:
+        image = cache.read_bytes()
+    else:
+        source = supplied or ROOT / profile["source"]
+        if not source.is_file():
+            raise RestoreError(f"Saved failure executable is missing: {source}. "
+                               "Restore this preserved evidence file; the current firmware cannot replace it.")
+        image = decode_invalid_elf(source.read_bytes(), profile)
+    if (len(image) != profile["bytes"] or len(image) != profile["flashBytes"]
+            or digest(image) != profile["sha256"] or digest(image) != profile["flashSha256"]):
+        raise RestoreError("The saved failure image differs from its checksum pin.")
+    if not cache.exists():
+        cache.write_bytes(image)
+    return image
+
+
+def select_profile(profiles, board, invalid=False):
+    profile = profiles[board]
+    if not invalid:
+        return profile
+    fixture = profile.get("invalidState")
+    if not fixture:
+        raise RestoreError(f"No pinned startup-failure fixture exists for {profile['name']}.")
+    return {**profile, **fixture}
 
 
 @dataclass(frozen=True)
@@ -156,7 +228,10 @@ class Log:
     def __init__(self, directory, profile):
         self.directory = directory
         self.report = {"board": profile["name"], "target": profile["target"],
-                       "version": profile["version"], "status": "preparing", "events": []}
+                       "firmware": profile["firmware"], "version": profile["version"],
+                       "status": "preparing", "events": []}
+        if profile.get("testState"):
+            self.report["testState"] = profile["testState"]
 
     def write(self, message):
         print(message, flush=True)
@@ -302,7 +377,7 @@ def restore_flash(run, device, profile, image, log):
         raise RestoreError("Flash readback differs from the restore image. "
                            "The board remains in DFU; rerun the restore before reconnecting normally.")
     log.update("flash-verified", readbackSha256=digest(readback))
-    log.write("Flash verified. Starting Betaflight…")
+    log.write(f"Flash verified. Starting {profile['firmware']}…")
     # Leave only after verification; a one-byte upload avoids a second erase/write.
     run(selector + ["-s", f"{base}:1:leave", "-U", str(log.directory / "leave.bin")])
 
@@ -369,11 +444,20 @@ def check_identity(replies, profile):
         raise RestoreError("The running firmware does not report the expected Betaflight version/API.")
     if len(replies.get(4, b"")) < 6 or replies[4][:4] != profile["mspBoard"].encode("ascii"):
         raise RestoreError("The running firmware reports a different board target.")
-    return {"variant": "BTFL", "version": profile["version"], "board": profile["mspBoard"],
-            "api": ".".join(map(str, profile["mspApi"][1:]))}
+    identity = {"variant": "BTFL", "version": profile["version"], "board": profile["mspBoard"],
+                "api": ".".join(map(str, profile["mspApi"][1:]))}
+    if profile.get("mspTargetName"):
+        board = replies[4]
+        target = profile["target"].encode("ascii")
+        if len(board) < 9 or board[8] != len(target) or board[9:9 + board[8]] != target:
+            raise RestoreError("The running firmware reports a different or incomplete board target name.")
+        identity["target"] = profile["target"]
+    return identity
 
 
 def verify_boot(path, profile, timeout=30):
+    if profile.get("testState"):
+        return verify_invalid_boot(path, profile, timeout)
     deadline, last_error = time.monotonic() + timeout, "No Betaflight serial interface yet."
     while time.monotonic() < deadline:
         if usb_devices().get(path) == profile["restoredUsb"]:
@@ -386,9 +470,42 @@ def verify_boot(path, profile, timeout=30):
                 except (RestoreError, OSError, termios.error) as error:
                     last_error = str(error)
         time.sleep(1)
+    command = profile.get("restoreCommand", "python3 make/scripts/restore-board.py")
     raise RestoreError("Could not confirm Betaflight startup: " + last_error
-                       + " Release BOOT, unplug/reconnect USB, then run this script with --check "
-                       + f"--usb-path {path}. Do not repeat the flash just to check boot.")
+                       + " Release BOOT, unplug/reconnect USB, then run "
+                       + f"{command} --check --usb-path {path}. Do not repeat the flash just to check boot.")
+
+
+def verify_invalid_boot(path, profile, timeout=30):
+    """Require fresh native USB enumerations on the flashed board's port."""
+    deadline, enumerations = time.monotonic() + timeout, set()
+    while time.monotonic() < deadline:
+        if usb_devices().get(path) == profile["restoredUsb"]:
+            try:
+                product = (USB_ROOT / path / "product").read_text().strip()
+                number = (USB_ROOT / path / "devnum").read_text().strip()
+            except FileNotFoundError:
+                time.sleep(0.25)
+                continue  # Reset between inventory and descriptor reads.
+            if product != profile["runtimeProduct"]:
+                raise RestoreError("The running USB product does not match the saved failure fixture.")
+            if number:
+                enumerations.add(number)
+            if len(enumerations) >= 2:
+                return {"firmware": profile["firmware"], "target": product,
+                        "state": profile["testState"], "usbPath": path,
+                        "usbEnumerations": sorted(enumerations)}
+        time.sleep(0.25)
+    raise RestoreError("The expected DroniNG USB reset loop was not observed. "
+                       "Release BOOT, unplug/reconnect USB, then run "
+                       f"{profile['restoreCommand']} --check --usb-path {path}. "
+                       "Do not repeat the flash just to check startup.")
+
+
+def boot_summary(identity, profile):
+    if profile.get("testState"):
+        return f"DroniNG / {identity['target']}: saved IMU startup reset loop reproduced"
+    return f"Betaflight {identity['version']}, {identity['board']}, MSP API {identity['api']}"
 
 
 def main():
@@ -396,11 +513,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--flash", action="store_true", help="restore firmware with clean settings")
-    mode.add_argument("--check", action="store_true", help="check running Betaflight identity only")
+    mode.add_argument("--check", action="store_true", help="check startup of the selected state only")
+    parser.add_argument("--invalid", action="store_true", help="select the pinned startup-failure fixture")
     parser.add_argument("--board", choices=profiles, default="hglrc-f4-v6pro")
     parser.add_argument("--usb-path", help="USB topology to restore, e.g. 3-1.4.3.4")
     parser.add_argument("--dfu-util", type=Path, help="override the bundled dfu-util executable")
-    parser.add_argument("--image", type=Path, help="offline copy of the same pinned official HEX")
+    parser.add_argument("--image", type=Path, help="offline pinned official HEX, or saved ELF with --invalid")
     parser.add_argument("--output", type=Path, default=ROOT / "build/firmware-restore", help="image cache and per-run backups/logs")
     parser.add_argument("--wait", type=int, default=120, help="seconds to wait for hardware BOOT mode")
     args = parser.parse_args()
@@ -408,7 +526,7 @@ def main():
         parser.error("--usb-path must be a USB topology such as 3-1.4.3.4")
     if args.wait < 1:
         parser.error("--wait must be positive")
-    profile = profiles[args.board]
+    profile = select_profile(profiles, args.board, args.invalid)
     print(f"{profile['name']}: restore {profile['firmware']} {profile['version']} ({profile['target']}).", flush=True)
     if args.flash or args.check:
         ensure_gcs_closed()
@@ -417,15 +535,18 @@ def main():
         if not path:
             raise RestoreError("No controller attached. Reconnect USB with BOOT released and retry.")
         identity = verify_boot(path, profile)
-        print(f"Verified: Betaflight {identity['version']}, {identity['board']}, MSP API {identity['api']}.")
+        print(f"Verified: {boot_summary(identity, profile)}.")
         return
     args.output.mkdir(parents=True, exist_ok=True)
     image = prepare_image(profile, args.output, args.image)
     print(f"Image verified: {profile['sha256']}\n"
           f"Restore covers {len(image)} bytes at {profile['flashBase']}, including clean settings.\n"
           "The factory STM32 ROM bootloader stays available; the dRonin flash bootloader is removed.")
+    if profile.get("testState"):
+        print("Selected recovery-test state: two blue blinks, pause and restart; no live telemetry.")
     if not args.flash:
-        print("Ready. To restore: python3 make/scripts/restore-board.py --flash")
+        command = profile.get("restoreCommand", "python3 make/scripts/restore-board.py --flash")
+        print("Ready. To restore: " + command)
         if path:
             print(f"Detected controller USB path: {path}")
         return
@@ -444,11 +565,12 @@ def main():
         device = wait_for_dfu(run, path, profile, args.wait)
         restore_flash(run, device, profile, image, log)
         log.update("checking-boot")
-        log.write("Checking Betaflight version and board target on the same USB port…")
+        log.write("Checking the saved failure's USB reset loop on the same port…" if profile.get("testState")
+                  else "Checking Betaflight version and board target on the same USB port…")
         identity = verify_boot(device.path, profile)
         log.update("complete", identity=identity)
-        log.write(f"Restore complete: Betaflight {identity['version']}, {identity['board']}, MSP API {identity['api']}. "
-                  "Open DroniNG to test connection and installation again.")
+        log.write(f"Restore complete: {boot_summary(identity, profile)}. "
+                  "Open DroniNG to test connection, recovery and installation again.")
     except (RestoreError, OSError, KeyboardInterrupt) as error:
         log.update("failed", error=str(error) or "Interrupted")
         log.write(f"Restore stopped: {error or 'Interrupted'}. Diagnostics: {directory}")

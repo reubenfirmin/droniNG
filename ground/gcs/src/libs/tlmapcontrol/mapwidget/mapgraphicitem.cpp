@@ -132,11 +132,12 @@ namespace mapcontrol
             QTransform transform;
             transform.translate(-((boundingRect().width()*MapRenderTransform)-(boundingRect().width()))/2,-((boundingRect().height()*MapRenderTransform)-(boundingRect().height()))/2);
             transform.scale(MapRenderTransform,MapRenderTransform);
-            painter->setWorldTransform(transform);
+            painter->save();
+            painter->setWorldTransform(transform, true);
             {
                 DrawMap2D(painter);
             }
-            painter->resetTransform();
+            painter->restore();
         }
         else
         {
@@ -155,14 +156,15 @@ namespace mapcontrol
             transform.translate(-((boundingRect().width()*MapRenderTransform)-(boundingRect().width()))/2,-((boundingRect().height()*MapRenderTransform)-(boundingRect().height()))/2);
             transform.scale(MapRenderTransform,MapRenderTransform);
 
-            painter->setWorldTransform(transform);
+            painter->save();
+            painter->setWorldTransform(transform, true);
             painter->setRenderHint(QPainter::SmoothPixmapTransform,true);
             painter->setRenderHint(QPainter::Antialiasing,true);
 
             {
                 DrawMap2D(painter);
             }
-            painter->resetTransform();
+            painter->restore();
         }
         else
         {
@@ -549,6 +551,7 @@ namespace mapcontrol
     }
     void MapGraphicItem::SetZoomStep(qint32 const& value)
     {
+        core->SetViewScale(MapRenderTransform);
         if((value - core->Zoom()) > 0 && value<= MaxZoom())
             ConstructLastImage(value - core->Zoom());
         else if(value!=MaxZoom())

@@ -216,7 +216,7 @@ namespace core {
     }
     QByteArray PureImageCache::GetImageFromCache(MapType::Types type, Point pos, int zoom)
     {
-        lock.lockForRead();
+        QReadLocker locker(&lock);
         QByteArray ar;
         if(gtilecache.isEmpty()|gtilecache.isNull())
             return ar;
@@ -253,7 +253,6 @@ namespace core {
             }
         }
         QSqlDatabase::removeDatabase(QString::number(id));
-        lock.unlock();
         return ar;
     }
     void PureImageCache::deleteOlderTiles(int const& days)

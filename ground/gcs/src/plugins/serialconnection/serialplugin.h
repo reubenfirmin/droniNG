@@ -78,6 +78,7 @@ private:
     SerialPluginConfiguration *m_config;
     SerialPluginOptionsPage *m_optionspage;
     Core::ConnectionError m_error;
+    QList<Core::IDevice *> m_devices;
 
 private slots:
     void periodic();
@@ -86,6 +87,11 @@ protected slots:
     void onEnumerationChanged();
 
 protected:
+    struct Port {
+        QString name, location, description, serialNumber, usbPath;
+        quint16 vendor = 0, product = 0;
+    };
+    virtual QList<Port> ports() const;
     bool m_deviceOpened;
 
     QTimer periodicTimer;

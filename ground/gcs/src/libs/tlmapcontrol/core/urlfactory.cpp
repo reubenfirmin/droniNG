@@ -200,49 +200,16 @@ QString UrlFactory::MakeImageUrl(const MapType::Types &type,const Point &pos,con
     switch(type)
     {
     case MapType::GoogleMap:
-    {
-        QString server = "mt";
-        QString request = "vt";
-        QString sec1 = ""; // after &x=...
-        QString sec2 = ""; // after &zoom=...
-        GetSecGoogleWords(pos,  sec1,  sec2);
-        TryCorrectGoogleVersions();
-
-        return QString("http://%1%2.google.com/%3/lyrs=%4&hl=%5&x=%6%7&y=%8&z=%9&s=%10").arg(server).arg(GetServerNum(pos, 4)).arg(request).arg(VersionGoogleMap).arg(language).arg(pos.X()).arg(sec1).arg(pos.Y()).arg(zoom).arg(sec2);
-    }
-        break;
     case MapType::GoogleSatellite:
-    {
-        QString server = "khm";
-        QString request = "kh";
-        QString sec1 = ""; // after &x=...
-        QString sec2 = ""; // after &zoom=...
-        GetSecGoogleWords(pos,  sec1,  sec2);
-        TryCorrectGoogleVersions();
-        return QString("http://%1%2.google.com/%3/v=%4&hl=%5&x=%6%7&y=%8&z=%9&s=%10").arg(server).arg(GetServerNum(pos, 4)).arg(request).arg(VersionGoogleSatellite).arg(language).arg(pos.X()).arg(sec1).arg(pos.Y()).arg(zoom).arg(sec2);
-    }
-        break;
     case MapType::GoogleLabels:
-    {
-        QString server = "mt";
-        QString request = "vt";
-        QString sec1 = ""; // after &x=...
-        QString sec2 = ""; // after &zoom=...
-        GetSecGoogleWords(pos,  sec1,  sec2);
-        TryCorrectGoogleVersions();
-
-        return QString("http://%1%2.google.com/%3/lyrs=%4&hl=%5&x=%6%7&y=%8&z=%9&s=%10").arg(server).arg(GetServerNum(pos, 4)).arg(request).arg(VersionGoogleLabels).arg(language).arg(pos.X()).arg(sec1).arg(pos.Y()).arg(zoom).arg(sec2);
-    }
-        break;
     case MapType::GoogleTerrain:
+    case MapType::GoogleHybrid:
     {
-        QString server = "mt";
-        QString request = "vt";
-        QString sec1 = ""; // after &x=...
-        QString sec2 = ""; // after &zoom=...
-        GetSecGoogleWords(pos,  sec1,  sec2);
-        TryCorrectGoogleVersions();
-        return QString("http://%1%2.google.com/%3/v=%4&hl=%5&x=%6%7&y=%8&z=%9&s=%10").arg(server).arg(GetServerNum(pos, 4)).arg(request).arg(VersionGoogleTerrain).arg(language).arg(pos.X()).arg(sec1).arg(pos.Y()).arg(zoom).arg(sec2);
+        // Layer names resolve the current tiles without a blocking version scrape.
+        const QString layer = type == MapType::GoogleSatellite ? "s" : type == MapType::GoogleLabels ? "h"
+            : type == MapType::GoogleTerrain ? "p" : type == MapType::GoogleHybrid ? "y" : "m";
+        return QString("https://mt%1.google.com/vt?lyrs=%2&hl=%3&x=%4&y=%5&z=%6")
+            .arg(GetServerNum(pos, 4)).arg(layer).arg(language).arg(pos.X()).arg(pos.Y()).arg(zoom);
     }
         break;
     case MapType::GoogleMapChina:

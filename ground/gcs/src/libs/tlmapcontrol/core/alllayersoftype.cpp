@@ -40,8 +40,7 @@ namespace core {
             case MapType::GoogleHybrid:
                 {
 
-                    types.append(MapType::GoogleSatellite);
-                    types.append(MapType::GoogleLabels);
+                    types.append(MapType::GoogleHybrid);
                 }
                 break;
 

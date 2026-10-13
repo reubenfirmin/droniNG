@@ -61,6 +61,7 @@ public:
     virtual QList<Core::IDevice *> availableDevices();
     virtual QIODevice *openDevice(Core::IDevice *deviceName);
     virtual void closeDevice(const QString &deviceName);
+    Core::ConnectionError transportError() const override { return m_transportError; }
 
     virtual QString connectionName();
     virtual QString shortName();
@@ -71,6 +72,7 @@ public:
 
 protected:
     QList<Core::IDevice *> devicesForPorts(const QList<USBPortInfo> &ports);
+    virtual RawHID *createTransport(USBDevice *device);
 
 protected slots:
     void onDeviceConnected();
@@ -82,6 +84,7 @@ private:
     USBMonitor *m_usbMonitor;
     USBSignalFilter *m_signalFilter;
     QHash<QString, QPointer<USBDevice>> m_devices;
+    Core::ConnectionError m_transportError;
 };
 
 class RAWHID_EXPORT RawHIDPlugin : public ExtensionSystem::IPlugin

@@ -1,8 +1,9 @@
 # Firmware support and Betaflight driver integration plan
 
-Detailed implementation proposal, updated 2026-10-10. Hardware availability
-checked on 2026-10-09. The [Betaflight source survey and offline driver proof](flight/PiOS/Betaflight/README.md)
-now exist; proposed production adapter files and commands below remain to be
+Detailed implementation proposal, updated 2026-10-11. Hardware availability
+checked on 2026-10-09. The [Betaflight source survey and offline driver proof](flight/Betaflight/README.md)
+now exist, along with the [Radix implementation](flight/Betaflight/RADIX_IMPLEMENTATION.md).
+The general importer and new peripheral adapter work below remain to be
 implemented. Hardware validation remains to be done.
 
 Expand droniNG hardware support by importing Betaflight board definitions and
@@ -25,8 +26,9 @@ implementation are subsequent work.
 
 ## Current targets and hardware availability
 
-The build registers 17 embedded targets: 14 flight controllers and three
-auxiliary devices. `flightd` is a separate Linux target. The inventory comes from
+The legacy build registers 17 embedded targets: 14 flight controllers and three
+auxiliary devices. The `radix` target adds a fifteenth flight
+controller. `flightd` is a separate Linux target. The inventory comes from
 [target definitions](flight/targets/) and the [top-level Makefile](Makefile).
 The README alone omits some registered targets.
 
@@ -116,17 +118,26 @@ compiler, obtain Betaflight sources or depend on Betaflight's cloud build.
 
 ### First release scope
 
-Start with STM32F405, one IMU, four verified motor outputs, one receiver port,
+Use the owner's **BrainFPV RADIX as the first imported-board reference**, ahead
+of GEPRC. Keep HGLRC/Revolution as the verified legacy baseline and importer
+comparison fixture. This changes implementation priority; it does not establish
+Radix firmware compatibility or make the existing Brain/RE1 images suitable.
+
+Start with STM32F446 for Radix and STM32F405 for the following profiles, one
+IMU, four verified motor outputs, one receiver port,
 native droniNG USB, watchdog and persistent settings. **OSD, telemetry and GPS
 are required capabilities for accepted imported-board support. Autotune is
 strongly preferred and planned for the reference builds.** Add battery
 measurements, additional UART roles and flight logging as individually validated
-capabilities. Use the existing PiOS implementations for supported parts; use the
-driver adapter first for ICM42688-P.
+capabilities. Use existing PiOS implementations for supported parts, including
+Radix's BMI160 and BMP280. Adapt the existing RE1 FPGA/video services to Radix's
+wiring, startup and error handling; ICM42688-P remains the next new IMU driver port for
+GEPRC. The wrapper imports hardware definitions and compiles chip backends into
+droniNG; it does not run Betaflight flight control inside the desktop or FC.
 
 | Capability | Priority and acceptance requirement |
 | --- | --- |
-| OSD | Required. Initially use the surveyed boards' MAX7456-compatible analog OSD with CharacterOSD. Verify video/font output and live flight/GPS data. A digital OSD requires its own implemented and validated protocol/backend. Confirm the fitted OSD hardware on the exact reference revision. |
+| OSD | Required. Implement Radix's BrainFPV FPGA/video backend first. Its Betaflight `USE_MAX7456` flag also accompanies custom BrainFPV OSD hooks and does not prove a fitted MAX7456 chip. Other surveyed analog boards use MAX7456/CharacterOSD. Verify video/font output and live flight/GPS data on the exact hardware. Digital OSD needs its own implemented and validated protocol/backend. |
 | Telemetry | Required. Provide native USB/UAVTalk GCS telemetry and a validated external telemetry path for the documented configuration. Receiver-link telemetry may share its UART when the selected protocol supports it; otherwise reserve a separate port. Specify protocol, direction/duplex and reported flight/GPS data. |
 | GPS | Required. Reserve a usable UART for an external GPS, include the GPS module and expose configuration, fix/satellite status, position/velocity and stale/lost-data status in GCS, OSD and telemetry. Validate actual GPS reception and simultaneous receiver/telemetry operation. Navigation modes also need their required estimator/sensors and separate flight evidence. |
 | Autotune | Strongly preferred. Include the existing module in reference builds and budget its acquisition buffers, CPU load and tune-data storage. Validate collection, transfer to GCS, tuning workflow and persistence. Record a specific limitation if a profile cannot support it; omission must not be silently presented as full-featured support. |
@@ -140,7 +151,7 @@ feature merely to make a profile fit its firmware layout or resource budget.
 
 F3 boards remain legacy targets. F7, H7, G4, AT32 and other processors need
 separate processor support; F411 also needs explicit startup, memory and
-peripheral support beyond the initial F405 build. Dual IMUs, bidirectional
+peripheral support beyond the initial F405/F446 builds. Dual IMUs, bidirectional
 DShot/RPM telemetry, software serial, external-clock IMUs, external-memory
 boot images and arbitrary Betaflight
 resource remapping are later work. Recognizing their configuration macros must
@@ -153,7 +164,43 @@ building the adapter.
 
 ### Reference hardware and expansion hardware
 
-**Reference: HGLRC F4 V6PRO.** During inspection its current USB
+**First imported reference: BrainFPV RADIX.** The owner connected this board on
+2026-10-11; Linux reports USB product `BrainFPV RADIX`. The application's firmware
+detection recognizes it. The [implementation](flight/Betaflight/RADIX_IMPLEMENTATION.md)
+now provides a dedicated native target, reviewed profile/layout, real ROM-DFU
+image and matching GCS offer. Hardware and flight validation remain pending.
+The original `brain` and `brainre1` targets are different boards and must never
+be offered as Radix substitutes. Preserve the installed firmware while preparing
+the new target; selecting this reference does not authorize flashing it.
+
+The [manufacturer's RADIX definition](https://github.com/BrainFPV/betaflight/blob/d966f1f3a12df8446a623110d753b8dd72ebeaa4/src/main/target/RADIX/target.h)
+declares the following wiring. The [completed dry run](flight/Betaflight/RADIX_DRY_RUN.md)
+pins 35 selected source files, exercises the unchanged FPGA driver through a
+host PiOS bridge and compiles it for Cortex-M4. The manufacturer's `target.mk`
+identifies **STM32F446**, correcting the earlier F405 assumption. Complete the
+production dependency inventory and verify the physical PCB revision before
+production generation; the original six-board survey remains separate.
+
+| Area | Radix input and implementation requirement |
+| --- | --- |
+| Identity/clock | Dedicated `RADIX` profile, STM32F446 and 16 MHz HSE; the pinned manufacturer linker declares 512 KiB flash and 128 KiB RAM. Confirm physical processor/package, flash geometry and PCB revision. Record full profile/layout identity independently of Brain/RE1. |
+| IMU/barometer | BMI160 on SPI3, CS PB4, DRDY PC13, CW0 alignment; BMP280 on SPI3, CS PB8. Reuse the native PiOS chip drivers with generated wiring, verify axes, sample delivery and timing. |
+| Shared SPI3 | SCK PB3, MISO PC11, MOSI PC12; FPGA CS PC15, configuration/reset pins PB1/PB12/PC4 and clock PA8. BMI160, BMP280 and FPGA share this bus. The implementation restores each device's clock before asserting CS, propagates failures and bounds waits. Verify concurrent acquisition/video controls on hardware. |
+| Video/OSD | BrainFPV FPGA hooks, video clock PB2, data PC9/PC10, sync PB5/PC2. Registers and video wiring closely match RE1. Normal manufacturer startup resets CRESET and waits for CDONE using stored FPGA configuration; it does not embed a new bitstream. Adapt native FPGA initialization/error handling and video sync recovery, then verify actual video/font/live-data output. A new FPGA design is not currently an identified dependency. |
+| Initial motor outputs | The pinned F446 table resolves PA2/TIM5 CH3, PA3/TIM5 CH4, PA10/TIM1 CH3 and PA15/TIM2 CH1. Translate native AF/DMA allocation and verify numbering, inactive startup and output waveforms. Start with four outputs; review PC8/PB0 separately. |
+| Serial resources | UART1 PB6/PB7, UART3 PB10/PC5, UART4 PA0/PA1, UART6 PC6/PC7. Proposed simultaneous roles: receiver UART3, GPS UART4, external telemetry UART1, native USB GCS; reserve UART6 for receiver telemetry when needed. UART4 GPS excludes ESC telemetry on RX4. UART3 RX and UART6 TX use FPGA inversion controls; validate protocol/inversion/duplex and expose correct connector labels. |
+| ADC/storage | Battery PC1, current PC0, RSSI PC3. SD card on SPI1, CS PB15, detect PB13. Allocate native internal-flash settings banks and autotune storage in the direct-boot layout independently of optional SD flight logging; do not substitute the RE1 external-NOR backend for SD. |
+| Installation | A new direct-boot ROM-DFU image and manifest, followed by native identity/live-data checks and persistent configuration. Verify the manufacturer's board-specific BOOT procedure before enabling installation. |
+
+The shared imported-target path, required native backends, image/layout checks
+and package now produce an installable Radix artifact. The GCS
+offers "Install DroniNG" and verifies segmented writes plus runtime profile
+identity. Accepted support still requires real OSD, simultaneous receiver/GPS/
+telemetry, persistence and documented bench/flight evidence. The original Radix
+BOOT-pad procedure is linked in the implementation record; RADIX LI and RADIX 2
+are excluded. No hardware installation has been performed.
+
+**Legacy baseline: HGLRC F4 V6PRO.** During inspection its current USB
 descriptors reported `Betaflight`, `OmnibusF4`, and VID/PID `0483:5740`.
 A read-only host serial query on 2026-10-10 confirmed `MSP_FC_VARIANT=BTFL`,
 firmware **Betaflight 3.2.3**, MSP API **1.36**, and board identifier **OBF4**.
@@ -226,7 +273,7 @@ before buying reference hardware. For example, SpeedyBee's listings mark the
 and [F405 AIO V2](https://www.speedybee.com/speedybee-f405-aio-v2-35-40a-bluejay-25-5x25-5-3-6s-flight-controller/)
 as discontinued, so their family priority is not a claim of current production.
 
-Use this implementation order after the HGLRC reference and GEPRC expansion
+Use this implementation order after the Radix imported reference and GEPRC expansion
 milestones. These are future support priorities, not accepted support entries:
 
 1. **P1: mainstream F405 coverage.** Start with SpeedyBee F405 regular/Mini,
@@ -300,6 +347,7 @@ control interfaces and compatibility in the exact-board validation record.
 | --- | --- |
 | [Target registration](Makefile) and [Revolution target definition](flight/targets/revolution/target-defs.mk) | The build discovers one-level target directories. Nested imported profiles need an explicit registration mechanism. |
 | [Architecture selection](make/firmware-arches.mk) and [Revolution firmware Makefile](flight/targets/revolution/fw/Makefile) | F405 already has startup, STM32 peripheral and ChibiOS support. Importing board wiring does not create a new processor backend. |
+| [RE1 firmware Makefile](flight/targets/brainre1/fw/Makefile) and [native FPGA driver](flight/targets/brainre1/re1fpga/fpga_drv.c) | The Radix target now reuses the native F446, BMI160, BMP280 and FPGA/video services with generated wiring, checked shared SPI, native storage and a direct-boot layout. Bench and flight results are tracked in the implementation record. |
 | [Common firmware build](make/firmware-common.mk) | Object names currently use source basenames. Imported drivers and compatibility headers must avoid collisions or gain path-aware object naming. |
 | [PiOS SPI API](flight/PiOS/inc/pios_spi.h) | The adapter can use existing bus claims, clock selection, chip selects and transfers; their timing and error semantics still need validation. |
 | [PiOS sensor API](flight/PiOS/inc/pios_sensors.h) and [MPU driver](flight/PiOS/Common/pios_mpu.c) | Imported IMUs must publish samples through PiOS callbacks or queues and report rates, scales and errors. |
@@ -355,10 +403,10 @@ paths are proposed; existing files are extended only at their integration points
 | `shared/boardprofiles/catalog.json` | Profile names, pictures/pad labels, supported revisions, release support levels and known limitations. |
 | `make/scripts/board_import/` | Python 3 extraction, normalization, validation, generation and reporting tools. |
 | `make/imported-boards.mk` | Explicit imported-profile build rules and dependencies. |
-| `flight/targets/imported/` | Shared F405 firmware that boots directly from flash, with generated board tables, metadata and STM32 ROM-entry support. |
-| `flight/PiOS/Betaflight/upstream/` | Selected upstream chip source and required headers, with their original notices. |
-| `flight/PiOS/Betaflight/compat/` | Small, documented bus/time/device API compatibility surface. |
-| `flight/PiOS/Betaflight/ports/` | PiOS sensor wrappers and reviewed driver adaptations, traceable to upstream source. |
+| `flight/targets/imported/` | Shared F405/F446 firmware that boots directly from flash, with generated board tables, metadata and STM32 ROM-entry support. |
+| `flight/Betaflight/upstream/` | Selected upstream chip source and required headers, with their original notices. |
+| `flight/Betaflight/compat/` | Proposed bus/time/device adapters for imported chip source; native hardware services remain in PiOS. |
+| `flight/Betaflight/ports/` | Proposed reviewed adaptations of upstream chip code, traceable to the pinned source. |
 | `shared/uavobjectdefinition/hwimported.xml` | Shared imported-board settings, with stable port/output indices. |
 | `shared/uavobjectdefinition/boardprofile.xml` | Read-only full profile identity, layout version and actual detected capabilities. |
 | `ground/gcs/src/plugins/boards_imported/` | One imported-board implementation and profile-driven hardware configuration UI. |
@@ -655,9 +703,17 @@ Proposed developer entry points, once implemented:
 ```bash
 make board_import BOARD_PROFILE=hglrc_f4v6pro
 make board_validate BOARD_PROFILE=hglrc_f4v6pro
-make fw_imported BOARD_PROFILE=hglrc_f4v6pro
-make ef_imported BOARD_PROFILE=hglrc_f4v6pro
+make board_import BOARD_PROFILE=brainfpv_radix
+make board_validate BOARD_PROFILE=brainfpv_radix
+make fw_imported BOARD_PROFILE=brainfpv_radix
+make ef_imported BOARD_PROFILE=brainfpv_radix
 ```
+
+The first reviewed profile currently builds through `make fw_radix` and
+`make ef_radix`; `flight/tests/run_radix.py` builds and checks it without
+parameters or hardware access. Its generated wiring and shared initializer
+live under `flight/targets/imported`, with a small registered `radix` target.
+The general entry points above remain future work.
 
 Extend the existing build templates so generated board roots and selected
 source lists can be passed without assuming `flight/targets/<board>`. Isolate
@@ -674,7 +730,10 @@ watchdog. Sensor failures and missing resources enter the existing fault/arming
 path according to the selected flight mode. Report required-capability failures
 explicitly; optional-device failures are reported as absent capabilities.
 
-For the HGLRC comparison, keep the native PiOS MPU6000 driver and the legacy
+Generate Radix first, using the native BMI160/BMP280 backends and reviewed
+BrainFPV FPGA/video adaptation. Missing required OSD support must prevent a
+production image from passing profile acceptance. For the HGLRC comparison,
+keep the native PiOS MPU6000 driver and the legacy
 Revolution memory layout. Match known working wiring and selected functions;
 the generated binary need not be byte-identical to the legacy binary. For GEPRC,
 use a separately verified layout and wiring profile. Reuse named quirks only
@@ -744,15 +803,17 @@ origin of generated profiles and translated tables as well as imported C code.
 | --- | --- | --- |
 | MPU6000 | Existing PiOS driver on HGLRC. | Generated wiring must reproduce the working baseline. Importing another MPU6000 driver is unnecessary for the first milestone. |
 | ICM42688-P | Port selected Betaflight chip code through the new boundary. | Register/scale/filter tests, real DRDY acquisition and GEPRC hardware validation. |
-| SPI/I2C/UART/ADC | Existing STM32F405 PiOS backends with generated configuration. | Check alternate functions, inversion, ADC conversions and shared resources on each physical board. |
+| BMI160 | Existing native PiOS driver for Radix. | Generate SPI3/DRDY wiring, harden failed bus claims/transfers, and independently verify axes and sample timing. Betaflight CW0 and PiOS orientation names are not interchangeable proof of alignment. |
+| SPI/I2C/UART/ADC | Existing STM32F405/F446 PiOS backends with generated configuration. | Check alternate functions, inversion, ADC conversions and shared resources on each physical board. Radix needs per-device SPI3 clock selection before CS. |
 | Motor outputs | Existing PiOS servo/PWM and supported DShot backend. | Verify output numbering, timer constraints and actual waveforms. Betaflight DMA maps need translation; they do not prove that PiOS supports the same mode. |
+| BrainFPV FPGA/video OSD (required on Radix) | Adapt native RE1 FPGA services and PiOS QuadSPI/OnScreenDisplay; the unchanged manufacturer driver passes the host/ARM dry run. | Configure factory FPGA startup without a custom loader, read hardware revision explicitly, propagate transfer failures and update shadow registers only after success. Apply Radix defaults and review noisy/missing-video sync recovery. Validate actual OSD output concurrently with sensor/receiver/GPS/telemetry operation. |
 | MAX7456 OSD (required) | Existing PiOS device driver and CharacterOSD module. | Verify fitted hardware, wiring, video/font operation, live flight/GPS data and bus contention with the gyro or flash. |
 | MSP DisplayPort digital OSD (required for digital profiles) | Planned UART protocol/backend using droniNG flight/GPS state, after the initial analog reference. | Required for HDZero priorities. Verify actual VTX/goggle rendering, font/resolution, warnings, reconnect behavior and concurrent receiver/GPS/telemetry load. No digital support is implied by an analog OSD driver or board definition. |
 | GPS (required) | Existing GPS module and supported NMEA/UBX paths over an imported UART. | Verify protocol/configuration, fix/position/velocity, GCS/OSD/telemetry data and loss/staleness behavior. Navigation needs separately verified estimator/sensor prerequisites. |
 | Telemetry (required) | Native USB/UAVTalk plus an existing supported external telemetry backend for the chosen configuration. | Validate live flight/GPS data, link behavior and simultaneous receiver/GPS operation; document any shared UART. |
 | Autotune (strongly preferred) | Existing Autotune module and GCS tuning workflow. | Allocate buffers and tune-data storage, verify data collection/transfer/persistence and measure timing under required-feature load. |
 | Logging flash | Existing JEDEC/storage support where compatible. | Read actual geometry, validate erase commands and settings/log partition separation; add an adapted chip driver only if needed. |
-| BMP280 | Existing PiOS driver where fitted. | Validate the profile's bus/address and actual fitted barometer; do not substitute DPS310 automatically. |
+| BMP280 | Existing PiOS driver where fitted; enable its SPI path for Radix. | Validate the profile's bus/address, per-device clock/CS ordering and actual fitted barometer; the RE1 baseline uses I2C. Do not substitute DPS310 automatically. |
 | HGLRC IRC Tramp control | Separate subsequent driver integration. | Current VTXConfig source exposes SmartAudio; a board profile alone cannot implement Tramp. Verify protocol/UART electrical behavior and add the GCS role/settings deliberately. |
 | Other receivers and ESC telemetry | Existing protocols only where implemented and validated. | Expose supported protocols by port. New protocols require their own adapter/backend and tests. |
 | Integrated ELRS receivers | Validate serial ELRS through the required receiver protocol/backend; treat SPI ELRS as separate radio integration work. | Record receiver type, UART or SPI/IRQ wiring, firmware compatibility, binding, command/telemetry operation and loss/failsafe behavior. Verify shared-resource constraints on AIOs and Halo's Gemini receiver. |
@@ -776,6 +837,10 @@ heap reservation and measured stack/heap margins. Include runtime driver state,
 queues and transfer buffers, not just object-file size. F405 DMA buffers must use
 accessible ordinary SRAM: CCM is CPU-only, as described in
 [ST's reference manual](https://www.st.com/resource/en/reference_manual/rm0090-stm32f407-advanced-armbased-32bit-mcus-stmicroelectronics.pdf).
+The pinned Radix F446 layout has 128 KiB SRAM and no separate CCM region;
+do not apply an F405 memory layout to it. The RE1 dry-run baseline reports
+69,760 bytes of static RAM and a 61,312-byte heap reservation, before runtime
+allocations; this is a comparison build, not measured Radix runtime headroom.
 
 Use an otherwise equivalent native-driver build as the comparison when
 measuring adapter cost. Record acquisition time, IRQ-to-sample latency, sample
@@ -1106,18 +1171,30 @@ opens only on an explicit action, preserves the current workspace, and closes
 without an automatic-launch suppression prompt. Changes to actuator settings
 refresh the offer; disconnecting clears it before another controller connects.
 
+Main navigation is a fixed left sidebar with icons: Welcome, Flight Data,
+Configuration, System and Firmware. Scopes, Advanced and custom workspaces are
+available within System. Welcome remains the initial page; legacy tab placement
+settings do not change navigation. The Firmware controller card uses the main
+navigation for Flight Data. Its collapsed connection log records opening the
+transport, the handshake, detected identities, readiness, errors and disconnects,
+including successful connections. A new connection starts a fresh log. Repeated
+live packets do not add duplicate readiness entries.
+
 Product firmware versions come from `shared/product-version.json`; the initial
 release is **DroniNG 1.0**. The firmware descriptor and installation overview use
 that release name. Git revision, branch and working-tree changes remain separate
 build metadata. The old `next-dirty` label combined a development branch name
 with the presence of uncommitted tracked changes anywhere in the repository,
 including the GCS. Flight-control sources and UAVObject definitions match the
-base commit; installer changes select the correct build directory and assemble
-the bootloader, firmware and descriptors. Changing the release label preserves
+original build's commit `1dc23364`; installer changes select the correct build
+directory and assemble the bootloader, firmware and descriptors. Changing the release label preserves
 the firmware and bootloader executable hashes. An already installed image with
 the old label is identified as the product release only when its board,
-commit, executable hash and UAVObject hash match the verified bundled image.
+executable hash and UAVObject hash match the verified bundled image.
 Other dRonin versions retain their own reported identities.
+GCS-only source commits do not trigger firmware upgrades or prevent setup when
+the installed executable and protocol match that image. Changed executable,
+board or protocol identities remain distinct.
 
 Connection readiness survives initial object retrieval. Completing a request
 disconnects only its transaction callback, preserving live attitude and flight
@@ -1136,7 +1213,7 @@ firmware build is recorded in
 
 Software tests simulate device responses and file transfers; they do not write
 controller firmware. The Qt 6 release includes the actual Revolution image, and
-All 62 cases in `ground/tests/firmware_installation.cpp` pass on Qt 6.12.0,
+All 63 cases in `ground/tests/firmware_installation.cpp` pass on Qt 6.12.0,
 including validation of the bundled image.
 The start/progress verification is recorded in
 `build/qt612-release/firmware-start-installation-tests.log`. These tests check that the bundled image validates
@@ -1193,11 +1270,34 @@ It also exercises automatic and manual start, complete reconnect guidance,
 labelled transfer percentages and reconnection after the waiting indicator times
 out (`build/qt612-release/firmware-start-connection-tests.log`).
 
+Controller startup recovery stays in the Firmware dashboard's top-left card.
+Failed opens, missing live data and the first USB startup interruption retain the
+detected controller and diagnosis instead of returning to the generic connection
+screen. **Retry connection** targets the same controller; **Reinstall firmware**
+opens its catalog-driven BOOT instructions and validated image in that card.
+An unknown model requires explicit board selection, and a missing compatible
+image is explained before installation. Cancelling recovery preserves the
+diagnosis; successful live data clears it. **Use another controller** returns to
+device selection. The Maintenance & recovery accordion remains unchanged.
+USB inventory changes and late handshake notifications do not restart detection
+after a failure; an explicit retry or installation starts the next attempt.
+Installation uses the main card's heading, background and inline controls.
+Confirmed firmware identity, board profile and live data finish installation
+automatically, reveal all live panels and show one setup action without a Done
+step. The imported-board update action appears only when the running firmware
+descriptor differs from the validated bundled image, including after reconnect.
+Connection diagnostics exercise RADIX, Omnibus F4 SD and HGLRC F4 V6PRO through
+the same workflow, plus unknown models, missing images, changed USB products,
+timeouts, installation-to-setup handoff and narrow/wide layouts. All 129 native
+connection checks pass. Rendered evidence is saved under
+`build/qt612-release/ui-checks/native-captures/` as `recovery-*`, `inline-install-*`
+and `installed-live-*`; the complete result is in `ui-checks/native-tests.log`.
+
 The main window checks USB access setup at startup, before a controller operation
 can fail. The Welcome page integrates a controller-access setup card into its
 introduction, followed by the main workspace actions. Missing or outdated rules
 show **Copy setup command**; **View command** expands the selectable command.
-Setup does not occupy other workspaces. Welcome remains the initial tab.
+Setup does not occupy other workspaces. Welcome remains the initial page.
 The check respects udev directory precedence and masked
 rule files, accepts formatting and filename changes, and requires access tags to
 precede desktop-session ACL processing. It checks effective read/write access on
@@ -1210,8 +1310,8 @@ checks exercise the Welcome card, command disclosure and normal application navi
 (`build/qt612-release/welcome-setup-ui-tests.log`).
 The tab retains backend output in a collapsed log below the task card. The application UI
 fixture checks the packaged HGLRC image and starts this inline workflow with
-physical USB device nodes isolated (`--check-firmware-installation`). It also checks six
-workspaces, configuration pages, dialogs, replay controls, cancellation and
+physical USB device nodes isolated (`--check-firmware-installation`). It also checks the five
+sidebar sections and System tools, configuration pages, dialogs, replay controls, cancellation and
 normal shutdown with the input profile unchanged. Evidence is in
 `build/qt612-release/firmware-usb-access-ui` and
 `build/qt612-release/firmware-usb-access-ui-tests.log`; the BOOT capture shows the
@@ -1312,13 +1412,13 @@ optional features follow the reference generator and this driver proof.
 
 | Milestone | Concrete work | Completion criteria |
 | --- | --- | --- |
-| M0: baseline and source locks | Build the existing Revolution reference and relevant retained targets with a pinned Linux ARM toolchain. Audit layout/descriptor packaging. Reuse the checked HGLRC hardware map and installation profile. Select full upstream firmware/config commits for the generated-board adapter after dependency review. | Existing build artifacts and memory reports, resolved baseline blockers, source lock and reproducible hardware comparisons. |
-| M1: schema and importer | Add shared JSON schema/profiles/overrides, Python 3 extraction and validation, MCU timer/DMA resolver and import reports. Normalize the HGLRC fixture and import the GEPRCF405 fixture. Require OSD and a simultaneous receiver/GPS/telemetry resource configuration; record autotune dependencies. | Deterministic normalized outputs; HGLRC mapping agrees with reviewed reference; meaningful unknown/conditional/conflict/layout failures are diagnosed. GEPRC's different gyro bus is represented correctly. Profiles cannot pass required-feature validation by disabling OSD, telemetry or GPS. |
-| M2: generated F405 direct-boot firmware | Add shared imported target, generated native PiOS tables, source selection and Make integration. Generate HGLRC ELF/application/installation artifacts linked at `0x08000000`, with embedded board metadata and early ROM-entry support, using the existing PiOS MPU driver. Generate and validate GEPRC tables, but defer its complete firmware image until the required ICM driver is available. | HGLRC compiles within its declared ROM-only layout; reset vectors, descriptors and address ranges agree; firmware has no dependency on a custom-loader blob. Legacy build entry points still work. GEPRC cannot produce an installable image with its required driver missing. |
+| M0: baseline and source locks | Preserve the existing Revolution build and checked HGLRC installation profile. Audit layout/packaging and pin the Linux ARM toolchain. Identify the owned Radix PCB revision and lock BrainFPV's complete target, hooks, FPGA/video dependencies and licenses separately from the general Betaflight survey. | Existing baseline artifacts/memory reports; exact Radix hardware record and source/dependency inventory; no assumed Brain/RE1 compatibility. |
+| M1: schema and importer | Add shared JSON schema/profiles/overrides, Python 3 extraction and validation, MCU timer/DMA resolver and import reports. Import Radix first; normalize HGLRC as the reviewed comparison fixture and add GEPRCF405 next. Require OSD and simultaneous receiver/GPS/telemetry resources; record autotune dependencies. | Deterministic normalized outputs; Radix custom hooks are represented or explicitly rejected, including its FPGA/video and SD requirements; HGLRC mapping agrees with the reviewed reference. Unknown/conditional/conflict/layout failures are diagnosed. Required-feature validation cannot be bypassed by disabling OSD, telemetry or GPS. |
+| M2: generated F405/F446 direct-boot firmware | Add shared imported target, generated PiOS tables, source selection and Make integration. Generate Radix artifacts linked at `0x08000000`, with full profile/layout metadata and early ROM-entry support. Reuse native BMI160/BMP280 and adapt the required BrainFPV FPGA/video services. Preserve HGLRC comparison builds and prepare GEPRC tables for its later ICM port. | Radix compiles within its declared ROM-only layout; reset vectors, descriptors and ranges agree; required backends and build inputs are recorded. Firmware has no custom-loader dependency. Legacy entry points still work. Missing required backends prevent a production firmware offer. |
 | M3: identity and usable GCS configuration | Add versioned descriptor/profile/layout identity, BoardProfile/HwImported UAVObjects and one GCS board class driven by the shared catalog. Capture identity before ROM entry and compare stored metadata during updates; represent legacy and ROM-only layouts explicitly. | Firmware, installer and catalog agree on exact identity; wrong-profile/layout updates are rejected; actual port/output labels and conflicts are handled in GCS and firmware. Erased-board recovery requires exact model selection. |
-| M4: ROM-only installation and HGLRC bench baseline | Extend the existing ROM DFU backend for generated direct-boot images and explicit legacy conversion. Validate readback/postboot identity, settings migration, safe start/default reset and external-flash recovery. Validate HGLRC startup, IMU, USB, receiver, four motor outputs, persistent settings, OSD, external telemetry and GPS. Bring up autotune acquisition/transfer with its memory/storage budget. | Cold power-on without a GCS/custom loader, reset/reconnect, software/hardware ROM entry, install/update/interrupted-write recovery and required bench functions work together. Settings persist across ordinary updates. Motor outputs stay inactive through ROM entry/recovery. |
+| M4: ROM-only installation and Radix bench baseline | Extend ROM DFU for generated direct-boot images and explicit legacy conversion. Preserve the existing Betaflight return path. Validate readback/postboot identity, persistence and safe defaults. On Radix verify startup, BMI160 axes/sample timing, USB, receiver, four motor outputs, FPGA/video OSD, external telemetry and GPS together. Bring up autotune acquisition/transfer with its memory/storage budget. Flash the owned board only after explicit authorization for that prepared image. | Cold power-on without a GCS/custom loader, reset/reconnect, software/hardware ROM entry and install/update/interrupted-write recovery work. Required bench functions pass on the exact Radix revision. Settings persist across ordinary updates. Motor outputs stay inactive through ROM entry/recovery. |
 | M5: ICM42688-P driver adaptation | Complete the early driver feasibility work: import the bounded chip-source dependency set, add bus/time compatibility code and PiOS wrapper, mock/register tests and acquisition diagnostics. Build the complete GEPRC image once its required backend exists. | GEPRC compiles within its declared layout; driver dependency inventory and build report; verified scales/orientation/error handling in tests; real sensor probe, DRDY/sample delivery and timing evidence on the GEPRC board. Hardware gate waits for actual hardware if unavailable. |
-| M6: GEPRC expansion validation | Complete exact-revision wiring, receiver/motor resource mapping, required OSD/GPS/telemetry and autotune integration; validate ADC and optional logging separately. Run concurrent-load timing and update/recovery checks. | Required functions pass the same bench gates as HGLRC; autotune support or a specific limitation is recorded. This board uses the common initializer/GCS class, with only its profile and justified quirks. |
+| M6: GEPRC expansion validation | Complete exact-revision wiring, receiver/motor resource mapping, required OSD/GPS/telemetry and autotune integration; validate ADC and optional logging separately. Run concurrent-load timing and update/recovery checks. | Required functions pass the same bench gates as Radix; autotune support or a specific limitation is recorded. This board uses the common initializer/GCS class, with only its profile and justified quirks. |
 | M7: release and flight evidence | Package prebuilt images, manifests, corresponding source and catalog support levels. Perform flight validation on accepted bench configurations, including OSD/telemetry/GPS operation, the autotune workflow where supported and any advertised navigation modes. Record defects/limitations. | Rebuild/install/update evidence, per-board bench reports and flight records. Required features meet acceptance gates; autotune status and unsupported optional features remain explicit. Profile-only future additions follow the same gates. |
 | M8: priority F405 coverage | Implement the P1 market shortlist, starting with an obtainable SpeedyBee regular/Mini revision, then Mamba F405 and SpeedyBee/Flywoo F405 AIOs. | Each accepted exact revision reuses the common initializer/GCS class and passes the same required bench/flight gates. AIO motor/power wiring and new chip/clock/storage dependencies have explicit evidence. |
 | M9: new processors and HDZero | Implement P2 processor ports as separate projects and add the listed F7/H7/G4/AT32 profiles as their dependencies become available. Include Halo, Gamma and AIO15, MSP DisplayPort and serial ELRS integration. | Each new MCU passes startup/RTOS/interrupt/memory/peripheral validation. Exact boards pass required OSD/GPS/telemetry and receiver/output gates; HDZero records include actual digital-video hardware and separate receiver/ESC/VTX firmware versions. |
@@ -1351,10 +1451,13 @@ initial sensor/output bring-up in the development sequence.
 
 Each board record names the PCB revision, fitted parts, upstream locks, profile
 fingerprint, toolchain/build key, enabled functions and test equipment. Publish
-support levels as **experimental** (generated/built only), **bench validated**
+engineering validation levels as **experimental** (generated/built and automated
+checks), **bench validated**
 (documented required hardware gates passed) or **flight validated** (bench gates
 plus recorded flight behavior). A new upstream-supported target does not inherit
-droniNG validation automatically.
+droniNG validation automatically. Keep these levels in the engineering record;
+the application presents verified compatibility, supported capabilities and
+actionable setup instructions.
 
 ### Maintenance and boundaries
 
@@ -1370,7 +1473,7 @@ stay tied to released images. Record unresolved peripheral features as specific
 issues. A board with a missing required backend remains unsupported even if the
 schema parses it successfully.
 
-Adding an F405 board with existing supported peripherals should require a
+Adding an F405/F446 board with existing supported peripherals should require a
 profile, reviewed overrides and bench/flight evidence. Adding a new IMU needs a
 driver port. Adding F7/H7/G4/AT32 needs a processor port first; F411 needs explicit
 processor/resource support. Integrated radios and digital OSD need their own
@@ -1380,7 +1483,7 @@ it does not satisfy this plan's hardware-support objective.
 
 ## Immediate next work and remaining dependencies
 
-The [completed desk check](flight/PiOS/Betaflight/README.md) downloaded six pinned
+The [completed desk check](flight/Betaflight/README.md) downloaded six pinned
 definitions and representative drivers, resolved 40 F405 timer mappings, and
 compiled the untouched ICM426xx register logic through a host PiOS SPI mock.
 Internal/external clock tests and failure cases passed. This establishes a
@@ -1393,11 +1496,100 @@ CLKIN, Mamba ADC3/clock review, GEPRC IMU substitutions (including LSM6DSK320X),
 and separate NAND/SD storage backends. F722/H743 remain processor-port projects.
 Survey source pins are recorded; production release pairing still needs review.
 
-Start M0 with the existing Revolution build, layout/packaging audit and the
-checked HGLRC hardware profile. Establish the source locks and required schema fields,
-then implement M1 without waiting on retirement decisions or buying another
-legacy controller. Do not overwrite the user's currently running Betaflight
-installation as part of writing this plan.
+The [Radix dry run](flight/Betaflight/RADIX_DRY_RUN.md) additionally pins
+35 manufacturer files, resolves eight F446 timer mappings, compiles and runs
+the unchanged FPGA driver against simulated PiOS SPI/GPIO, and compiles its
+Cortex-M4 object. Startup failure tests expose ignored SPI failures, cached
+failed writes and an unread hardware-revision register. The existing RE1 F446
+firmware builds with 324,572 bytes of flash content; its FPGA register interface
+and QuadSPI/video wiring are useful native reuse candidates. These checks do
+not produce an installable Radix image or complete M0/M1/M2.
+
+Preserve the existing Revolution build and checked HGLRC hardware profile as
+the M0 baseline. For the owner's BrainFPV RADIX, confirm the physical revision
+and production source pairing, then implement M1/M2 around its F446 profile.
+Prioritize shared-SPI clock/error handling, native FPGA/video initialization,
+internal-flash settings/autotune allocation, the common initializer and
+direct-boot identity/package. Existing BMI160/BMP280 backends avoid duplicate
+chip ports; a new FPGA bitstream is not currently indicated by source review.
+GEPRC/ICM42688-P follows Radix as the expansion proof.
+The connected Omnibus reports Betaflight 3.4.0 target `OMNIBUSF4SD` (`OBSD`),
+so it now receives a dedicated F405 profile before that ICM expansion. It uses
+the pinned board's CW270 mounting, inverter controls, four motor mappings and
+ADC calibration with the existing native MPU/BMP280/MAX7456 backends. It does
+not use the separate HGLRC/`OBF4` compatibility alias. The shared initializer,
+installer and `boards_droning` GCS class serve both imported profiles; source
+snapshots and locks live under `flight/Betaflight`, while PiOS means Peripheral
+I/O System and retains the native STM32 hardware implementation. Complete
+upstream revisions are cached under `downloads/betaflight` with one download
+per pin. See [the Omnibus implementation record](flight/Betaflight/OMNIBUSF4SD_IMPLEMENTATION.md).
+The first Omnibus installation verified all written bytes but failed to start
+and stopped enumerating on USB. Factory ROM DFU recovery restored the original
+Betaflight 3.4.0 and its startup identity. The preserved failed executable
+revealed missing FPU initialization despite FP-enabled RTOS code; this is now
+corrected and verified in compiled ARM instructions. Imported interrupt setup
+also uses physical flash vectors after ROM DFU. The second physical attempt
+confirmed native USB enumeration, but repeated two-blink IMU errors reset the
+controller before telemetry could start. The Omnibus caller passed an
+uninitialized sensor handle to an in/out initializer; it now initializes the
+handle to null. A test of the actual caller and driver rejects the preserved
+failed source under poisoned stack initialization and accepts the correction.
+The app bounds automatic startup retries and retains an actionable diagnosis.
+On 2026-10-12 the user completed installation of the corrected image and reported
+responsive gyro/attitude data. The screenshot shows native DroniNG 1.0 identity,
+live instruments and system health. This confirms live startup after installation;
+a cold USB reconnect and peripheral acceptance remain bench checks. The
+implementation record contains the evidence and repeatable restore command.
+These priorities do not depend on target retirement or another hardware
+purchase. The controller now runs the corrected DroniNG image and sends live
+telemetry. The restore-only command remains available.
+
+For repeated recovery-UI cycles,
+`python3 make/scripts/restore-omnibusf4sd.py --invalid`
+restores the checksum-pinned second failed DroniNG image and checks
+for its native USB reset loop. The command retains complete flash backups,
+readback verification and built-in logging. `--invalid --prepare` caches the
+fixture without writing; `--invalid --check` checks the expected failure without
+writing. Close the app and enter hardware BOOT mode for the restore, then open
+the app and recover/reinstall through the main card. Omitting `--invalid` keeps
+the original Betaflight restore behavior. The implementation record documents
+the preserved executable and exact image pin. Physical repetition of this
+failure-to-live cycle remains a bench acceptance task.
+
+The first reported saved-failure recovery cycle on 2026-10-12 reached live
+telemetry after a manual Start controller action. The log exposed a transient
+HID open failure after verified installation; the app now bounds retries for
+that transition and retains a stable recovery card during USB reset loops.
+The live health screenshot also exposed a BMP280 acquisition configuration
+error: imported board settings enabled normal mode while skipping both ADCs.
+Both Omnibus and RADIX now use the native pressure/temperature oversampling
+constant, verified with the complete BMP280 SPI driver and reference samples.
+Alarm changes now log detailed receiver/state-estimation reasons and received
+barometer/GPS readings. Bench acceptance is automatic post-install connection,
+BARO/SENSOR clearing, a cold USB reconnect and another saved-failure recovery
+cycle with the rebuilt image. Receiver/GPS alarms remain tied to their setup.
+The rebuilt delivery passed all 133 connection/controller checks, the complete
+BMP280 SPI host regression, firmware startup/layout checks and packaged UI
+checks. The implementation record pins the new bundled images and test
+evidence; physical acceptance of this correction remains the next bench step.
+
+The 2026-10-13 installation logs no longer report BARO/SENSOR alarms and confirm
+the receiver's Settings reason. The apparent absence of barometer/GPS samples
+was a GCS received-data flag bug, now fixed through the actual UAVTalk unpack
+path. An intermittent firmware EventSystem warning and subsequent USB telemetry
+stall remain under investigation. Native probes with the app closed timed out
+on USB writes; a host USB reset did not restore communication. Shared HID
+handling now closes failed transports, retains actionable recovery in the main
+card and records exact errors. Live health logging resolves queue/callback
+warning IDs to object names. A cold controller reconnect is needed to read
+physical pressure/temperature and those warning IDs with the new read-only
+`make/scripts/inspect-uavtalk.py` entrypoint. The Omnibus implementation record
+contains the evidence paths and distinguishes the rejected-checksum probe from
+the subsequent valid probes. No firmware change was made for the unresolved
+warning or stall.
+The rebuilt GCS/package passed 142 connection/controller checks, three native
+inspection framing/schema checks and the packaged UI journey checks; the
+implementation record lists the evidence and remaining cold-reconnect probe.
 
 Extend the catalog by comparing exact board definitions against retained native
 targets, adding verified configuration settings and regression fixtures. Resolve
@@ -1408,7 +1600,8 @@ receiver/link and suitable analog video equipment for required OSD validation.
 Autotune also needs the existing GCS workflow, tune-data storage and flight
 validation. Source/toolchain pins and numeric
 runtime headroom limits are to be set from the baseline and dependency audit;
-they have not been measured by this planning work.
+the dry run records compiler versions and static sizes, but does not measure
+runtime margins on Radix.
 
 Target deletions remain the separate proposals above. Lux's exact revision and
 the FlyingPi/host relationship remain conditional decisions. None of those

@@ -93,71 +93,54 @@ bool sortPorts(const QSerialPortInfo &s1, const QSerialPortInfo &s2)
 
 void SerialConnection::periodic()
 {
-    if (!this->deviceOpened()) {
-        QList<Core::IDevice *> newDev = this->availableDevices();
+    availableDevices();
+}
 
-        // Ignore the output, as now availableDevices signals!
-    }
+QList<SerialConnection::Port> SerialConnection::ports() const
+{
+    QList<Port> result;
+    for (const auto &port : QSerialPortInfo::availablePorts())
+        result.append({port.portName(), port.systemLocation(), port.description(), port.serialNumber(),
+                       IDevice::usbTopologyForDeviceNode(port.systemLocation()),
+                       port.vendorIdentifier(), port.productIdentifier()});
+    std::sort(result.begin(), result.end(), [](const Port &a, const Port &b) { return a.name < b.name; });
+    return result;
 }
 
 QList<IDevice *> SerialConnection::availableDevices()
 {
-    static QList<Core::IDevice *> m_available_device_list;
     if (enablePolling) {
         bool changed = false;
-
-        QList<QSerialPortInfo> ports = QSerialPortInfo::availablePorts();
-
-        // sort the list by port number (nice idea from PT_Dreamer :))
-        std::sort(ports.begin(), ports.end(), sortPorts);
-        bool port_exists;
-        foreach (QSerialPortInfo port, ports) {
-            port_exists = false;
-            foreach (IDevice *device, m_available_device_list) {
-                if (device->getName() == port.portName()) {
-                    port_exists = true;
+        const auto available = ports();
+        QList<Core::IDevice *> current;
+        for (const auto &port : available) {
+            const QStringList identity{port.location, port.description, port.serialNumber, port.usbPath,
+                                       QString::number(port.vendor), QString::number(port.product)};
+            IDevice *device = nullptr;
+            for (auto *existing : m_devices) {
+                if (existing->getName() == port.name && existing->property("serialIdentity").toStringList() == identity) {
+                    device = existing;
                     break;
                 }
             }
-            if (!port_exists) {
-                SerialDevice *d = new SerialDevice();
-                QStringList disp;
-                if (port.description().length()) {
-                    disp.append(port.description());
-                }
-                disp.append(port.portName());
-                d->setDisplayName(disp.join(" - "));
-                d->setName(port.portName());
-                d->setUsbTopologyPath(IDevice::usbTopologyForDeviceNode(port.systemLocation()));
-                d->setControllerCandidate(IDevice::plausibleControllerUsb(port.vendorIdentifier(),
-                    port.productIdentifier(), port.description()));
-                m_available_device_list.append(d);
-
+            if (!device) {
+                device = new SerialDevice;
+                device->setParent(this);
+                device->setName(port.name);
+                device->setDisplayName(port.description.isEmpty() ? port.name : port.description + " - " + port.name);
+                device->setUsbTopologyPath(port.usbPath);
+                device->setControllerCandidate(IDevice::plausibleControllerUsb(port.vendor, port.product, port.description));
+                device->setProperty("serialIdentity", identity);
                 changed = true;
             }
+            current.append(device);
         }
-        foreach (IDevice *device, m_available_device_list) {
-            port_exists = false;
-            foreach (QSerialPortInfo port, ports) {
-                if (device->getName() == port.portName()) {
-                    port_exists = true;
-                    break;
-                }
-            }
-            if (!port_exists) {
-                m_available_device_list.removeOne(device);
-                device->deleteLater();
-
-                changed = true;
-            }
-        }
-
-        if (changed) {
-            emit availableDevChanged(this);
-        }
+        for (auto *device : m_devices)
+            if (!current.contains(device)) { device->deleteLater(); changed = true; }
+        m_devices = current;
+        if (changed) emit availableDevChanged(this);
     }
-
-    return m_available_device_list;
+    return m_devices;
 }
 
 Core::ConnectionError SerialConnection::groupAccessFailure(const QString &group,
@@ -238,14 +221,13 @@ QIODevice *SerialConnection::openDevice(IDevice *deviceName)
     if (serialHandle) {
         closeDevice(deviceName->getName());
     }
-    QList<QSerialPortInfo> ports = QSerialPortInfo::availablePorts();
-    foreach (QSerialPortInfo port, ports) {
-        if (port.portName() == deviceName->getName()) {
+    for (const auto &port : ports()) {
+        if (port.name == deviceName->getName()) {
             const int baudRate = m_config->speed().toInt();
             const QString description = QString("%1 at %2 baud (8N1, no flow control)")
-                                            .arg(port.systemLocation()).arg(baudRate);
+                                            .arg(port.location).arg(baudRate);
             qInfo().noquote() << "Opening serial port:" << description;
-            serialHandle = new QSerialPort(port, this);
+            serialHandle = new QSerialPort(port.location, this);
             const bool opened = serialHandle->open(QIODevice::ReadWrite);
             const bool configured = opened
                 && serialHandle->setBaudRate(baudRate)
@@ -261,7 +243,7 @@ QIODevice *SerialConnection::openDevice(IDevice *deviceName)
                           QString(),
                           tr("Could not configure %1: %2 (Qt serial error %3)")
                               .arg(description, serialHandle->errorString()).arg(int(serialHandle->error()))}
-                    : openFailure(port.systemLocation(), baudRate, serialHandle->error(),
+                    : openFailure(port.location, baudRate, serialHandle->error(),
                                   serialHandle->errorString());
                 qWarning().noquote() << "Serial connection failed:" << m_error.details;
                 serialHandle->close();
@@ -273,11 +255,14 @@ QIODevice *SerialConnection::openDevice(IDevice *deviceName)
 
             m_deviceOpened = true;
             connect(serialHandle, &QSerialPort::errorOccurred, this,
-                    [description, handle = serialHandle](QSerialPort::SerialPortError error) {
+                    [this, description, handle = serialHandle](QSerialPort::SerialPortError error) {
                 if (error != QSerialPort::NoError)
                     qWarning().noquote() << QString("Serial port error on %1: %2 (Qt serial error %3)")
                                                .arg(description, handle->errorString()).arg(int(error));
-            });
+                if (handle != serialHandle || !m_deviceOpened) return;
+                if (error == QSerialPort::ResourceError || error == QSerialPort::DeviceNotFoundError)
+                    emit transportDisconnected(this);
+            }, Qt::QueuedConnection);
             return serialHandle;
         }
     }
@@ -294,6 +279,7 @@ void SerialConnection::closeDevice(const QString &deviceName)
     Q_UNUSED(deviceName);
     // we have to delete the serial connection we created
     if (serialHandle) {
+        disconnect(serialHandle, nullptr, this, nullptr);
         serialHandle->close();
         serialHandle->deleteLater();
         serialHandle = NULL;
@@ -325,6 +311,7 @@ void SerialConnection::suspendPolling()
 void SerialConnection::resumePolling()
 {
     enablePolling = true;
+    periodic();
 }
 
 SerialPlugin::SerialPlugin()

@@ -35,6 +35,7 @@
 
 #include "rawhid_const.h"
 #include "usbsignalfilter.h"
+#include <cerrno>
 
 // **********************************************************************
 
@@ -54,9 +55,7 @@ RawHIDConnection::RawHIDConnection()
 
 RawHIDConnection::~RawHIDConnection()
 {
-    if (RawHidHandle)
-        if (RawHidHandle->isOpen())
-            RawHidHandle->close();
+    closeDevice({});
 
     delete m_signalFilter;
 }
@@ -136,8 +135,22 @@ QIODevice *RawHIDConnection::openDevice(Core::IDevice *deviceName)
     USBDevice *usbDev = dynamic_cast<USBDevice *>(deviceName);
     Q_ASSERT(usbDev);
 
-    RawHidHandle = new RawHID(usbDev);
+    RawHidHandle = createTransport(usbDev);
+    m_transportError = {};
+    connect(RawHidHandle, &RawHID::transportFailed, this, [this](const QString &details, int error) {
+        if (error == ENODEV) return; // A removed controller follows the normal disconnect flow.
+        // aboutToClose notifies the connection manager after the workers have
+        // stopped. Preserve the cause before that notification is delivered.
+        m_transportError = {tr("USB communication with the controller stopped. "
+            "Disconnect USB and the flight battery, then reconnect USB to the same port and retry the connection."),
+            {}, details};
+    });
     return RawHidHandle;
+}
+
+RawHID *RawHIDConnection::createTransport(USBDevice *device)
+{
+    return new RawHID(device);
 }
 
 void RawHIDConnection::closeDevice(const QString &deviceName)

@@ -3,6 +3,7 @@ TARGET = connection-diagnostics-tests
 CONFIG += console testcase c++17
 QT += widgets serialport network testlib svg
 QT += svgwidgets
+QT += sql xml
 isEmpty(GCS_BUILD_TREE):error("Set GCS_BUILD_TREE to the selected build's ground/gcs directory")
 include(../gcs/gcs.pri)
 include(../gcs/src/plugins/coreplugin/coreplugin.pri)
@@ -11,6 +12,7 @@ include(../gcs/src/plugins/uavtalk/uavtalk.pri)
 include(../gcs/src/plugins/uavobjectutil/uavobjectutil.pri)
 include(../gcs/src/plugins/rawhid/rawhid.pri)
 include(../gcs/src/libs/utils/utils.pri)
+include(../gcs/src/libs/tlmapcontrol/tlmapcontrol.pri)
 include(../gcs/src/libs/extensionsystem/extensionsystem.pri)
 LIBS += -L$$GCS_PLUGIN_PATH/droniNG
 QMAKE_RPATHDIR += $$GCS_LIBRARY_PATH $$GCS_PLUGIN_PATH/droniNG

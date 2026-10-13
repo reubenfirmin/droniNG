@@ -25,6 +25,8 @@ DEPENDPATH += dialogs \
     actionmanager
 
 SOURCES += mainwindow.cpp \
+    workspacenavigation.cpp \
+    workspacelayout.cpp \
     generalsettings.cpp \
     uniqueidmanager.cpp \
     versiondialog.cpp \
@@ -54,6 +56,7 @@ SOURCES += mainwindow.cpp \
     firmwarepage.cpp \
     firmwareinstallimage.cpp \
     dfuinstaller.cpp \
+    betaflightbootcontroller.cpp \
     firmwareinstallwidget.cpp \
     usbaccesssetup.cpp \
     iconnection.cpp \
@@ -115,6 +118,7 @@ HEADERS += mainwindow.h \
     firmwarepage.h \
     firmwareinstallimage.h \
     dfuinstaller.h \
+    betaflightbootcontroller.h \
     firmwareinstallwidget.h \
     usbaccesssetup.h \
     iconnection.h \
@@ -123,6 +127,8 @@ HEADERS += mainwindow.h \
     uavgadgetoptionspagedecorator.h \
     uavgadgetdecorator.h \
     workspacesettings.h \
+    workspacenavigation.h \
+    workspacelayout.h \
     uavconfiginfo.h \
     authorsdialog.h \
     iconfigurableplugin.h \

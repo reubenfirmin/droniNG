@@ -73,6 +73,9 @@ public:
                 QString(), errorString()};
     }
 
+    // A failure of an already-open transport, separate from opening errors.
+    virtual ConnectionError transportError() const { return {}; }
+
     virtual void closeDevice(const QString &deviceName) { Q_UNUSED(deviceName) }
 
     /**
@@ -105,6 +108,7 @@ signals:
     * know)
     */
     void availableDevChanged(IConnection *);
+    void transportDisconnected(IConnection *);
 };
 
 } // namespace Core

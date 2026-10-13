@@ -34,6 +34,8 @@
 #include "coreplugin/connectionmanager.h"
 #include "coreplugin/icore.h"
 #include "firmwareiapobj.h"
+#include "boardprofile.h"
+#include "uavobjects/uavobjectfield.h"
 
 // Timeout for the object fetching phase, the system will stop fetching objects and emit connected
 // after this
@@ -133,6 +135,59 @@ TelemetryMonitor::TelemetryMonitor(UAVObjectManager *objMngr, Telemetry *tel)
 
     Core::ConnectionManager *cm = Core::ICore::instance()->connectionManager();
     transport = cm->getCurrentConnection();
+    if (auto *alarms = objMngr->getObject(QStringLiteral("SystemAlarms")))
+        connect(alarms, &UAVObject::objectUpdated, this, [this, cm, alarms, previous = QString() ]() mutable {
+            if (cm->getCurrentConnection() != transport || !cm->flightDataAvailable()) return;
+            auto *field = alarms->getField("Alarm");
+            if (!field) return;
+            QStringList active;
+            for (int index = 0; index < field->getNumElements(); ++index) {
+                const QString severity = field->getValue(index).toString();
+                if (severity != "OK" && severity != "Uninitialised")
+                    active.append(field->getElementNames()[index] + "=" + severity);
+            }
+            for (const auto &name : {"ManualControl", "StateEstimation"})
+                if (auto *reason = alarms->getField(name)) {
+                    const auto value = reason->getValue().toString();
+                    if (value != "None") active.append(QString(name) + " reason=" + value);
+                }
+            if (auto *stats = dynamic_cast<UAVDataObject *>(this->objMngr->getObject("SystemStats"));
+                stats && stats->getReceived() && active.contains("EventSystem=Warning")) {
+                for (const auto &name : {"EventSystemWarningID", "ObjectManagerCallbackID", "ObjectManagerQueueID"}) {
+                    const quint32 id = stats->getField(name)->getValue().toUInt();
+                    if (id) {
+                        auto *object = this->objMngr->getObject(id);
+                        active.append(QString(name) + "=" + (object ? object->getName() : QString("0x%1").arg(id, 8, 16, QChar('0'))));
+                    }
+                }
+            }
+            const QString summary = active.isEmpty() ? tr("No active alarms") : active.join("; ");
+            if (summary == previous) return;
+            previous = summary;
+            QStringList readings;
+            for (const auto &entry : {qMakePair("BaroAltitude", QStringList{"Pressure", "Temperature"}),
+                                      qMakePair("GPSPosition", QStringList{"Status", "Satellites"})}) {
+                auto *object = dynamic_cast<UAVDataObject *>(this->objMngr->getObject(entry.first));
+                if (!object || !object->getReceived()) {
+                    readings.append(QString(entry.first) + ": no telemetry samples received");
+                    continue;
+                }
+                for (const auto &name : entry.second)
+                    if (auto *value = object->getField(name))
+                        readings.append(object->getName() + "." + name + "=" + value->getValue().toString());
+            }
+            qInfo().noquote() << "Controller health:" << summary << "|" << readings.join("; ");
+        });
+    if (auto *profile = BoardProfile::GetInstance(objMngr))
+        connect(profile, &UAVObject::objectUpdated, this, [this, cm, profile] {
+            if (cm->getCurrentConnection() != transport || !profile->getIsPresentOnHardware()) return;
+            const auto data = profile->getData();
+            const auto string = [](const quint8 *bytes) {
+                return QString::fromLatin1(QByteArray(reinterpret_cast<const char *>(bytes), 32).split('\0').first());
+            };
+            cm->reportFirmwareProfile(data.SchemaVersion, string(data.ProfileId), string(data.LayoutId),
+                QByteArray(reinterpret_cast<const char *>(data.ProfileHash), 32));
+        });
     if (auto *attitude = objMngr->getObject(QStringLiteral("AttitudeActual")))
         connect(attitude, &UAVObject::objectUpdated, this, [this, cm] {
             if (cm->getCurrentConnection() == transport
@@ -218,11 +273,7 @@ void TelemetryMonitor::retrieveNextObject()
     objectRetrieveTimeout->stop();
     objectRetrieveTimeout->start(OBJECT_RETRIEVE_TIMEOUT);
 
-    while (requestsInFlight < MAX_REQUESTS_IN_FLIGHT) {
-        if (queue.empty()) {
-            return;
-        }
-
+    while (!queue.empty() && requestsInFlight < MAX_REQUESTS_IN_FLIGHT) {
         // Get next object from the queue
         UAVObject *obj = queue.top();
         queue.pop();
@@ -270,6 +321,10 @@ void TelemetryMonitor::retrieveNextObject()
         // Request update
         obj->requestUpdate();
     }
+
+    // The last queued objects may already have arrived as live telemetry.
+    // Finish immediately when skipping them leaves no outstanding requests.
+    if (queue.empty() && requestsInFlight == 0) retrieveNextObject();
 }
 
 /**
@@ -403,7 +458,7 @@ void TelemetryMonitor::liveDataTimeoutCB()
         || gcsStatsObj->getData().Status != GCSTelemetryStats::STATUS_CONNECTED) return;
     cm->telemetryConnectionFailed({
         tr("The controller connected, but isn't sending live flight data. Disconnect and reconnect it. "
-           "If this repeats, check the controller's sensor and telemetry settings."), {},
+           "Retry the connection; if startup still fails, reinstall the firmware."), {},
         tr("UAVTalk handshake and object retrieval completed, but no AttitudeActual data arrived.")});
 }
 
@@ -500,19 +555,16 @@ void TelemetryMonitor::reportHandshakeFailure()
         message = tr("The controller answered using MSP, but DroniNG needs compatible dRonin "
                      "UAVTalk firmware. Select your board below to install its recommended firmware.");
     } else if (handshakeStats.rxObjects > 0) {
-        message = tr("The controller is sending UAVTalk data, but the connection handshake "
-                     "didn't finish. Check that the controller firmware and DroniNG versions "
-                     "are compatible, then reconnect.");
+        message = tr("The controller answered, but the connection could not finish. "
+                     "Retry the connection; if this repeats, reinstall the firmware.");
     } else if (handshakeStats.rxBytes > 0) {
-        message = tr("The controller is sending data that DroniNG can't read as UAVTalk. "
-                     "Check that you selected a UAVTalk telemetry port and compatible dRonin "
-                     "firmware. For a UART connection, also match the controller's baud rate.");
+        message = tr("The controller connected, but its data could not be read. "
+                     "Retry the connection; if this repeats, reinstall the firmware. "
+                     "For a UART connection, check the port and baud rate in the controller's settings.");
     } else {
-        message = tr("The port opened and DroniNG sent connection requests, but the controller "
-                     "sent no data. Unplug and reconnect it, then check the selected port "
-                     "and that compatible dRonin UAVTalk firmware is installed.");
+        message = tr("The controller sent no data. Disconnect USB and the flight battery, then reconnect USB. "
+                     "Retry the connection; if startup still fails, reinstall the firmware.");
     }
-    if (!identity.responded()) message += tr(" The port remains open and DroniNG is still retrying.");
     QString details = handshakeDiagnostic;
     if (identity.responded()) {
         details += tr("\nRead-only firmware probe: %1").arg(identity.description());

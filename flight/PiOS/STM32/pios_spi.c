@@ -230,7 +230,12 @@ int32_t PIOS_SPI_ClaimBus(pios_spi_t spi_dev)
 	bool valid = PIOS_SPI_validate(spi_dev);
 	PIOS_Assert(valid);
 
-	if (PIOS_Semaphore_Take(spi_dev->busy, PIOS_SEMAPHORE_TIMEOUT_MAX) != true)
+#if defined(PIOS_INCLUDE_IMPORTED)
+	const uint32_t timeout = 5; /* A shared sensor/FPGA bus must not stall flight. */
+#else
+	const uint32_t timeout = PIOS_SEMAPHORE_TIMEOUT_MAX;
+#endif
+	if (PIOS_Semaphore_Take(spi_dev->busy, timeout) != true)
 		return -1;
 
 	return 0;
@@ -250,7 +255,7 @@ int32_t PIOS_SPI_RC_PinSet(pios_spi_t spi_dev, uint32_t slave_id, bool pin_value
 {
 	bool valid = PIOS_SPI_validate(spi_dev);
 	PIOS_Assert(valid);
-	PIOS_Assert(slave_id <= spi_dev->cfg->slave_count);
+	PIOS_Assert(slave_id < spi_dev->cfg->slave_count);
 
 	if (pin_value) {
 		GPIO_SetBits(spi_dev->cfg->ssel[slave_id].gpio, spi_dev->cfg->ssel[slave_id].init.GPIO_Pin);
@@ -309,6 +314,19 @@ uint8_t PIOS_SPI_TransferByte(pios_spi_t spi_dev, uint8_t b)
 * \return >= 0 if no error during transfer
 * \return -1 if disabled SPI port selected
 */
+static bool SPI_WaitFlag(pios_spi_t spi_dev, uint16_t flag, bool set)
+{
+#if defined(PIOS_INCLUDE_IMPORTED)
+	uint32_t started = PIOS_DELAY_GetRaw();
+#endif
+	while (!!(spi_dev->cfg->regs->SR & flag) != set) {
+#if defined(PIOS_INCLUDE_IMPORTED)
+		if (PIOS_DELAY_DiffuS(started) >= 1000) return false;
+#endif
+	}
+	return true;
+}
+
 static int32_t SPI_PIO_TransferBlock(pios_spi_t spi_dev,
 		const uint8_t *send_buffer, uint8_t *receive_buffer, uint16_t len)
 {
@@ -316,19 +334,23 @@ static int32_t SPI_PIO_TransferBlock(pios_spi_t spi_dev,
 
 	bool valid = PIOS_SPI_validate(spi_dev);
 	PIOS_Assert(valid);
+	/* Clear receive/overrun state left by an earlier aborted transaction. */
+	SPI_ReceiveData8(spi_dev->cfg->regs);
+	(void)spi_dev->cfg->regs->SR;
+	if (!SPI_WaitFlag(spi_dev, SPI_I2S_FLAG_BSY, false)) return -1;
 
 	while (len--) {
 		/* get the byte to send */
 		b = send_buffer ? *(send_buffer++) : 0xff;
 
 		/* Wait until the TXE goes high */
-		while (SPI_I2S_GetFlagStatus(spi_dev->cfg->regs, SPI_I2S_FLAG_TXE) == RESET);
+		if (!SPI_WaitFlag(spi_dev, SPI_I2S_FLAG_TXE, true)) return -1;
 
 		/* Start the transfer */
 		SPI_SendData8(spi_dev->cfg->regs, b);
 
 		/* Wait until there is a byte to read */
-		while (SPI_I2S_GetFlagStatus(spi_dev->cfg->regs, SPI_I2S_FLAG_RXNE) == RESET);
+		if (!SPI_WaitFlag(spi_dev, SPI_I2S_FLAG_RXNE, true)) return -1;
 
 		/* Read the rx'd byte */
 		b = SPI_ReceiveData8(spi_dev->cfg->regs);
@@ -339,7 +361,7 @@ static int32_t SPI_PIO_TransferBlock(pios_spi_t spi_dev,
 	}
 
 	/* Wait for SPI transfer to have fully completed */
-	while (spi_dev->cfg->regs->SR & SPI_I2S_FLAG_BSY);
+	if (!SPI_WaitFlag(spi_dev, SPI_I2S_FLAG_BSY, false)) return -1;
 
 	return 0;
 }

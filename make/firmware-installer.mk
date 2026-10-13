@@ -1,10 +1,18 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Linux first-install runtime and build-matched full images. No device writes.
-FIRMWARE_INSTALL_TARGETS ?= revolution
+FIRMWARE_INSTALL_TARGETS ?= revolution radix omnibusf4sd
 FIRMWARE_INSTALLER_DIR := $(TOOLS_DIR)/firmware-installer
 FIRMWARE_RUNTIME_MARKER := $(FIRMWARE_INSTALLER_DIR)/.installed-0.11-1.0.29
 
 .PHONY: firmware_installer_runtime firmware_install_bundle
+.PHONY: ef_radix ef_radix_hex
+.PHONY: ef_omnibusf4sd ef_omnibusf4sd_hex
+ef_omnibusf4sd: ef_omnibusf4sd_hex
+ef_omnibusf4sd_hex: fw_omnibusf4sd
+	$(V1) $(HOST_PYTHON) "$(ROOT_DIR)/make/scripts/package-imported-board.py" --build "$(BUILD_DIR)" --profile omnibusf4sd
+ef_radix: ef_radix_hex
+ef_radix_hex: fw_radix
+	$(V1) $(HOST_PYTHON) "$(ROOT_DIR)/make/scripts/package-imported-board.py" --build "$(BUILD_DIR)" --profile radix
 firmware_installer_runtime: $(FIRMWARE_RUNTIME_MARKER)
 
 $(FIRMWARE_RUNTIME_MARKER): $(ROOT_DIR)/shared/firmware/installer-sources.json $(ROOT_DIR)/make/firmware-installer.mk | $(DL_DIR) $(TOOLS_DIR)

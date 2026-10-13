@@ -275,6 +275,17 @@ GCS_QMAKE_DEPS += $(ROOT_DIR)/make/scripts/version-info.py \
                   $(ROOT_DIR)/make/templates/gcsauthorstemplate.html \
                   $(ROOT_DIR)/make/templates/gcsrelauthorstemplate.html \
                   $(wildcard $(ROOT_DIR)/make/gcs-version-metadata.json)
+# Refresh compiled revision metadata after commits and checkouts, including
+# detached heads, packed refs and Git worktrees. Source archives use the
+# preserved metadata dependency above.
+ifneq ($(wildcard $(ROOT_DIR)/.git),)
+GCS_GIT_REF := $(shell git -C "$(ROOT_DIR)" symbolic-ref -q HEAD 2>/dev/null)
+GCS_QMAKE_DEPS += $(wildcard $(shell git -C "$(ROOT_DIR)" rev-parse --path-format=absolute --git-path HEAD))
+GCS_QMAKE_DEPS += $(wildcard $(shell git -C "$(ROOT_DIR)" rev-parse --path-format=absolute --git-path packed-refs))
+ifneq ($(GCS_GIT_REF),)
+GCS_QMAKE_DEPS += $(wildcard $(shell git -C "$(ROOT_DIR)" rev-parse --path-format=absolute --git-path "$(GCS_GIT_REF)"))
+endif
+endif
 $(GCS_QMAKE_DEPS): ;
 
 GCS_GRAPHICS_TOOLS :=
@@ -1003,7 +1014,7 @@ $(foreach board, $(FW_BOARDS), $(eval $(call FW_TEMPLATE,$(board),$($(board)_fri
 $(foreach board, $(BL_BOARDS), $(eval $(call BL_TEMPLATE,$(board),$($(board)_cpuarch),$($(board)_short))))
 
 # Expand the entire-flash rules
-$(foreach board, $(EF_BOARDS), $(eval $(call EF_TEMPLATE,$(board),$($(board)_friendly),$($(board)_short),$($(board)_bootloader))))
+$(foreach board, $(filter-out radix omnibusf4sd,$(EF_BOARDS)), $(eval $(call EF_TEMPLATE,$(board),$($(board)_friendly),$($(board)_short),$($(board)_bootloader))))
 
 # Expand the upgrader rules
 $(foreach board, $(UP_BOARDS), $(eval $(call UP_TEMPLATE,$(board),$($(board)_cpuarch),$($(board)_short))))

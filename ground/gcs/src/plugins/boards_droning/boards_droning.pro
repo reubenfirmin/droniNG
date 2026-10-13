@@ -12,6 +12,7 @@ QT += svg
 OTHER_FILES += Droning.pluginspec
 
 HEADERS += \
+    importedboard.h \
     droningplugin.h \
     simulation.h \
     simulationconfiguration.h \
@@ -24,6 +25,7 @@ HEADERS += \
     sprf3econfiguration.h
 
 SOURCES += \
+    importedboard.cpp \
     droningplugin.cpp \
     simulation.cpp \
     simulationconfiguration.cpp \

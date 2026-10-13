@@ -132,6 +132,7 @@ static int32_t PIOS_MPU_Mag_Probe(void);
  * @returns 0 for valid device or -1 otherwise
  */
 static int32_t PIOS_MPU_Validate(struct pios_mpu_dev *dev);
+static int32_t PIOS_MPU_WriteRegVerify(uint8_t reg, uint8_t value);
 /**
  * @brief Resets and preps the MPU gyro & accel registers
  * @return 0 if successful
@@ -321,24 +322,28 @@ static int32_t PIOS_MPU_Config(struct pios_mpu_cfg const *cfg)
 {
 	// Digital low-pass filter and scale
 	// set this before sample rate else sample rate calculation will fail
-	PIOS_MPU_SetGyroBandwidth(184);
-	PIOS_MPU_SetAccelBandwidth(184);
+	if (PIOS_MPU_SetGyroBandwidth(184) || PIOS_MPU_SetAccelBandwidth(184))
+		return -PIOS_MPU_ERROR_WRITEFAILED;
 
 	// Sample rate
 	if (PIOS_MPU_SetSampleRate(cfg->default_samplerate) != 0)
 		return -PIOS_MPU_ERROR_SAMPLERATE;
 
 	// Set the gyro scale
-	PIOS_MPU_SetGyroRange(PIOS_MPU_SCALE_1000_DEG);
+	if (PIOS_MPU_SetGyroRange(PIOS_MPU_SCALE_1000_DEG))
+		return -PIOS_MPU_ERROR_WRITEFAILED;
 
 	// Set the accel scale
-	PIOS_MPU_SetAccelRange(PIOS_MPU_SCALE_8G);
+	if (PIOS_MPU_SetAccelRange(PIOS_MPU_SCALE_8G))
+		return -PIOS_MPU_ERROR_WRITEFAILED;
 
 	// Interrupt configuration
-	PIOS_MPU_WriteReg(PIOS_MPU_INT_CFG_REG, PIOS_MPU_INT_CLR_ANYRD);
+	if (PIOS_MPU_WriteRegVerify(PIOS_MPU_INT_CFG_REG, PIOS_MPU_INT_CLR_ANYRD))
+		return -PIOS_MPU_ERROR_WRITEFAILED;
 
 	// Interrupt enable
-	PIOS_MPU_WriteReg(PIOS_MPU_INT_EN_REG, PIOS_MPU_INTEN_DATA_RDY);
+	if (PIOS_MPU_WriteRegVerify(PIOS_MPU_INT_EN_REG, PIOS_MPU_INTEN_DATA_RDY))
+		return -PIOS_MPU_ERROR_WRITEFAILED;
 
 	return 0;
 }
@@ -550,7 +555,7 @@ static int32_t PIOS_MPU_Common_Init(void)
  */
 int32_t PIOS_MPU_SetGyroRange(enum pios_mpu_gyro_range range)
 {
-	if (PIOS_MPU_WriteReg(PIOS_MPU_GYRO_CFG_REG, range) != 0)
+	if (PIOS_MPU_WriteRegVerify(PIOS_MPU_GYRO_CFG_REG, range) != 0)
 		return -PIOS_MPU_ERROR_WRITEFAILED;
 
 	switch (range) {
@@ -580,7 +585,7 @@ int32_t PIOS_MPU_SetGyroRange(enum pios_mpu_gyro_range range)
  */
 int32_t PIOS_MPU_SetAccelRange(enum pios_mpu_accel_range range)
 {
-	if (PIOS_MPU_WriteReg(PIOS_MPU_ACCEL_CFG_REG, range) != 0)
+	if (PIOS_MPU_WriteRegVerify(PIOS_MPU_ACCEL_CFG_REG, range) != 0)
 		return -PIOS_MPU_ERROR_WRITEFAILED;
 
 	mpu_dev->accel_range = range;
@@ -626,7 +631,7 @@ static float PIOS_MPU_GetAccelScale(void)
 	return 0;
 }
 
-void PIOS_MPU_SetGyroBandwidth(uint16_t bandwidth)
+int32_t PIOS_MPU_SetGyroBandwidth(uint16_t bandwidth)
 {
 	uint8_t filter;
 	// TODO: investigate 250/256 Hz (Fs=8 kHz, aliasing?)
@@ -678,19 +683,19 @@ void PIOS_MPU_SetGyroBandwidth(uint16_t bandwidth)
 #endif
 	}
 
-	PIOS_MPU_WriteReg(PIOS_MPU_DLPF_CFG_REG, filter);
+	return PIOS_MPU_WriteRegVerify(PIOS_MPU_DLPF_CFG_REG, filter);
 }
 
-void PIOS_MPU_SetAccelBandwidth(uint16_t bandwidth)
+int32_t PIOS_MPU_SetAccelBandwidth(uint16_t bandwidth)
 {
 	if (mpu_dev->mpu_type != PIOS_MPU6500   && 
 		mpu_dev->mpu_type != PIOS_MPU9250   && 
 		mpu_dev->mpu_type != PIOS_ICM20608G &&
 		mpu_dev->mpu_type != PIOS_ICM20602  &&
 		mpu_dev->mpu_type != PIOS_ICM20689)
-		return;
+		return 0;
 
-	enum pios_mpu6500_accel_filter filter;
+	uint8_t filter;
 	if (mpu_dev->mpu_type == PIOS_MPU6500 || mpu_dev->mpu_type == PIOS_MPU9250) {
 		if (bandwidth <= 5)
 			filter = PIOS_MPU6500_ACCEL_LOWPASS_5_HZ;
@@ -723,11 +728,12 @@ void PIOS_MPU_SetAccelBandwidth(uint16_t bandwidth)
 			filter = PIOS_ICM206XX_ACCEL_LOWPASS_420_HZ;
 	}
 
-	PIOS_MPU_WriteReg(PIOS_MPU_ACCEL_CFG2_REG, filter);
+	return PIOS_MPU_WriteRegVerify(PIOS_MPU_ACCEL_CFG2_REG, filter);
 }
 
 int32_t PIOS_MPU_SetSampleRate(uint16_t samplerate_hz)
 {
+	if (!samplerate_hz) return -PIOS_MPU_ERROR_SAMPLERATE;
 	// TODO: think about supporting >1 khz, aliasing/noise issues though..
 	uint16_t internal_rate = 1000;
 
@@ -748,7 +754,7 @@ int32_t PIOS_MPU_SetSampleRate(uint16_t samplerate_hz)
 	// calculate true sample rate
 	samplerate_hz = internal_rate / (1 + divisor);
 
-	int32_t retval = PIOS_MPU_WriteReg(PIOS_MPU_SMPLRT_DIV_REG, (uint8_t)divisor);
+	int32_t retval = PIOS_MPU_WriteRegVerify(PIOS_MPU_SMPLRT_DIV_REG, (uint8_t)divisor);
 
 	if (retval == 0) {
 		PIOS_SENSORS_SetSampleRate(PIOS_SENSOR_ACCEL, samplerate_hz);
@@ -895,8 +901,11 @@ static int32_t PIOS_MPU_ClaimBus(bool lowspeed)
 	if (PIOS_SPI_ClaimBus(mpu_dev->spi_driver_id) != 0)
 		return -2;
 
-	if (lowspeed)
-		PIOS_SPI_SetClockSpeed(mpu_dev->spi_driver_id, PIOS_MPU_SPI_LOW_SPEED);
+	if (!PIOS_SPI_SetClockSpeed(mpu_dev->spi_driver_id,
+			lowspeed ? PIOS_MPU_SPI_LOW_SPEED : PIOS_MPU_SPI_HIGH_SPEED)) {
+		PIOS_SPI_ReleaseBus(mpu_dev->spi_driver_id);
+		return -2;
+	}
 
 	PIOS_SPI_RC_PinSet(mpu_dev->spi_driver_id, mpu_dev->com_slave_addr, 0);
 
@@ -923,12 +932,13 @@ static int32_t PIOS_MPU_SPI_Read(uint8_t address, uint8_t *buffer)
 	if (PIOS_MPU_ClaimBus(true) != 0)
 		return -1;
 
-	PIOS_SPI_TransferByte(mpu_dev->spi_driver_id, 0x80 | address); // request byte
-	*buffer = PIOS_SPI_TransferByte(mpu_dev->spi_driver_id, 0);   // receive response
+	uint8_t tx[] = { 0x80 | address, 0 }, rx[2];
+	int32_t result = PIOS_SPI_TransferBlock(mpu_dev->spi_driver_id, tx, rx, sizeof(tx));
+	if (result >= 0) *buffer = rx[1];
 
 	PIOS_MPU_ReleaseBus(true);
 
-	return 0;
+	return result < 0 ? -1 : 0;
 }
 
 static int32_t PIOS_MPU_SPI_Write(uint8_t address, uint8_t buffer)
@@ -936,12 +946,12 @@ static int32_t PIOS_MPU_SPI_Write(uint8_t address, uint8_t buffer)
 	if (PIOS_MPU_ClaimBus(true) != 0)
 		return -1;
 
-	PIOS_SPI_TransferByte(mpu_dev->spi_driver_id, 0x7f & address);
-	PIOS_SPI_TransferByte(mpu_dev->spi_driver_id, buffer);
+	uint8_t tx[] = { 0x7f & address, buffer };
+	int32_t result = PIOS_SPI_TransferBlock(mpu_dev->spi_driver_id, tx, NULL, sizeof(tx));
 
 	PIOS_MPU_ReleaseBus(true);
 
-	return 0;
+	return result < 0 ? -1 : 0;
 }
 #endif // defined(PIOS_INCLUDE_SPI)
 
@@ -977,6 +987,14 @@ static int32_t PIOS_MPU_ReadReg(uint8_t reg)
 		return retval;
 	else
 		return data;
+}
+
+static int32_t PIOS_MPU_WriteRegVerify(uint8_t reg, uint8_t value)
+{
+	if (PIOS_MPU_WriteReg(reg, value)) return -PIOS_MPU_ERROR_WRITEFAILED;
+	int32_t actual = PIOS_MPU_ReadReg(reg);
+	if (actual < 0) return -PIOS_MPU_ERROR_READFAILED;
+	return actual == value ? 0 : -PIOS_MPU_ERROR_WRITEFAILED;
 }
 
 bool PIOS_MPU_IRQHandler(void)

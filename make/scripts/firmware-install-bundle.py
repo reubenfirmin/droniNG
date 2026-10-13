@@ -20,6 +20,14 @@ def board_layout(root, target):
 
 
 def image_manifest(root, build, target):
+    if target in ("radix", "omnibusf4sd"):
+        spec = importlib.util.spec_from_file_location("package_imported", root / "make/scripts/package-imported-board.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        manifest, image = module.manifest(build, target)
+        if (build / f"ef_{target}/ef_{target}.bin").read_bytes() != image:
+            raise ValueError(f"{target}: packaged image is stale")
+        return manifest
     layout = board_layout(root, target)
     image = (build / f"ef_{target}/ef_{target}.bin").read_bytes()
     firmware = (build / f"fw_{target}/fw_{target}.bin").read_bytes()
@@ -64,7 +72,13 @@ def bundle(root, build, runtime, targets):
     destination.mkdir(parents=True, exist_ok=True)
     for target in targets:
         manifest = image_manifest(root, build, target)
-        for kind, extension in (("ef", "hex"), ("ef", "bin"), ("fw", "tlfw")):
+        images = [("ef", "hex"), ("ef", "bin")]
+        if target in ("radix", "omnibusf4sd"):
+            # This container has reserved gaps and cannot use the legacy HID uploader.
+            (destination / f"fw_{target}.tlfw").unlink(missing_ok=True)
+        else:
+            images.append(("fw", "tlfw"))
+        for kind, extension in images:
             name = f"{kind}_{target}.{extension}"
             shutil.copy2(build / f"{kind}_{target}" / name, destination / name)
         (destination / f"ef_{target}.manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")

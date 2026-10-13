@@ -293,6 +293,8 @@ void ResetHandler(void) {
 
   /* CP10 and CP11 set to full access.*/
   SCB_CPACR |= 0x00F00000;
+  /* Make the access change visible before executing the first FP instruction.*/
+  asm volatile ("dsb\n\tisb" : : : "memory");
 
   /* FPSCR and FPDSCR initially zero.*/
   reg = 0;

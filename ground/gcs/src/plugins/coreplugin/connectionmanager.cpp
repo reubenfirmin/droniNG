@@ -29,6 +29,8 @@
 #include "connectionmanager.h"
 #include "modemanager.h"
 #include "imode.h"
+#include "firmwarecatalog.h"
+#include "firmwareinstallimage.h"
 #include <coreplugin/icore.h>
 #include <aggregation/aggregate.h>
 #include <coreplugin/iconnection.h>
@@ -51,6 +53,8 @@
 #include <QComboBox>
 #include <QEventLoop>
 #include <QMainWindow>
+#include <QDateTime>
+#include <QSettings>
 #include <alarmsmonitorwidget.h>
 
 namespace Core {
@@ -84,10 +88,9 @@ ConnectionManager::ConnectionManager(Internal::MainWindow *mainWindow, QTabWidge
 
     setLayout(layout);
 
-    // Keep telemetry and alarms in the flight workspaces. Firmware owns the
-    // connection controls; the internal selector also supports auto-reconnect.
-    modeStack->setCornerWidget(this, Qt::TopRightCorner);
-    hide();
+    // MainWindow places telemetry and alarms in the application footer.
+    // Firmware owns connection controls; the internal selector supports reconnect.
+    Q_UNUSED(modeStack);
 
     QObject::connect(m_connectBtn, SIGNAL(clicked()), this, SLOT(onConnectClicked()));
 
@@ -100,7 +103,9 @@ ConnectionManager::ConnectionManager(Internal::MainWindow *mainWindow, QTabWidge
 
 ConnectionManager::~ConnectionManager()
 {
-    disconnectDevice();
+    // MainWindow closes the connection before deleting Core. Avoid notifying
+    // surviving QML bindings again while its child widgets are being destroyed.
+    if (m_ioDev) disconnectDevice();
     suspendPolling();
     if (m_monitorWidget)
         delete m_monitorWidget;
@@ -108,11 +113,6 @@ ConnectionManager::~ConnectionManager()
 
 void ConnectionManager::init()
 {
-    if (auto *modes = ModeManager::instance()) {
-        connect(modes, &ModeManager::currentModeChanged, this, [this](IMode *mode) {
-            setVisible(mode && mode->name() != "Welcome" && mode->name() != "Firmware");
-        });
-    }
     // register to the plugin manager so we can receive
     // new connection object from plugins
     QObject::connect(ExtensionSystem::PluginManager::instance(), SIGNAL(objectAdded(QObject *)),
@@ -151,9 +151,59 @@ void ConnectionManager::telemetryConnectionFailed(const ConnectionError &error)
             .arg(info.manufacturer(), info.description());
     }
     m_firmwareError = diagnosis;
+    appendConnectionLog(diagnosis.message + (diagnosis.details.isEmpty() ? QString() : '\n' + diagnosis.details));
     m_firmwareDetecting = false;
     m_firmwareStatus = m_mspFirmwareDetected && m_firmwareVariant != "DRON"
         ? tr("Install DroniNG to load flight data.") : tr("Flight data unavailable");
+    if (!m_mspFirmwareDetected || m_firmwareVariant == "DRON") reportControllerProblem(diagnosis);
+    emit firmwareStateChanged();
+}
+
+void ConnectionManager::rememberController(DevListItem device)
+{
+    if (!device.device) return;
+    const QString path = device.device->usbTopologyPath();
+    const QString name = device.device->getDisplayName();
+    if (path != m_controllerRecovery.usbPath
+        || name.section(" - ", 0, 0) != m_controllerRecovery.deviceName.section(" - ", 0, 0))
+        m_controllerRecovery = {};
+    m_controllerRecovery.deviceName = name;
+    m_controllerRecovery.usbPath = path;
+    const auto &catalog = FirmwareCatalog::instance();
+    const auto pending = verifiedInstallation();
+    const auto product = catalog.board(name.section(" - ", 0, 0));
+    const auto installed = catalog.board(pending.boardId);
+    if (product.isValid() && installed.isValid() && product.target != installed.target)
+        m_controllerRecovery.boardId = product.id;
+    else if (!pending.boardId.isEmpty() && !path.isEmpty() && pending.usbPath == path)
+        m_controllerRecovery.boardId = pending.boardId;
+    else if (product.isValid()) m_controllerRecovery.boardId = product.id;
+}
+
+void ConnectionManager::reportControllerProblem(const ConnectionError &error)
+{
+    const auto pending = verifiedInstallation();
+    if (m_controllerRecovery.deviceName.isEmpty() && !pending.boardId.isEmpty()) {
+        m_controllerRecovery.boardId = pending.boardId;
+        m_controllerRecovery.usbPath = pending.usbPath;
+        m_controllerRecovery.deviceName = FirmwareCatalog::instance().board(pending.boardId).name;
+    }
+    m_controllerRecovery.problem = error;
+    m_firmwareError = error;
+    m_firmwareDetecting = false;
+    m_firmwareStatus = tr("Controller needs attention");
+    if (!m_controllerRecovery.usbPath.isEmpty()) {
+        m_startupFailurePath = m_controllerRecovery.usbPath;
+        m_blockedUsbPaths.insert(m_controllerRecovery.usbPath);
+    }
+    emit firmwareStateChanged();
+}
+
+void ConnectionManager::clearControllerRecovery()
+{
+    m_controllerRecovery = {};
+    m_startupFailurePath.clear();
+    m_firmwareError = {};
     emit firmwareStateChanged();
 }
 
@@ -172,15 +222,29 @@ void ConnectionManager::setFirmwareIdentity(const QString &variant, const QStrin
     m_detectedFirmware = family + (version.isEmpty() ? QString() : " " + version);
     m_detectedBoard = boardTarget;
     m_detectedBootloader.clear();
+    const auto candidates = FirmwareCatalog::instance().candidatesForMspTarget(boardTarget);
+    if (mspDetected && candidates.size() == 1
+        && (boardTarget != "RADI" || m_controllerRecovery.boardId == candidates.first().id))
+        m_controllerRecovery.boardId = candidates.first().id;
+    if (!m_detectedFirmware.isEmpty())
+        appendConnectionLog(tr("Detected firmware: %1%2").arg(m_detectedFirmware,
+            boardTarget.isEmpty() ? QString() : tr("; board target: %1").arg(boardTarget)));
     emit firmwareStateChanged();
 }
 
 void ConnectionManager::setNativeFirmwareIdentity(const QString &board, const QString &firmware,
                                                   const QString &bootloader)
 {
+    QStringList detected;
+    if (!board.isEmpty() && board != m_detectedBoard) detected << tr("Board: %1").arg(board);
+    if (!firmware.isEmpty() && firmware != m_detectedFirmware) detected << tr("Firmware: %1").arg(firmware);
+    if (!bootloader.isEmpty() && bootloader != m_detectedBootloader) detected << tr("Bootloader: %1").arg(bootloader);
     if (!board.isEmpty()) m_detectedBoard = board;
+    const auto profile = FirmwareCatalog::instance().board(board);
+    if (profile.isValid()) m_controllerRecovery.boardId = profile.id;
     if (!firmware.isEmpty()) m_detectedFirmware = firmware;
     if (!bootloader.isEmpty()) m_detectedBootloader = bootloader;
+    if (!detected.isEmpty()) appendConnectionLog(detected.join("; "));
     emit firmwareStateChanged();
 }
 
@@ -190,11 +254,13 @@ void ConnectionManager::setFirmwareStatus(const QString &message)
         && m_firmwareError.details.isEmpty() && m_firmwareError.command.isEmpty()) return;
     m_firmwareStatus = message;
     m_firmwareError = {};
+    if (isConnected() || m_firmwareInstalling || !m_detectedBootloader.isEmpty()) appendConnectionLog(message);
     emit firmwareStateChanged();
 }
 
 void ConnectionManager::setFirmwareDetectionActive(bool active)
 {
+    if (active && !m_controllerRecovery.problem.message.isEmpty()) return;
     if (m_firmwareDetecting == active) return;
     m_firmwareDetecting = active;
     emit firmwareStateChanged();
@@ -218,17 +284,79 @@ void ConnectionManager::beginFirmwareInstallation()
 void ConnectionManager::endFirmwareInstallation()
 {
     m_firmwareInstalling = false;
+    if (!isConnected() && m_controllerRecovery.problem.message.isEmpty() && m_startupFailurePath.isEmpty()) {
+        setFirmwareIdentity({}, {});
+        setFirmwareStatus(tr("Connect a controller to detect its board and firmware."));
+    }
     emit firmwareStateChanged();
     resumePolling();
 }
 
 void ConnectionManager::reportFirmwareDescription(const QByteArray &description)
 {
+    m_receivedDescriptor = description;
+    confirmVerifiedInstallation();
     emit firmwareDescriptionReceived(description);
+    emit firmwareStateChanged();
+}
+
+VerifiedInstallation ConnectionManager::verifiedInstallation() const
+{
+    auto *settings = ICore::instance()->settings();
+    VerifiedInstallation result{settings->value("FirmwareInstallation/board").toString(),
+        settings->value("FirmwareInstallation/usbPath").toString(),
+        settings->value("FirmwareInstallation/log").toString(),
+        QByteArray::fromHex(settings->value("FirmwareInstallation/descriptor").toByteArray())};
+    if (!FirmwareCatalog::instance().board(result.boardId).isValid() || result.descriptor.size() != 100)
+        return {};
+    return result;
+}
+
+void ConnectionManager::recordVerifiedInstallation(const QString &boardId, const QString &usbPath,
+                                                  const QByteArray &descriptor, const QString &log)
+{
+    if (!FirmwareCatalog::instance().board(boardId).isValid() || descriptor.size() != 100) return;
+    auto *settings = ICore::instance()->settings();
+    settings->setValue("FirmwareInstallation/board", boardId);
+    settings->setValue("FirmwareInstallation/usbPath", usbPath);
+    settings->setValue("FirmwareInstallation/descriptor", descriptor.toHex());
+    settings->setValue("FirmwareInstallation/log", log);
+    settings->sync();
+    emit firmwareStateChanged();
+}
+
+void ConnectionManager::clearVerifiedInstallation()
+{
+    auto *settings = ICore::instance()->settings();
+    settings->remove("FirmwareInstallation");
+    settings->sync();
+    emit firmwareStateChanged();
+}
+
+void ConnectionManager::reportFirmwareProfile(int schema, const QString &profile, const QString &layout, const QByteArray &hash)
+{
+    const auto pending = verifiedInstallation();
+    const auto board = FirmwareCatalog::instance().board(pending.boardId);
+    m_receivedMatchingProfile = schema == 1 && profile == pending.boardId && layout == board.layoutId
+        && hash == FirmwareInstallImage::importedProfileHash(pending.boardId);
+    confirmVerifiedInstallation();
+    emit firmwareProfileReceived(schema, profile, layout, hash);
+}
+
+void ConnectionManager::confirmVerifiedInstallation()
+{
+    const auto pending = verifiedInstallation();
+    if (pending.boardId.isEmpty() || !isConnected() || !m_flightDataAvailable
+        || !m_connectionDevice.device || m_connectionDevice.device->usbTopologyPath() != pending.usbPath
+        || m_receivedDescriptor != pending.descriptor) return;
+    if (!FirmwareCatalog::instance().board(pending.boardId).layoutId.isEmpty() && !m_receivedMatchingProfile) return;
+    clearVerifiedInstallation();
 }
 
 void ConnectionManager::telemetryHandshakeCompleted()
 {
+    if (!m_ioDev || !m_controllerRecovery.problem.message.isEmpty()) return;
+    appendConnectionLog(tr("UAVTalk handshake completed."));
     m_flightDataAvailable = false;
     setControllerSetupRequired(false);
     setFirmwareDetectionActive(true);
@@ -239,9 +367,13 @@ void ConnectionManager::telemetryHandshakeCompleted()
 
 void ConnectionManager::reportFlightDataReceived()
 {
+    m_controllerRecovery.problem = {};
+    if (m_connectionDevice.device)
+        resetAutomaticConnectionFailures(m_connectionDevice.device->usbTopologyPath());
     m_flightDataAvailable = true;
     setFirmwareDetectionActive(false);
     setFirmwareStatus(tr("Connected. The controller is sending flight data."));
+    confirmVerifiedInstallation();
     emit flightDataReady();
 }
 
@@ -263,13 +395,72 @@ void ConnectionManager::requestControllerSetup()
  */
 bool ConnectionManager::connectDevice(DevListItem device)
 {
+    if (device.device && !m_ioDev)
+        resetAutomaticConnectionFailures(device.device->usbTopologyPath());
+    return connectDeviceInternal(device, false);
+}
+
+bool ConnectionManager::automaticConnectionBlocked(const QString &usbPath) const
+{
+    return m_blockedUsbPaths.contains(usbPath);
+}
+
+void ConnectionManager::resetAutomaticConnectionFailures(const QString &usbPath)
+{
+    m_blockedUsbPaths.remove(usbPath);
+    m_installationOpenFailures.remove(usbPath);
+    if (m_startupFailurePath == usbPath) m_startupFailurePath.clear();
+}
+
+bool ConnectionManager::autoConnectDevice(DevListItem device)
+{
+    if (!device.device || automaticConnectionBlocked(device.device->usbTopologyPath())) return false;
+    if (!m_controllerRecovery.problem.message.isEmpty()
+        && (device.device->usbTopologyPath().isEmpty() || m_controllerRecovery.usbPath.isEmpty())
+        && device.device->getDisplayName().section(" - ", 0, 0)
+            == m_controllerRecovery.deviceName.section(" - ", 0, 0)) return false;
+    return connectDeviceInternal(device, true);
+}
+
+bool ConnectionManager::connectDeviceInternal(DevListItem device, bool automatic)
+{
+    if (!m_ioDev) {
+        rememberController(device);
+        m_controllerRecovery.problem = {};
+    }
+    m_startupFailurePath.clear();
     m_connectionError = {};
     const QString name = device.getConName();
-    const auto fail = [&](const ConnectionError &error) {
+    if (!m_ioDev) {
+        if (!automatic) m_connectionLog.clear();
+        appendConnectionLog(tr("Connecting to %1.").arg(name.isEmpty() ? tr("controller") : name));
+    }
+    const auto fail = [&](const ConnectionError &error, bool openingTransport = false) {
         m_connectionError = error;
         m_firmwareError = error;
+        const QString path = device.device ? device.device->usbTopologyPath() : QString();
+        const auto pending = verifiedInstallation();
+        // DFU exit can enumerate HID before its node and udev permissions are
+        // ready. Retry only a bounded number of failed opens for this verified
+        // install; an opened transport resetting before telemetry still stops
+        // immediately in transportLost().
+        const bool settling = openingTransport && automatic && m_firmwareInstalling
+            && !path.isEmpty() && path == pending.usbPath
+            && !pending.boardId.isEmpty()
+            && ++m_installationOpenFailures[path] <= 6;
+        if (settling) {
+            m_firmwareStatus = tr("Waiting for the controller's USB connection…");
+            appendConnectionLog(tr("USB is reconnecting after installation. Retrying the connection…")
+                + (error.details.isEmpty() ? QString() : '\n' + error.details));
+            qInfo().noquote() << "Post-install USB open retry" << m_installationOpenFailures[path]
+                             << "of 6:" << error.details;
+            emit firmwareStateChanged();
+            return false;
+        }
         m_firmwareStatus = tr("Connection failed");
         m_firmwareDetecting = false;
+        if (!m_ioDev) reportControllerProblem(error);
+        appendConnectionLog(error.message + (error.details.isEmpty() ? QString() : '\n' + error.details));
         emit firmwareStateChanged();
         showFirmwarePage();
         qWarning().noquote() << QString("Connection failed for %1: %2")
@@ -299,7 +490,7 @@ bool ConnectionManager::connectDevice(DevListItem device)
         if (device.connection->shortName() == "USB")
             error.message.append(tr(" Check that the USB access rules are installed."));
 #endif
-        return fail(error);
+        return fail(error, true);
     }
 
     // Serial plugins configure and open their device before returning it.
@@ -307,9 +498,9 @@ bool ConnectionManager::connectDevice(DevListItem device)
         || !io_dev->isReadable() || !io_dev->isWritable()) {
         const QString detail = io_dev->errorString();
         device.connection->closeDevice(name);
-        return fail({tr("DroniNG couldn't access this controller. "
-                        "Close any other apps using it, then try connecting again."), {},
-                     tr("The device could not be opened for reading and writing: %1").arg(detail)});
+        return fail({tr("The controller connection could not be opened. "
+                        "Reconnect the controller to the same port, then retry the connection."), {},
+                     tr("The device could not be opened for reading and writing: %1").arg(detail)}, true);
     }
 
     // The device is connected make it the one selected on the dropbox
@@ -321,6 +512,7 @@ bool ConnectionManager::connectDevice(DevListItem device)
     // remember the connection/device details
     m_connectionDevice = device;
     m_ioDev = io_dev;
+    appendConnectionLog(tr("Transport opened. Waiting for the UAVTalk handshake."));
     setFirmwareStatus(tr("Detecting board and firmware…"));
     qInfo().noquote() << "Transport opened for" << name << "- waiting for the UAVTalk handshake";
 
@@ -331,7 +523,14 @@ bool ConnectionManager::connectDevice(DevListItem device)
         if (generation != m_connectionGeneration)
             return;
         m_connectionDevice.connection = nullptr;
-        disconnectDevice();
+        transportLost();
+    }, Qt::QueuedConnection);
+    m_transportDisconnected = connect(device.connection, &IConnection::transportDisconnected, this,
+                                      [this, generation](IConnection *) {
+        if (generation == m_connectionGeneration) transportLost();
+    });
+    m_deviceClosed = connect(io_dev, &QIODevice::aboutToClose, this, [this, generation] {
+        if (generation == m_connectionGeneration) transportLost();
     }, Qt::QueuedConnection);
 
     // signal interested plugins that we connected to the device
@@ -346,17 +545,43 @@ bool ConnectionManager::connectDevice(DevListItem device)
     return true;
 }
 
+void ConnectionManager::transportLost()
+{
+    if (!m_ioDev) return;
+    const QString path = m_connectionDevice.device ? m_connectionDevice.device->usbTopologyPath() : m_controllerRecovery.usbPath;
+    const bool startupInterrupted = !m_flightDataAvailable;
+    const auto transportError = m_connectionDevice.connection ? m_connectionDevice.connection->transportError() : ConnectionError{};
+    const bool failedTransport = !transportError.message.isEmpty();
+    if (failedTransport) {
+        reportControllerProblem(transportError);
+        appendConnectionLog(transportError.message + '\n' + transportError.details);
+        qWarning().noquote() << transportError.details;
+    } else if (startupInterrupted) {
+        const QString detail = tr("%1 disconnected before live data was ready.%2")
+            .arg(m_controllerRecovery.deviceName, path.isEmpty() ? QString() : tr(" USB path: %1.").arg(path));
+        reportControllerProblem({tr("The controller disconnected before it could send live data. "
+            "Automatic retries have stopped. Disconnect USB and the flight battery, then reconnect USB to the same port. "
+            "Retry the connection, or reinstall the firmware below."), {}, detail});
+        appendConnectionLog(m_firmwareError.message + '\n' + detail);
+        qWarning().noquote() << detail;
+    }
+    disconnectDevice();
+    if (startupInterrupted || failedTransport) showFirmwarePage();
+}
+
 /**
  *   Method called by plugins who want to force a disconnection.
  *   Used by Uploader gadget for instance.
  */
 bool ConnectionManager::disconnectDevice()
 {
+    if (m_ioDev) appendConnectionLog(tr("Disconnected from %1.").arg(m_connectionDevice.getConName()));
     m_flightDataAvailable = false;
+    m_receivedDescriptor.clear(); m_receivedMatchingProfile = false;
     setControllerSetupRequired(false);
     setFirmwareDetectionActive(false);
-    if (!m_firmwareInstalling) {
-        setFirmwareIdentity({}, {});
+    setFirmwareIdentity({}, {});
+    if (!m_firmwareInstalling && m_controllerRecovery.problem.message.isEmpty() && m_startupFailurePath.isEmpty()) {
         setFirmwareStatus(tr("Connect a controller to detect its board and firmware."));
     }
     // tell the monitor widget we're disconnected
@@ -372,6 +597,8 @@ bool ConnectionManager::disconnectDevice()
     // We are connected - disconnect from the device
     ++m_connectionGeneration;
     QObject::disconnect(m_connectionDestroyed);
+    QObject::disconnect(m_transportDisconnected);
+    QObject::disconnect(m_deviceClosed);
 
     // stop our timers
     if (reconnect->isActive())
@@ -397,7 +624,7 @@ bool ConnectionManager::disconnectDevice()
     emit deviceDisconnected();
     m_connectBtn->setText("Connect");
     m_connectBtn->setToolTip(QString());
-    m_availableDevList->setEnabled(true);
+    m_availableDevList->setEnabled(polling);
 
     return true;
 }
@@ -441,6 +668,9 @@ void ConnectionManager::aboutToRemoveObject(QObject *obj)
 
     if (m_connectionsList.contains(connection))
         m_connectionsList.removeAt(m_connectionsList.indexOf(connection));
+    m_devList.removeIf([connection](const DevListItem &item) { return item.connection == connection; });
+    updateConnectionDropdown();
+    emit availableDevicesChanged(m_devList);
 }
 
 /**
@@ -466,6 +696,7 @@ void ConnectionManager::onConnectClicked()
  */
 void ConnectionManager::telemetryConnected()
 {
+    appendConnectionLog(tr("Controller data retrieved."));
     // Object retrieval completes after the handshake. Preserve live data and
     // board identity already received during retrieval.
     m_connectBtn->setToolTip(m_flightDataAvailable ? tr("Flight data is connected.")
@@ -510,6 +741,16 @@ void ConnectionManager::telemetryDisconnected()
 void ConnectionManager::telemetryUpdated(double txRate, double rxRate)
 {
     m_monitorWidget->updateTelemetry(txRate, rxRate);
+}
+
+void ConnectionManager::appendConnectionLog(const QString &message)
+{
+    if (message.trimmed().isEmpty()) return;
+    const QString entry = QDateTime::currentDateTime().toString("HH:mm:ss") + "  " + message;
+    if (!m_connectionLog.isEmpty() && m_connectionLog.last().mid(10) == message) return;
+    m_connectionLog.append(entry);
+    while (m_connectionLog.size() > 200) m_connectionLog.removeFirst();
+    emit connectionLogChanged();
 }
 
 void ConnectionManager::reconnectSlot()
@@ -577,7 +818,7 @@ void ConnectionManager::resumePolling()
     }
 
     m_connectBtn->setEnabled(true);
-    m_availableDevList->setEnabled(true);
+    m_availableDevList->setEnabled(!isConnected());
     polling = true;
 }
 
@@ -614,7 +855,7 @@ void ConnectionManager::updateConnectionList(IConnection *connection)
             // we are currently using the one we are about to erase
             if (m_connectionDevice.connection && m_connectionDevice.connection == connection
                 && m_connectionDevice.device == iter->device) {
-                disconnectDevice();
+                transportLost();
             }
 
             // We have to delete the IDevice in that DevListItem before getting rid
@@ -697,9 +938,7 @@ void ConnectionManager::updateConnectionDropdown()
                 m_availableDevList->setCurrentIndex(m_availableDevList->count() - 1);
 
             if (m_mainWindow->generalSettings()->autoConnect() && polling && !m_firmwareInstalling) {
-                qDebug() << "Automatically opening device";
-                connectDevice(d);
-                qDebug() << "ConnectionManager::devChanged autoconnected USB device";
+                if (autoConnectDevice(d)) qDebug() << "Automatically connected USB device";
             }
         }
     }

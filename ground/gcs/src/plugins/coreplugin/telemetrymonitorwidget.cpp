@@ -34,8 +34,8 @@
 TelemetryMonitorWidget::TelemetryMonitorWidget(QWidget *parent)
     : QGraphicsView(parent)
 {
-    setMinimumSize(200, parent->height());
-    setMaximumSize(200, parent->height());
+    setFixedSize(220, 40);
+    setAccessibleName(tr("Telemetry TX/RX and alerts"));
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);

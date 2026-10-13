@@ -47,7 +47,7 @@
 #include <QtCore/QDebug>
 
 #include <QtQuick>
-#include <QQuickView>
+#include <QQuickWidget>
 #include <QQmlEngine>
 #include <QQmlContext>
 
@@ -62,7 +62,7 @@ struct WelcomeModePrivate
 {
     WelcomeModePrivate();
 
-    QQuickView *quickView;
+    QQuickWidget *quickView;
 };
 
 WelcomeModePrivate::WelcomeModePrivate()
@@ -77,8 +77,10 @@ WelcomeMode::WelcomeMode(QString instUUID)
     : m_d(new WelcomeModePrivate)
     , m_priority(Core::Constants::P_MODE_WELCOME)
 {
-    m_d->quickView = new QQuickView;
-    m_d->quickView->setResizeMode(QQuickView::SizeRootObjectToView);
+    m_d->quickView = new QQuickWidget;
+    m_d->quickView->setResizeMode(QQuickWidget::SizeRootObjectToView);
+    m_d->quickView->setMinimumSize(64, 64);
+    m_d->quickView->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
     auto *connections = Core::ICore::instance()->connectionManager();
     connect(connections, &Core::ConnectionManager::deviceConnected, this, &WelcomeMode::controllerStateChanged);
     connect(connections, &Core::ConnectionManager::deviceDisconnected, this, &WelcomeMode::controllerStateChanged);
@@ -93,7 +95,6 @@ WelcomeMode::WelcomeMode(QString instUUID)
 
     QString fn = Utils::PathUtils().InsertDataPath(QString("%%DATAPATH%%/welcome/main.qml"));
     m_d->quickView->setSource(QUrl::fromLocalFile(fn));
-    m_container = NULL;
 
     connect(Core::ModeManager::instance(), &Core::ModeManager::modesChanged, this,
             &WelcomeMode::modesChanged);
@@ -123,12 +124,7 @@ int WelcomeMode::priority() const
 
 QWidget *WelcomeMode::widget()
 {
-    if (!m_container) {
-        m_container = QWidget::createWindowContainer(m_d->quickView);
-        m_container->setMinimumSize(64, 64);
-        m_container->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
-    }
-    return m_container;
+    return m_d->quickView;
 }
 
 const char *WelcomeMode::uniqueModeName() const

@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
-SURVEY = ROOT / "flight/PiOS/Betaflight"
+SURVEY = ROOT / "flight/Betaflight"
 
 
 def main():

@@ -40,6 +40,8 @@ struct pios_re1fpga_cfg {
 	struct stm32_gpio rst_pin; /* pin used to reset FPGA */
 	struct stm32_gpio cdone_pin; /* configuration done pin */
 	struct stm32_gpio cresetb_pin; /* configuration reset pin */
+	uint32_t spi_hz; /* zero retains the dedicated RE1 bus speed */
+	uint8_t sync_threshold; /* zero uses the RE1 default */
 };
 
 enum pios_re1fpga_led_colors {

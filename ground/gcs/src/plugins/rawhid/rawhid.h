@@ -35,6 +35,8 @@
 #include <QMutex>
 #include <QThread>
 #include <QWaitCondition>
+#include <atomic>
+#include <functional>
 
 #include <coreplugin/iconnection.h>
 
@@ -49,6 +51,16 @@
 #define RAW_HID_QXTLOG_DEBUG(...)
 #endif // RAW_HID_DEBUG
 
+// Keep the HID operations together so the transport can also be exercised with
+// deterministic device failures, without accessing a physical controller.
+struct RawHIDBackend
+{
+    std::function<hid_device *(const char *)> open;
+    std::function<int(hid_device *, unsigned char *, size_t, int)> read;
+    std::function<int(hid_device *, const unsigned char *, size_t)> write;
+    std::function<void(hid_device *)> close;
+};
+
 /**
 *   Thread to desynchronize reading from the device
 */
@@ -57,7 +69,7 @@ class RawHIDReadThread : public QThread
     Q_OBJECT
 
 public:
-    RawHIDReadThread(hid_device *device);
+    RawHIDReadThread(hid_device *device, const RawHIDBackend &backend);
     virtual ~RawHIDReadThread();
 
     /** Return the data read so far without waiting */
@@ -70,6 +82,7 @@ public:
 
 signals:
     void readyToRead();
+    void failed(const QString &details, int error);
 
 protected:
     void run();
@@ -83,7 +96,8 @@ protected:
 
     hid_device *m_handle;
 
-    bool m_running;
+    const RawHIDBackend &m_backend;
+    std::atomic_bool m_running;
 };
 
 // *********************************************************************************
@@ -96,7 +110,7 @@ class RawHIDWriteThread : public QThread
     Q_OBJECT
 
 public:
-    RawHIDWriteThread(hid_device *device);
+    RawHIDWriteThread(hid_device *device, const RawHIDBackend &backend);
     virtual ~RawHIDWriteThread();
 
     /** Add some data to be written without waiting */
@@ -106,6 +120,10 @@ public:
     qint64 getBytesToWrite();
 
     void stop();
+
+signals:
+    void dataWritten(qint64 bytes);
+    void failed(const QString &details, int error);
 
 protected:
     void run();
@@ -122,7 +140,8 @@ protected:
 
     hid_device *m_handle;
 
-    bool m_running;
+    const RawHIDBackend &m_backend;
+    std::atomic_bool m_running;
 };
 
 // *********************************************************************************
@@ -138,14 +157,20 @@ class RAWHID_EXPORT RawHID : public QIODevice
 public:
     RawHID() = delete;
     RawHID(USBDevice *deviceName);
+    RawHID(USBDevice *deviceName, const RawHIDBackend &backend);
     virtual ~RawHID();
 
     virtual bool open(OpenMode mode);
     virtual void close();
     virtual bool isSequential() const;
 
-private slots:
-    void sendReadyRead();
+signals:
+    void transportFailed(const QString &details, int error);
+
+private:
+    void workerFailed(const QString &details, int error);
+    RawHIDBackend m_backend;
+    quint64 m_generation = 0;
 
 protected:
     virtual qint64 readData(char *data, qint64 maxSize);

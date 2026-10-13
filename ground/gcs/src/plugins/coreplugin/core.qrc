@@ -1,6 +1,18 @@
 <RCC>
     <qresource prefix="/core">
+        <file>images/navigation-home.svg</file>
+        <file>images/navigation-map.svg</file>
+        <file>images/navigation-advanced.svg</file>
+        <file>images/navigation-menu.svg</file>
+        <file>images/navigation-exit.svg</file>
+        <file>images/navigation-configuration.svg</file>
+        <file>images/navigation-system.svg</file>
+        <file>images/navigation-firmware.svg</file>
         <file alias="firmware/board-catalog.json">../../../../../shared/firmware/board-catalog.json</file>
+        <file alias="firmware/profiles/radix.json">../../../../../shared/firmware/profiles/radix.json</file>
+        <file alias="firmware/profiles/omnibusf4sd.json">../../../../../shared/firmware/profiles/omnibusf4sd.json</file>
+        <file alias="firmware/omnibusf4sd-source-manifest.json">../../../../../flight/Betaflight/omnibusf4sd-source-manifest.json</file>
+        <file alias="firmware/radix-source-manifest.json">../../../../../flight/Betaflight/radix-source-manifest.json</file>
         <file>images/clean_pane_small.png</file>
         <file>images/clear.png</file>
         <file>images/closebutton.png</file>

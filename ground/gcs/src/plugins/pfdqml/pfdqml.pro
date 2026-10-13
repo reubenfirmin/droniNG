@@ -2,7 +2,7 @@ TEMPLATE = lib
 TARGET = PfdQml
 QT += svg
 QT += qml
-QT += quick
+QT += quick quickwidgets
 
 include(../../gcsplugin.pri)
 

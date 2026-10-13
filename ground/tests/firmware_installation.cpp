@@ -1,11 +1,13 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include <coreplugin/dfuinstaller.h>
+#include <coreplugin/betaflightbootcontroller.h>
 #include <uploader/firmwarebootcontroller.h>
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QSignalSpy>
 #include <QTest>
 #include <QTimer>
@@ -62,12 +64,16 @@ static QString listing(const QString &path = "1-3", const QString &layout = "@In
 {
     return QString("Found DFU: [0483:df11] ver=2200, devnum=8, cfg=1, intf=0, path=\"%1\", alt=0, name=\"%2\", serial=\"1234ABCD\"\n").arg(path, layout);
 }
+static QString radixListing()
+{ return listing("1-3", "@Internal Flash /0x08000000/04*016Kg,01*064Kg,03*128Kg"); }
 
 class FakeRunner : public DfuCommandRunner {
 public:
     QString discovery = listing(), secondDiscovery, usbDescription;
     QList<QStringList> commands;
     QByteArray written;
+    QByteArray flash = QByteArray(1048576, char(0x5a));
+    QList<QPair<quint32, QByteArray>> writes;
     int listCount = 0;
     bool corruptRead = false, shortRead = false, writeFailure = false, leaveFailure = false;
     QStringList writeProgress, readProgress;
@@ -82,10 +88,18 @@ public:
             QFile file(arguments[arguments.indexOf("-D") + 1]);
             QVERIFY(file.open(QIODevice::ReadOnly)); written = file.readAll();
             code = writeFailure ? 1 : 0;
+            const quint32 address = arguments[arguments.indexOf("-s") + 1].section(':', 0, 0).toUInt(nullptr, 0);
+            QVERIFY(address >= 0x08000000);
+            const quint32 offset = address - 0x08000000;
+            QVERIFY(offset + written.size() <= flash.size());
+            if (!writeFailure) { flash.replace(offset, written.size(), written); writes.append({offset, written}); }
         } else if (arguments.contains("-U")) {
             const bool leaving = arguments.join(' ').contains(":leave");
             if (!leaving) for (const auto &chunk : readProgress) emit this->output(chunk);
-            QByteArray bytes = leaving ? written.left(1) : written;
+            const auto range = arguments[arguments.indexOf("-s") + 1].split(':');
+            const quint32 address = range[0].toUInt(nullptr, 0);
+            const int size = range[1].toInt();
+            QByteArray bytes = flash.mid(address - 0x08000000, size);
             if (!leaving && corruptRead) bytes[20] = char(bytes[20] ^ 1);
             if (!leaving && shortRead) bytes.chop(1);
             QFile file(arguments[arguments.indexOf("-U") + 1]);
@@ -114,9 +128,244 @@ public:
     bool start() override { ++startCount; return starts; }
 };
 
+class BetaflightDevice final : public QIODevice {
+public:
+    QByteArray incoming;
+    QList<QByteArray> writes;
+    bool shortWrite = false, delayedWrite = false;
+    qint64 queued = 0;
+    BetaflightDevice() { open(QIODevice::ReadWrite); }
+    bool isSequential() const override { return true; }
+    qint64 bytesAvailable() const override { return incoming.size() + QIODevice::bytesAvailable(); }
+    qint64 bytesToWrite() const override { return queued; }
+    void feed(const QByteArray &bytes) { incoming += bytes; emit readyRead(); }
+    void reply(int command, const QByteArray &payload) {
+        QByteArray frame("$M>", 3); frame.append(char(payload.size())); frame.append(char(command)); frame += payload;
+        quint8 checksum = 0; for (int i = 3; i < frame.size(); ++i) checksum ^= quint8(frame[i]);
+        frame.append(char(checksum)); feed(frame);
+    }
+    void identity() {
+        reply(1, QByteArray::fromHex("000127")); reply(2, "BTFL"); reply(3, QByteArray::fromHex("030400"));
+        reply(4, QByteArray::fromHex("4f425344000002030b") + "OMNIBUSF4SD");
+        reply(119, QByteArray::fromHex("010500")); // ARM is bit 2, not bit 0.
+    }
+    void status(quint32 flags) {
+        QByteArray payload(11, 0); qToLittleEndian(flags, reinterpret_cast<uchar *>(payload.data() + 6)); reply(101, payload);
+    }
+protected:
+    qint64 readData(char *buffer, qint64 maximum) override {
+        const auto size = qMin(maximum, qint64(incoming.size())); memcpy(buffer, incoming.constData(), size);
+        incoming.remove(0, size); return size;
+    }
+    qint64 writeData(const char *buffer, qint64 size) override {
+        writes.append(QByteArray(buffer, size));
+        if (shortWrite) return -1;
+        if (delayedWrite) queued += size;
+        return size;
+    }
+};
+
 class FirmwareInstallationTests : public QObject {
     Q_OBJECT
 private slots:
+    void betaflightBootVerifiesIdentityDisarmedStateAndCli() {
+        BetaflightDevice device; BetaflightBootController boot; QSignalSpy finished(&boot, &BetaflightBootController::finished);
+        boot.start(&device); device.feed(QByteArray(5000, 'x'));
+        device.reply(4, "OBSD"); // Unrequested or malformed identity cannot skip verification.
+        QCOMPARE(device.writes.size(), 1); device.identity(); QCOMPARE(device.writes.size(), 6);
+        device.status(1); // Another flight mode is active; ARM is still clear.
+        QCOMPARE(device.writes.last(), QByteArray("#"));
+        device.feed("\r\n# "); QVERIFY(!device.writes.contains("bl\n"));
+        device.feed("\r\nEntering CLI Mode, type 'exit' to return, or 'help'\r\n");
+        device.feed("\r\n#"); QVERIFY(!device.writes.contains("bl\n"));
+        device.delayedWrite = true; device.feed(" "); QCOMPARE(device.writes.last(), QByteArray("bl\n"));
+        QCoreApplication::processEvents(); QCOMPARE(finished.size(), 0);
+        const auto sent = device.queued; device.queued = 0; emit device.bytesWritten(sent);
+        QCOMPARE(finished.size(), 1); QVERIFY(finished.first()[0].toBool());
+        device.feed("\r\nEntering CLI Mode\r\n# "); QCOMPARE(device.writes.count("bl\n"), 1);
+    }
+    void betaflightBootRejectsWrongIdentity_data() {
+        QTest::addColumn<int>("command"); QTest::addColumn<QByteArray>("payload");
+        QTest::newRow("API-major") << 1 << QByteArray::fromHex("000227");
+        QTest::newRow("firmware-family") << 2 << QByteArray("INAV");
+        QTest::newRow("unreviewed-version") << 3 << QByteArray::fromHex("040501");
+        QTest::newRow("other-Omnibus") << 4 << QByteArray::fromHex("4f4246340000");
+        QTest::newRow("truncated-board") << 4 << QByteArray("OBSD");
+        QTest::newRow("conflicting-target") << 4 << (QByteArray::fromHex("4f4253440000020309") + "OMNIBUSF4");
+        QTest::newRow("missing-ARM-mode") << 119 << QByteArray::fromHex("010203");
+        QTest::newRow("duplicate-ARM-mode") << 119 << QByteArray::fromHex("0000");
+        QTest::newRow("missing-status") << 101 << QByteArray(6, 0);
+        QByteArray armed(11, 0); armed[6] = 4;
+        QTest::newRow("armed") << 101 << armed;
+    }
+    void betaflightBootRejectsWrongIdentity() {
+        QFETCH(int, command); QFETCH(QByteArray, payload);
+        BetaflightDevice device; BetaflightBootController boot; QSignalSpy finished(&boot, &BetaflightBootController::finished);
+        boot.start(&device);
+        if (command != 1) device.reply(1, QByteArray::fromHex("000127"));
+        if (command > 2) device.reply(2, "BTFL");
+        if (command > 3) device.reply(3, QByteArray::fromHex("030400"));
+        if (command > 4) device.reply(4, QByteArray::fromHex("4f425344000002030b") + "OMNIBUSF4SD");
+        if (command == 101) device.reply(119, QByteArray::fromHex("010500"));
+        device.reply(command, payload);
+        QCOMPARE(finished.size(), 1); QVERIFY(!finished.first()[0].toBool());
+        QVERIFY(!device.writes.contains("#")); QVERIFY(!device.writes.contains("bl\n"));
+    }
+    void betaflightBootChecksumTimeoutCancelAndWriteFailure() {
+        BetaflightDevice device; BetaflightBootController boot; QSignalSpy finished(&boot, &BetaflightBootController::finished);
+        boot.start(&device, 25); device.feed(QByteArray::fromHex("244d3e030100012700"));
+        QCOMPARE(device.writes.size(), 1); QTRY_COMPARE(finished.size(), 1); QVERIFY(!finished.first()[0].toBool());
+        finished.clear(); boot.start(&device, 25); boot.cancel(); QTest::qWait(30); QVERIFY(finished.isEmpty());
+        device.shortWrite = true; boot.start(&device); QCOMPARE(finished.size(), 1); QVERIFY(!finished.first()[0].toBool());
+        QVERIFY(!device.writes.contains("#")); QVERIFY(!device.writes.contains("bl\n"));
+    }
+    void importedBuildBundle_data() {
+        QTest::addColumn<QString>("profile"); QTest::addColumn<int>("flashSize");
+        QTest::newRow("Radix-F446") << QString("radix") << 524288;
+        QTest::newRow("OmnibusF4SD-F405") << QString("omnibusf4sd") << 1048576;
+    }
+    void importedBuildBundle() {
+        QFETCH(QString, profile); QFETCH(int, flashSize);
+        const auto board = FirmwareCatalog::instance().board(profile);
+        const auto image = FirmwareInstallImage::load(board, QString(INSTALL_IMAGE_ROOT "/ef_%1.hex").arg(profile));
+        QVERIFY2(image.valid(), qPrintable(image.error));
+        QVERIFY(image.romBoot); QCOMPARE(image.bytes.size(), flashSize);
+        QCOMPARE(image.descriptor.mid(60, 20), FirmwareInstallImage::gcsUavoHash());
+        QCOMPARE(image.profileId, profile); QCOMPARE(image.layoutId, board.layoutId);
+        QCOMPARE(image.bytes.mid(49256, 32), FirmwareInstallImage::importedProfileHash(profile));
+        QCOMPARE(image.segments.size(), 3);
+        QCOMPARE(image.segments[0].offset, quint32(0)); QCOMPARE(image.segments[0].size, quint32(16384));
+        QCOMPARE(image.segments[1].offset, quint32(49152)); QCOMPARE(image.segments[1].size, quint32(16384));
+        QCOMPARE(image.segments[2].offset, quint32(131072)); QCOMPARE(image.segments[2].size, quint32(flashSize - 131072));
+    }
+    void importedWritesOnlyReviewedSectors_data() { importedBuildBundle_data(); }
+    void importedWritesOnlyReviewedSectors() {
+        QFETCH(QString, profile); QFETCH(int, flashSize);
+        const auto board = FirmwareCatalog::instance().board(profile);
+        const auto path = QString(INSTALL_IMAGE_ROOT "/ef_%1.hex").arg(profile);
+        const auto image = FirmwareInstallImage::load(board, path);
+        QVERIFY2(image.valid(), qPrintable(image.error));
+        FakeRunner runner; runner.discovery = flashSize == 524288 ? radixListing() : listing();
+        const auto before = runner.flash;
+        DfuInstaller installer(nullptr, &runner);
+        QSignalSpy nativeStart(&installer, &DfuInstaller::nativeFirmwareStartRequested);
+        installer.start(board, path, "1-3", "/bin/true");
+        QTRY_COMPARE(installer.stage(), DfuInstaller::Stage::AwaitingTelemetry);
+        QCOMPARE(runner.writes.size(), 3);
+        for (int i = 0; i < 3; ++i) {
+            QCOMPARE(runner.writes[i].first, image.segments[i].offset);
+            QCOMPARE(runner.writes[i].second, image.bytes.mid(image.segments[i].offset, image.segments[i].size));
+        }
+        QCOMPARE(runner.flash.mid(16384, 32768), before.mid(16384, 32768));
+        QCOMPARE(runner.flash.mid(65536, 65536), before.mid(65536, 65536));
+        int reads = 0;
+        for (const auto &command : runner.commands)
+            if (command.contains("-U") && !command.join(' ').contains(":leave")) ++reads;
+        QCOMPARE(reads, 3);
+        runner.discovery = ""; installer.startInstalledFirmware();
+        QTRY_VERIFY(!installer.startError().isEmpty());
+        QVERIFY(!installer.startError().contains("remove the BOOT"));
+        QCOMPARE(nativeStart.size(), 0); QCOMPARE(runner.writes.size(), 3);
+        installer.startupTimedOut();
+        QCOMPARE(installer.stage(), DfuInstaller::Stage::StartupFailed);
+        QVERIFY(installer.startError().contains("written and verified"));
+        installer.telemetryReceived(image.descriptor);
+        QCOMPARE(installer.stage(), DfuInstaller::Stage::AwaitingTelemetry);
+        installer.telemetryReceived(image.descriptor, 1, profile, board.layoutId, FirmwareInstallImage::importedProfileHash(profile));
+        QCOMPARE(installer.stage(), DfuInstaller::Stage::Complete);
+    }
+    void importedRejectsWrongRuntimeProfile_data() { importedBuildBundle_data(); }
+    void importedRejectsWrongRuntimeProfile() {
+        QFETCH(QString, profile); QFETCH(int, flashSize);
+        const auto board = FirmwareCatalog::instance().board(profile);
+        const auto path = QString(INSTALL_IMAGE_ROOT "/ef_%1.hex").arg(profile);
+        FakeRunner runner; runner.discovery = flashSize == 524288 ? radixListing() : listing(); DfuInstaller installer(nullptr, &runner);
+        installer.start(board, path, "1-3", "/bin/true");
+        QTRY_COMPARE(installer.stage(), DfuInstaller::Stage::AwaitingTelemetry);
+        const auto image = FirmwareInstallImage::load(board, path);
+        installer.telemetryReceived(image.descriptor, 1, profile == "radix" ? "omnibusf4sd" : "radix",
+            board.layoutId, FirmwareInstallImage::importedProfileHash(profile));
+        QCOMPARE(installer.stage(), DfuInstaller::Stage::Failed);
+    }
+    void importedRejectsUnsafePackage_data() {
+        QTest::addColumn<QString>("profile");
+        QTest::addColumn<QString>("damage");
+        for (const auto &profile : {"radix", "omnibusf4sd"})
+        for (const auto &name : {"layout", "profile", "settings-sector", "autotune-sector", "identity", "vector", "uavo", "hash"})
+            QTest::newRow(qPrintable(QString("%1-%2").arg(profile, name))) << QString(profile) << QString(name);
+    }
+    void importedRejectsUnsafePackage() {
+        QFETCH(QString, profile); QFETCH(QString, damage);
+        QTemporaryDir directory;
+        const QString name = "ef_" + profile;
+        for (const auto &suffix : {"hex", "bin", "manifest.json"})
+            QVERIFY(QFile::copy(QString(INSTALL_IMAGE_ROOT "/") + name + "." + suffix,
+                directory.filePath(name + "." + suffix)));
+        QFile file(directory.filePath(name + ".manifest.json"));
+        QVERIFY(file.open(QIODevice::ReadOnly)); auto manifest = QJsonDocument::fromJson(file.readAll()).object(); file.close();
+        QFile binary(directory.filePath(name + ".bin"));
+        QVERIFY(binary.open(QIODevice::ReadOnly)); auto bytes = binary.readAll(); binary.close();
+        if (damage == "layout") manifest["layoutId"] = "another-layout";
+        else if (damage == "profile") manifest["profileSha256"] = QString(64, '0');
+        else if (damage.endsWith("-sector")) {
+            auto regions = manifest["programSegments"].toArray();
+            auto region = regions[1].toObject(); region["offset"] = damage == "settings-sector" ? 16384 : 65536;
+            regions[1] = region; manifest["programSegments"] = regions;
+        } else {
+            const int descriptor = bytes.size() - 100;
+            int offset = damage == "identity" ? 49256 : damage == "vector" ? 4 : damage == "uavo" ? descriptor + 60 : 200000;
+            bytes[offset] ^= 1;
+            if (damage != "hash") {
+                // Retain valid outer integrity so semantic identity/vector validation is exercised.
+                const int size = manifest["firmware"].toObject()["size"].toInt();
+                const auto sha1 = QCryptographicHash::hash(bytes.left(size), QCryptographicHash::Sha1);
+                bytes.replace(descriptor + 40, 20, sha1);
+                auto firmware = manifest["firmware"].toObject(); firmware["sha1"] = QString::fromLatin1(sha1.toHex());
+                manifest["firmware"] = firmware;
+                auto image = manifest["image"].toObject();
+                image["sha256"] = QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+                manifest["image"] = image;
+            }
+        }
+        QVERIFY(file.open(QIODevice::WriteOnly)); file.write(QJsonDocument(manifest).toJson()); file.close();
+        QVERIFY(binary.open(QIODevice::WriteOnly)); binary.write(bytes); binary.close();
+        FakeRunner runner; DfuInstaller installer(nullptr, &runner);
+        installer.start(FirmwareCatalog::instance().board(profile), directory.filePath(name + ".hex"), {}, "/bin/true");
+        QCOMPARE(installer.stage(), DfuInstaller::Stage::Failed); QVERIFY(runner.commands.isEmpty());
+    }
+    void importedFailedVerificationStopsFurtherWrites_data() { importedBuildBundle_data(); }
+    void importedFailedVerificationStopsFurtherWrites() {
+        QFETCH(QString, profile); QFETCH(int, flashSize);
+        FakeRunner runner; runner.discovery = flashSize == 524288 ? radixListing() : listing(); runner.corruptRead = true; DfuInstaller installer(nullptr, &runner);
+        installer.start(FirmwareCatalog::instance().board(profile), QString(INSTALL_IMAGE_ROOT "/ef_%1.hex").arg(profile), "1-3", "/bin/true");
+        QTRY_COMPARE(installer.stage(), DfuInstaller::Stage::Failed);
+        QCOMPARE(runner.writes.size(), 1);
+        for (const auto &command : runner.commands) QVERIFY(!command.join(' ').contains(":leave"));
+    }
+    void radixRejectsDifferentEraseGeometry_data() {
+        QTest::addColumn<QString>("geometry");
+        QTest::newRow("1MiB-F405") << QString("@Internal Flash /0x08000000/04*016Kg,01*064Kg,07*128Kg");
+        QTest::newRow("64KiB-sectors-erase-settings") << QString("@Internal Flash /0x08000000/08*064Kg");
+        QTest::newRow("128KiB-sectors-erase-settings") << QString("@Internal Flash /0x08000000/04*128Kg");
+    }
+    void radixRejectsDifferentEraseGeometry() {
+        QFETCH(QString, geometry); FakeRunner runner; runner.discovery = listing("1-3", geometry);
+        DfuInstaller installer(nullptr, &runner);
+        installer.start(FirmwareCatalog::instance().board("radix"), INSTALL_IMAGE_ROOT "/ef_radix.hex", "1-3", "/bin/true");
+        QTRY_COMPARE(installer.stage(), DfuInstaller::Stage::Failed); QVERIFY(runner.writes.isEmpty());
+    }
+    void omnibusRejectsDifferentEraseGeometry_data() {
+        QTest::addColumn<QString>("geometry");
+        QTest::newRow("512KiB-F446") << QString("@Internal Flash /0x08000000/04*016Kg,01*064Kg,03*128Kg");
+        QTest::newRow("128KiB-sectors-erase-settings") << QString("@Internal Flash /0x08000000/08*128Kg");
+        QTest::newRow("read-only-identity-sector") << QString("@Internal Flash /0x08000000/03*016Kg,01*016Ka,01*064Kg,07*128Kg");
+    }
+    void omnibusRejectsDifferentEraseGeometry() {
+        QFETCH(QString, geometry); FakeRunner runner; runner.discovery = listing("1-3", geometry);
+        DfuInstaller installer(nullptr, &runner);
+        installer.start(FirmwareCatalog::instance().board("omnibusf4sd"), INSTALL_IMAGE_ROOT "/ef_omnibusf4sd.hex", "1-3", "/bin/true");
+        QTRY_COMPARE(installer.stage(), DfuInstaller::Stage::Failed); QVERIFY(runner.writes.isEmpty());
+    }
     void realBuildBundle() {
         const auto board = FirmwareCatalog::instance().board("hglrc-f4-v6pro");
         const auto image = FirmwareInstallImage::load(board, QString(INSTALL_IMAGE_ROOT "/ef_revolution.hex"));
@@ -139,9 +388,13 @@ private slots:
         installed.replace(14, 26, QByteArray(26, 0)); installed.replace(14, 10, "next-dirty");
         const QStringList roots{fixture.directory.path()};
         QCOMPARE(FirmwareCatalog::firmwareName(installed, roots), QString("DroniNG 1.0"));
-        for (int offset : {4, 12, 13, 40, 60}) {
+        auto otherCommit = installed; otherCommit[4] = char(quint8(otherCommit[4]) ^ 1);
+        QCOMPARE(FirmwareCatalog::firmwareName(otherCommit, roots), QString("DroniNG 1.0"));
+        QVERIFY(!FirmwareCatalog::matchingFirmwareDescriptor(otherCommit, roots).isEmpty());
+        for (int offset : {12, 13, 40, 60}) {
             auto changed = installed; changed[offset] = char(quint8(changed[offset]) ^ 1);
             QCOMPARE(FirmwareCatalog::firmwareName(changed, roots), QString("dRonin next-dirty"));
+            QVERIFY(FirmwareCatalog::matchingFirmwareDescriptor(changed, roots).isEmpty());
         }
         fixture.image[200] = char(quint8(fixture.image[200]) ^ 1); fixture.save();
         QCOMPARE(FirmwareCatalog::firmwareName(installed, roots), QString("dRonin next-dirty"));

@@ -4,14 +4,18 @@
 #include <coreplugin/modemanager.h>
 #include <coreplugin/imode.h>
 #include <coreplugin/firmwarecatalog.h>
+#include <coreplugin/firmwareinstallimage.h>
+#include <coreplugin/iboardtype.h>
 #include <coreplugin/firmwarepage.h>
 #include <coreplugin/firmwareinstallwidget.h>
 #include <coreplugin/dfuinstaller.h>
 #include <coreplugin/usbaccesssetup.h>
+#include <coreplugin/workspacelayout.h>
 #include <extensionsystem/iplugin.h>
 #include <extensionsystem/pluginmanager.h>
 #include <serialconnection/serialplugin.h>
 #include <rawhid/rawhidplugin.h>
+#include <rawhid/rawhid.h>
 #include <uavobjects/uavobjectsplugin.h>
 #include <uavtalk/telemetry.h>
 #include <uavtalk/telemetrymonitor.h>
@@ -26,10 +30,17 @@
 #include <attitudesettings.h>
 #include <actuatorsettings.h>
 #include <hwrevolution.h>
+#include <hwimported.h>
+#include <boardprofile.h>
 #include <utils/pathutils.h>
 #include <utils/darktheme.h>
+#include <tlmapcontrol/internals/core.h>
 #include <attitudeactual.h>
 #include <flighttelemetrystats.h>
+#include <systemalarms.h>
+#include <systemstats.h>
+#include <baroaltitude.h>
+#include <gpsposition.h>
 #include <QPluginLoader>
 #include <QAbstractItemView>
 #include <QClipboard>
@@ -45,16 +56,22 @@
 #include <QProgressBar>
 #include <QRegularExpression>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QScopeGuard>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include <QTest>
 #include <QToolButton>
 #include <QWizard>
 #include <cstring>
+#include <cmath>
 #include <memory>
 #include <functional>
 #include <algorithm>
+#include <atomic>
+#include <cerrno>
 
 Q_DECLARE_METATYPE(QFile::Permissions)
 
@@ -202,6 +219,11 @@ public:
         ExtensionSystem::PluginManager::instance()->removeObject(this);
     }
     QList<Core::IDevice *> availableDevices() override { return devices; }
+    void detachController()
+    {
+        devices.removeAll(device);
+        emit availableDevChanged(this);
+    }
     void attachController(bool candidate = true)
     {
         auto *attached = new Core::IDevice;
@@ -237,6 +259,38 @@ public:
             io->deleteLater();
             io = nullptr;
         }
+    }
+};
+
+class EnumeratedSerialConnection : public SerialConnection
+{
+public:
+    QList<Port> connectedPorts;
+    QPointer<TestDevice> io;
+    int closeCalls = 0;
+    EnumeratedSerialConnection() { ExtensionSystem::PluginManager::instance()->addObject(this); }
+    ~EnumeratedSerialConnection() override { ExtensionSystem::PluginManager::instance()->removeObject(this); }
+    void attach(const QString &description = "OmnibusF4", quint16 vendor = 0x0483, quint16 product = 0x5740)
+    { connectedPorts = {{"ttyACM0", "/dev/ttyACM0", description, "controller-serial", "1-3", vendor, product}}; }
+    QIODevice *openDevice(Core::IDevice *) override {
+        io = new TestDevice(this); io->open(QIODevice::ReadWrite); m_deviceOpened = true; return io;
+    }
+    void closeDevice(const QString &) override {
+        ++closeCalls; m_deviceOpened = false;
+        if (io) { io->close(); io->deleteLater(); io.clear(); }
+    }
+protected:
+    QList<Port> ports() const override { return connectedPorts; }
+};
+
+class HidTestInventory : public RawHIDConnection
+{
+public:
+    USBDevice *device;
+    HidTestInventory() {
+        USBPortInfo port{};
+        port.path = "/dev/test-hid"; port.serialNumber = "test-hid";
+        device = static_cast<USBDevice *>(devicesForPorts({port}).first());
     }
 };
 
@@ -336,11 +390,186 @@ private slots:
     void cleanup()
     {
         manager->disconnectDevice();
+        manager->resetAutomaticConnectionFailures(manager->controllerRecovery().usbPath);
+        manager->clearControllerRecovery();
+        manager->clearVerifiedInstallation();
         page->findChild<QToolButton *>("connectionErrorDetailsToggle")->setChecked(false);
         QVERIFY(!manager->window()->findChild<QDialog *>("connectionErrorDialog"));
         QVERIFY(!manager->window()->findChild<QDialog *>("telemetryErrorDialog"));
         QVERIFY(!manager->window()->findChild<QDialog *>("firmwareCatalogDialog"));
         QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    }
+    void flightWorkspaceMigrationPreservesMapAndInstrumentSettings()
+    {
+        QTemporaryDir directory;
+        QSettings settings(directory.filePath("profile.ini"), QSettings::IniFormat);
+        settings.setValue("Workspace/NumberOfWorkspaces", 2);
+        settings.setValue("Workspace/Workspace1", "Flight data");
+        settings.setValue("Workspace/Workspace2", "Firmware");
+        const QString flight = "UAVGadgetManager/Mode1/splitter/";
+        settings.setValue(flight + "side0/classId", "OPMapGadget");
+        settings.setValue(flight + "side0/gadget/activeConfiguration", "My GPS map");
+        settings.setValue(flight + "side0/gadget/customMapState", "saved position");
+        settings.setValue(flight + "side1/classId", "ModelViewGadget");
+        settings.setValue(flight + "side1/gadget/activeConfiguration", "My aircraft");
+        const QString firmware = "UAVGadgetManager/Mode2/splitter/";
+        settings.setValue(firmware + "side0/classId", "Uploader");
+        settings.setValue(firmware + "side1/classId", "SystemHealthGadget");
+        Core::Internal::migrateFlightWorkspace(&settings);
+        QCOMPARE(settings.value("Workspace/Workspace1").toString(), QString("Map"));
+        QCOMPARE(settings.value(flight + "classId").toString(), QString("OPMapGadget"));
+        QCOMPARE(settings.value(flight + "gadget/activeConfiguration").toString(), QString("My GPS map"));
+        QCOMPARE(settings.value(flight + "gadget/customMapState").toString(), QString("saved position"));
+        QCOMPARE(settings.value("FlightDashboard/ModelViewGadget/configuration").toString(), QString("My aircraft"));
+        QCOMPARE(settings.value(firmware + "classId").toString(), QString("Uploader"));
+        QVERIFY(!settings.contains(firmware + "side1/classId"));
+        const auto keys = settings.allKeys();
+        Core::Internal::migrateFlightWorkspace(&settings);
+        QCOMPARE(settings.allKeys(), keys);
+    }
+    void flightWorkspaceMigrationAddsMapToBasicLayouts()
+    {
+        QTemporaryDir directory;
+        QSettings settings(directory.filePath("profile.ini"), QSettings::IniFormat);
+        settings.setValue("Workspace/NumberOfWorkspaces", 1);
+        settings.setValue("Workspace/Workspace1", "Flight data");
+        settings.setValue("UAVGadgetManager/Mode1/splitter/classId", "PfdQmlGadget");
+        settings.setValue("UAVGadgetManager/Mode1/splitter/gadget/activeConfiguration", "NoTerrain");
+        Core::Internal::migrateFlightWorkspace(&settings);
+        QCOMPARE(settings.value("Workspace/Workspace1").toString(), QString("Map"));
+        QCOMPARE(settings.value("UAVGadgetManager/Mode1/splitter/classId").toString(), QString("OPMapGadget"));
+        QCOMPARE(settings.value("FlightDashboard/PfdQmlGadget/configuration").toString(), QString("NoTerrain"));
+    }
+    void flightPanelsFollowLiveFirmware()
+    {
+        Core::FirmwarePage dashboard(manager);
+        const QStringList names{"firmwareAttitudeCard", "firmwareModelCard", "firmwareHealthCard"};
+        for (int index = 0; index < names.size(); ++index)
+            dashboard.setFlightPanel(index, new QWidget(&dashboard));
+        const auto check = [&dashboard, &names](bool available) {
+            for (const auto &name : names) QCOMPARE(dashboard.findChild<QWidget *>(name)->isEnabled(), available);
+        };
+        check(false);
+        TestConnection connection;
+        QVERIFY(manager->connectDevice({&connection, connection.device}));
+        manager->reportFlightDataReceived();
+        check(false);
+        manager->setNativeFirmwareIdentity("Revolution", "DroniNG 0.1.0");
+        check(true);
+        manager->telemetryDisconnected();
+        check(false);
+        manager->reportFlightDataReceived();
+        check(true);
+        manager->beginFirmwareInstallation();
+        check(false);
+        manager->endFirmwareInstallation();
+        manager->disconnectDevice();
+        check(false);
+    }
+    void firmwareGridReflowsWithWindowAndExpandedCards()
+    {
+        Core::FirmwarePage dashboard(manager);
+        dashboard.resize(1100, 900); dashboard.show();
+        auto *overview = dashboard.findChild<QWidget *>("firmwareOverview");
+        auto *attitude = dashboard.findChild<QWidget *>("firmwareAttitudeCard");
+        auto *aircraft = dashboard.findChild<QWidget *>("firmwareModelCard");
+        auto *recovery = dashboard.findChild<QWidget *>("firmwareRecoveryCard");
+        auto *log = dashboard.findChild<QWidget *>("firmwareLogCard");
+        auto *title = dashboard.findChild<QLabel *>("firmwarePageTitle");
+        QVERIFY(overview->isAncestorOf(title));
+        QTRY_VERIFY(attitude->x() > overview->x());
+        const int originalWidth = attitude->width();
+        dashboard.resize(1320, 950);
+        QTRY_VERIFY(attitude->width() > originalWidth + 70);
+        QCOMPARE(aircraft->width(), attitude->width());
+        QVERIFY(recovery->y() >= aircraft->y() + aircraft->height());
+        QCOMPARE(recovery->x(), aircraft->x()); QCOMPARE(log->x(), attitude->x());
+        dashboard.findChild<QToolButton *>("firmwareRecoveryToolsToggle")->setChecked(true);
+        dashboard.findChild<QToolButton *>("connectionErrorDetailsToggle")->setChecked(true);
+        QTRY_VERIFY(dashboard.findChild<QWidget *>("firmwareRecoveryBody")->isVisible());
+        QVERIFY(dashboard.findChild<QPlainTextEdit *>("connectionErrorDetails")->isVisible());
+        dashboard.resize(680, 740);
+        QTRY_COMPARE(attitude->x(), overview->x());
+        QTRY_VERIFY(attitude->width() > originalWidth);
+        QCOMPARE(recovery->x(), overview->x()); QCOMPARE(log->x(), overview->x());
+        QVERIFY(log->y() >= recovery->y() + recovery->height());
+        dashboard.resize(1100, 900);
+        QTRY_VERIFY(attitude->x() > overview->x());
+        QCOMPARE(log->x(), overview->x());
+        dashboard.findChild<QToolButton *>("firmwareRecoveryToolsToggle")->setChecked(false);
+        QCoreApplication::processEvents();
+        QCOMPARE(log->x(), attitude->x());
+    }
+    void mapOnlyRequestsTilesVisibleAtFractionalZoom()
+    {
+        for (const auto &size : {QSize(1000, 600), QSize(600, 1000), QSize(1800, 1000)}) {
+            for (const double scale : {1.0, 1.5, 1.95}) {
+                internals::Core map;
+                map.OnMapSizeChanged(size.width(), size.height()); map.SetZoom(10);
+                map.SetcenterTileXYLocation(core::Point(500, 500));
+                map.SetrenderOffset(core::Point(size.width() / 2 - 500 * 256 - 128,
+                                               size.height() / 2 - 500 * 256 - 128));
+                map.SetViewScale(scale);
+                QList<core::Point> tiles; map.FindTilesAround(tiles);
+                const int maximum = (int(std::ceil(size.width() / (256 * scale))) + 1)
+                    * (int(std::ceil(size.height() / (256 * scale))) + 1);
+                QVERIFY(tiles.size() <= maximum);
+                // Independently sample the final, scaled viewport, including
+                // its four edges. Every sample must have a requested tile.
+                for (int x = 0; x < size.width(); x += 19)
+                    for (int y = 0; y < size.height(); y += 19) {
+                        const int globalX = int(std::floor((x - size.width() / 2.0) / scale + 500 * 256 + 128));
+                        const int globalY = int(std::floor((y - size.height() / 2.0) / scale + 500 * 256 + 128));
+                        QVERIFY(tiles.contains(core::Point(globalX / 256, globalY / 256)));
+                    }
+            }
+        }
+    }
+    void mapDownloadsInParallelAndCompletesAfterLastTile()
+    {
+        QTcpServer server;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        int requests = 0, responses = 0, active = 0, peak = 0;
+        connect(&server, &QTcpServer::newConnection, this, [&] {
+            while (auto *socket = server.nextPendingConnection()) {
+                socket->setParent(&server);
+                connect(socket, &QTcpSocket::readyRead, &server, [&, socket] {
+                    socket->readAll();
+                    if (socket->property("requested").toBool()) return;
+                    socket->setProperty("requested", true);
+                    ++requests; peak = qMax(peak, ++active);
+                    QTimer::singleShot(requests == 1 ? 700 : 100, socket, [&, socket] {
+                        socket->write("HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\ntile");
+                        socket->disconnectFromHost(); ++responses; --active;
+                    });
+                });
+            }
+        });
+        auto *tiles = core::TLMaps::Instance();
+        const auto previousProxy = tiles->Proxy;
+        const auto previousMode = tiles->GetAccessMode();
+        const bool previousMemory = tiles->UseMemoryCache();
+        const auto restore = qScopeGuard([&] {
+            tiles->Proxy = previousProxy; tiles->setAccessMode(previousMode); tiles->setUseMemoryCache(previousMemory);
+        });
+        tiles->Proxy = QNetworkProxy(QNetworkProxy::HttpProxy, "127.0.0.1", server.serverPort());
+        tiles->setAccessMode(core::AccessMode::ServerOnly); tiles->setUseMemoryCache(false);
+        internals::Core map;
+        map.OnMapSizeChanged(512, 512); map.SetZoom(10);
+        map.SetMapType(core::MapType::OpenStreetMap);
+        map.SetCurrentPosition(internals::PointLatLng(9.2, -83.4));
+        map.SetrenderOffset(core::Point(256 - map.GetcurrentPositionGPixel().X(), 256 - map.GetcurrentPositionGPixel().Y()));
+        map.UpdateCenterTileXYLocation();
+        QSignalSpy complete(&map, &internals::Core::OnTileLoadComplete);
+        int responsesAtCompletion = 0;
+        connect(&map, &internals::Core::OnTileLoadComplete, this, [&] { responsesAtCompletion = responses; });
+        map.UpdateBounds();
+        QTRY_VERIFY_WITH_TIMEOUT(complete.size() > 0, 2500);
+        QVERIFY2(peak >= 4, "A shared settings lock must not serialize tile downloads");
+        QCOMPARE(responsesAtCompletion, requests);
+        QVERIFY(requests > 4);
+        QCOMPARE(complete.size(), 1);
+        QTRY_COMPARE(map.GetDiagnostics().runningThreads, 0);
     }
     void failedClickShowsPersistentFirmwareState()
     {
@@ -366,6 +595,8 @@ private slots:
         QCOMPARE(messages.warnings.size(), 1);
         QVERIFY(messages.warnings.first().contains("Serial: test controller"));
         manager->disconnectDevice();
+        QVERIFY(!guidance->text().isEmpty());
+        manager->clearControllerRecovery();
         QVERIFY(guidance->text().isEmpty());
     }
     void alreadyOpenDeviceIsNotOpenedTwice()
@@ -381,6 +612,87 @@ private slots:
         QVERIFY(messages.information.join('\n').contains("waiting for the UAVTalk handshake"));
         QVERIFY(manager->disconnectDevice());
         QCOMPARE(connection.closeCalls, 1);
+    }
+    void serialUnplugWhileOpenClearsFirmwareAndReconnectsFresh()
+    {
+        EnumeratedSerialConnection connection;
+        connection.attach();
+        auto *device = connection.availableDevices().first();
+        QVERIFY(manager->connectDevice({&connection, device}));
+        manager->setFirmwareIdentity("BTFL", "OMNIBUSF4SD", true, "3.4.0");
+        QSignalSpy disconnected(manager, &Core::ConnectionManager::deviceDisconnected);
+        connection.connectedPorts.clear();
+        QTRY_COMPARE_WITH_TIMEOUT(disconnected.size(), 1, 2000);
+        QVERIFY(!manager->isConnected()); QCOMPARE(connection.closeCalls, 1);
+        QVERIFY(manager->detectedFirmware().isEmpty()); QVERIFY(!manager->hasMspFirmware());
+        connection.attach("DroniNG OMNIBUSF4SD", 0x20a0, 0x415b);
+        const auto updated = connection.availableDevices(); QCOMPARE(updated.size(), 1);
+        QVERIFY(manager->connectDevice({&connection, updated.first()}));
+        QVERIFY(manager->firmwareDetectionActive()); QVERIFY(manager->detectedFirmware().isEmpty());
+    }
+    void serialPortReplacementAndIndependentProviders()
+    {
+        EnumeratedSerialConnection first, second;
+        first.attach(); second.attach("Second controller");
+        auto *old = first.availableDevices().first();
+        QVERIFY(old != second.availableDevices().first());
+        QVERIFY(manager->connectDevice({&first, old}));
+        first.attach("DroniNG OMNIBUSF4SD", 0x20a0, 0x415b);
+        auto *replacement = first.availableDevices().first();
+        QVERIFY(replacement != old); QVERIFY(!manager->isConnected());
+        QVERIFY(replacement->getDisplayName().startsWith("DroniNG"));
+        QCOMPARE(second.availableDevices().first()->getDisplayName(), QString("Second controller - ttyACM0"));
+    }
+    void transportLossDuringInstallationClearsIdentity()
+    {
+        TestConnection connection;
+        QVERIFY(manager->connectDevice({&connection, connection.device}));
+        manager->setFirmwareIdentity("BTFL", "OMNIBUSF4SD", true, "3.4.0");
+        manager->beginFirmwareInstallation();
+        QVERIFY(manager->detectedFirmware().isEmpty()); QVERIFY(manager->firmwareBoardTarget().isEmpty());
+        QVERIFY(!manager->hasMspFirmware());
+        manager->resumePolling();
+        QVERIFY(manager->connectDevice({&connection, connection.device}));
+        manager->setNativeFirmwareIdentity("OmnibusF4SD", "DroniNG");
+        emit connection.transportDisconnected(&connection);
+        QVERIFY(!manager->isConnected()); QVERIFY(manager->detectedFirmware().isEmpty());
+        manager->endFirmwareInstallation();
+        QVERIFY(manager->detectedBootloader().isEmpty());
+    }
+    void closedTransportCannotDisconnectItsReplacement()
+    {
+        TestConnection first, second;
+        QVERIFY(manager->connectDevice({&first, first.device}));
+        first.io->close(); // Queued physical transport closure.
+        manager->disconnectDevice();
+        QVERIFY(manager->connectDevice({&second, second.device}));
+        QCoreApplication::processEvents();
+        QVERIFY(manager->isConnected()); QCOMPARE(manager->getCurrentDevice().connection, &second);
+        second.io->close();
+        QTRY_VERIFY(!manager->isConnected());
+    }
+    void verifiedInstallSurvivesPageRestartUntilMatchingLiveData()
+    {
+        const auto board = Core::FirmwareCatalog::instance().board("omnibusf4sd");
+        const auto image = Core::FirmwareInstallImage::load(board, Core::FirmwareCatalog::imagePath(board,
+            Core::FirmwareCatalog::ImageKind::FullInstall, {QDir(GCS_BUILD_TREE_PATH).filePath("firmware")}));
+        QVERIFY2(image.valid(), qPrintable(image.error));
+        manager->recordVerifiedInstallation(board.id, "1-3", image.descriptor, "Firmware verified. Starting DroniNG…");
+        Core::FirmwarePage restarted(manager);
+        restarted.resize(1100, 850); restarted.show();
+        QVERIFY(restarted.findChild<QWidget *>("firmwarePendingInstallation")->isVisible());
+        QCOMPARE(restarted.findChild<QLabel *>("firmwarePageTitle")->text(), QString("Finish controller startup"));
+        QVERIFY(manager->detectedFirmware().isEmpty());
+        const auto captures = qEnvironmentVariable("CONNECTION_DIALOG_CAPTURE_DIR");
+        if (!captures.isEmpty()) { QCoreApplication::processEvents(); QVERIFY(restarted.grab().save(captures + "/firmware-pending-startup.png")); }
+        TestConnection connection("installed controller", "1-3");
+        QVERIFY(manager->connectDevice({&connection, connection.device}));
+        manager->reportFirmwareDescription(image.descriptor); manager->reportFlightDataReceived();
+        QVERIFY(!manager->verifiedInstallation().boardId.isEmpty()); // Profile is still required.
+        manager->reportFirmwareProfile(1, "radix", "radix-f446-rom-v1", QByteArray(32, 'x'));
+        QVERIFY(!manager->verifiedInstallation().boardId.isEmpty());
+        manager->reportFirmwareProfile(1, board.id, board.layoutId, Core::FirmwareInstallImage::importedProfileHash(board.id));
+        QVERIFY(manager->verifiedInstallation().boardId.isEmpty());
     }
     void failedDeviceOpenIsReleased()
     {
@@ -492,11 +804,14 @@ private slots:
         auto *details = dialog->findChild<QPlainTextEdit *>("connectionErrorDetails");
         QVERIFY(details);
         QVERIFY(!details->isVisible());
-        QCOMPARE(details->toPlainText(), connection.failure.details);
+        QVERIFY(details->toPlainText().contains(connection.failure.message));
+        QVERIFY(details->toPlainText().contains(connection.failure.details));
         QVERIFY(messages.warnings.join('\n').contains(connection.failure.details));
         QCOMPARE(connected.count(), 0);
         QVERIFY(!manager->isConnected());
         manager->disconnectDevice();
+        QCOMPARE(guidance->text(), connection.failure.message);
+        manager->clearControllerRecovery();
         QVERIFY(guidance->text().isEmpty());
     }
     void groupAccessCommandQuotesAccount_data()
@@ -569,6 +884,71 @@ private slots:
         QVERIFY(!command->isVisible()); QVERIFY(!copy->isVisible());
         QVERIFY(!installer->usbAccessDenied());
     }
+    void firmwareInstallAutomaticallyRebootsOmnibus_data()
+    {
+        QTest::addColumn<bool>("armed");
+        QTest::newRow("disarmed-controller") << false;
+        QTest::newRow("armed-controller-blocked") << true;
+    }
+    void firmwareInstallAutomaticallyRebootsOmnibus()
+    {
+        QFETCH(bool, armed);
+        class BootConnection final : public TestConnection {
+        public:
+            bool armed = false;
+            QList<QByteArray> commands;
+            BootConnection() : TestConnection("OmnibusF4 - ttyACM0", "1-3") { openInPlugin = true; }
+            QIODevice *openDevice(Core::IDevice *device) override {
+                auto *result = TestConnection::openDevice(device);
+                io->onWrite = [this](const QByteArray &bytes) {
+                    commands.append(bytes);
+                    if (bytes == "#") { io->receive("\r\nEntering CLI Mode, type 'exit' to return, or 'help'\r\n# "); return; }
+                    if (bytes.size() != 6 || !bytes.startsWith("$M<")) return;
+                    const int command = quint8(bytes[4]); QByteArray payload;
+                    if (command == 1) payload = QByteArray::fromHex("000127");
+                    if (command == 2) payload = "BTFL";
+                    if (command == 3) payload = QByteArray::fromHex("030400");
+                    if (command == 4) payload = QByteArray::fromHex("4f425344000002030b") + "OMNIBUSF4SD";
+                    if (command == 119) payload = QByteArray::fromHex("010500");
+                    if (command == 101) { payload = QByteArray(11, 0); payload[6] = armed ? 4 : 0; }
+                    QByteArray response("$M>", 3); response.append(char(payload.size())); response.append(char(command)); response += payload;
+                    quint8 checksum = 0; for (int i = 3; i < response.size(); ++i) checksum ^= quint8(response[i]);
+                    response.append(char(checksum)); io->receive(response);
+                };
+                return result;
+            }
+        } connection;
+        connection.armed = armed;
+        QVERIFY(manager->connectDevice({&connection, connection.device}));
+        manager->setFirmwareIdentity("BTFL", "OMNIBUSF4SD", true, "3.4.0");
+        class DiscoveryRunner final : public Core::DfuCommandRunner {
+        public:
+            QList<QStringList> commands;
+            void run(const QString &, const QStringList &args, int) override { commands.append(args); }
+            void cancel() override {}
+        } runner;
+        const auto board = Core::FirmwareCatalog::instance().board("omnibusf4sd");
+        const QString path = QDir(GCS_BUILD_TREE_PATH).filePath("firmware/ef_omnibusf4sd.hex");
+        Core::FirmwareInstallWidget installation(manager, board, path, nullptr, &runner);
+        installation.resize(700, 480); installation.show();
+        auto *instructions = installation.findChild<QWidget *>("firmwareInstallBootInstructions");
+        QVERIFY(!instructions->isVisible());
+        QVERIFY(installation.findChild<QLabel *>("firmwareInstallStatus")->text().contains("automatically"));
+        QTRY_VERIFY(connection.closeCalls >= 2);
+        if (armed) {
+            QVERIFY(!connection.commands.contains("#")); QVERIFY(!connection.commands.contains("bl\n"));
+            QVERIFY(runner.commands.isEmpty());
+            QVERIFY(installation.findChild<QLabel *>("firmwareInstallStatus")->text().contains("Disarm"));
+            QVERIFY(installation.findChild<QPushButton *>("firmwareInstallRetry")->isEnabled());
+            QVERIFY(instructions->isVisible());
+        } else {
+            QVERIFY(connection.commands.contains("bl\n")); QTRY_VERIFY(!runner.commands.isEmpty());
+            QCOMPARE(runner.commands.first(), (QStringList{"-d", ",0483:df11", "-l"}));
+            QCOMPARE(installation.findChild<QLabel *>("firmwareInstallHeading")->text(), QString("Restarting your controller"));
+            QVERIFY(!instructions->isVisible());
+        }
+        installation.cancelInstallation();
+    }
     void firmwareInstallFocusesCurrentTask_data()
     {
         QTest::addColumn<QString>("boardId");
@@ -608,8 +988,8 @@ private slots:
         QCOMPARE(installation.palette().color(QPalette::Window), QApplication::palette().color(QPalette::Window));
         QCOMPARE(installation.palette().color(QPalette::Highlight), QApplication::palette().color(QPalette::Highlight));
         QVERIFY(boot->isVisible()); QVERIFY(progress->isVisible()); QVERIFY(!retry->isVisible());
-        QVERIFY(!card->isAncestorOf(manual)); QVERIFY(!card->isAncestorOf(toggle));
-        QVERIFY(!card->isAncestorOf(details)); QVERIFY(!details->isVisible());
+        QVERIFY(card->isAncestorOf(manual)); QVERIFY(card->isAncestorOf(toggle));
+        QVERIFY(card->isAncestorOf(details)); QVERIFY(!details->isVisible());
         QStringList steps;
         for (int i = 1; i <= 3; ++i) {
             auto *step = installation.findChild<QLabel *>(QString("firmwareInstallBootStep%1").arg(i));
@@ -704,7 +1084,7 @@ private slots:
         QCOMPARE(status->text(), QString("Firmware installed and verified."));
         QCOMPARE(label->text(), QString("Waiting for live data…"));
         QVERIFY(hint->isVisible()); QVERIFY(hint->text().contains("disconnect USB and the flight battery"));
-        QVERIFY(hint->text().contains("BOOT released")); QVERIFY(start->isVisible()); QVERIFY(start->isEnabled());
+        QVERIFY(hint->text().contains("If you used a BOOT")); QVERIFY(start->isVisible()); QVERIFY(start->isEnabled());
         QVERIFY(!retry->isVisible());
         int visibleBars = 0;
         for (const auto *bar : installation.findChildren<QProgressBar *>()) if (bar->isVisible()) ++visibleBars;
@@ -751,8 +1131,18 @@ private slots:
         QCOMPARE(closed.size(), 1); QCOMPARE(setupRequests.size(), 1);
         QVERIFY(!manager->firmwareInstallationActive());
     }
-    void firmwareInstallStillReconnectsAfterWaitingTimeout()
+    void firmwareInstallStopsAutomaticRetries_data()
     {
+        QTest::addColumn<bool>("startupResets");
+        QTest::addColumn<bool>("silentTransport");
+        QTest::newRow("waiting-timeout") << false << false;
+        QTest::newRow("repeated-startup-resets") << true << false;
+        QTest::newRow("silent-native-transport") << false << true;
+    }
+    void firmwareInstallStopsAutomaticRetries()
+    {
+        QFETCH(bool, startupResets);
+        QFETCH(bool, silentTransport);
         class CompletedRunner final : public Core::DfuCommandRunner {
         public:
             QByteArray written;
@@ -785,15 +1175,55 @@ private slots:
             manager, [this] { emit manager->firmwareBootFinished(false, "The controller is not available to start over USB."); });
         const auto disconnectResponse = qScopeGuard([response] { QObject::disconnect(response); });
         QTRY_COMPARE(installer->stage(), Core::DfuInstaller::Stage::AwaitingTelemetry);
+        std::unique_ptr<TestConnection> silent;
+        if (silentTransport) {
+            silent = std::make_unique<TestConnection>("Silent native controller", "1-3"); silent->transport = "USB";
+            QVERIFY(manager->autoConnectDevice({silent.get(), silent->device}));
+            QVERIFY(manager->firmwareDetectionActive());
+            // Exercise the same timeout transition with a transport still open.
+            installer->startupTimedOut();
+            QVERIFY(manager->isConnected());
+        }
+        if (startupResets) {
+            TestConnection unstable("OMNIBUSF4SD", "1-3"); unstable.transport = "USB";
+            QVERIFY(manager->autoConnectDevice({&unstable, unstable.device}));
+            emit unstable.transportDisconnected(&unstable);
+            QTRY_COMPARE_WITH_TIMEOUT(installer->stage(), Core::DfuInstaller::Stage::StartupFailed, 2000);
+        }
         auto *progress = installation.findChild<QProgressBar *>("firmwareInstallProgress");
         QTRY_VERIFY_WITH_TIMEOUT(!progress->isVisible(), 70000);
-        QCOMPARE(installer->stage(), Core::DfuInstaller::Stage::AwaitingTelemetry);
+        QCOMPARE(installer->stage(), Core::DfuInstaller::Stage::StartupFailed);
+        QVERIFY(!manager->firmwareDetectionActive());
+        if (silentTransport) {
+            QCOMPARE(manager->firmwareStatus(), QString("Controller needs attention"));
+            QVERIFY(manager->controllerRecovery().problem.message.contains("written and verified"));
+            manager->endFirmwareInstallation();
+            QVERIFY(!manager->firmwareDetectionActive());
+            QVERIFY(manager->controllerRecovery().problem.message.contains("written and verified"));
+        }
+        QCOMPARE(installation.findChild<QLabel *>("firmwareInstallHeading")->text(), QString("Controller connection needs attention"));
+        QVERIFY(installation.findChild<QLabel *>("firmwareInstallStatus")->text().contains(startupResets
+            ? "Automatic retries have stopped" : "written and verified"));
+        QCOMPARE(installation.findChild<QDialogButtonBox *>()->button(QDialogButtonBox::Cancel)->text(), QString("Close"));
         QVERIFY(installation.findChild<QLabel *>("firmwareInstallReconnectHint")->isVisible());
         QVERIFY(installation.findChild<QPushButton *>("firmwareInstallStartController")->isEnabled());
+        const auto captures = qEnvironmentVariable("CONNECTION_DIALOG_CAPTURE_DIR");
+        if (!captures.isEmpty()) QVERIFY(installation.grab().save(captures + "/firmware-startup-failed.png"));
+        if (silentTransport) {
+            installation.cancelInstallation();
+            QVERIFY(installer->log().contains("Verified firmware remains on the controller"));
+            return;
+        }
         TestConnection controller("Reconnected DroniNG", "1-3"); controller.transport = "USB";
         emit controller.availableDevChanged(&controller);
+        QTest::qWait(1200);
+        QVERIFY(!manager->isConnected());
+        QVERIFY(manager->connectDevice({&controller, controller.device}));
         QTRY_VERIFY_WITH_TIMEOUT(manager->isConnected(), 2000);
         QCOMPARE(manager->getCurrentDevice().device, controller.device);
+        installation.cancelInstallation();
+        QVERIFY(installer->log().contains("Verified firmware remains on the controller"));
+        QVERIFY(!installer->log().contains("Installation cancelled"));
     }
     void startupUsbRulesDetection_data()
     {
@@ -951,11 +1381,14 @@ private slots:
         QTest::mouseClick(toggle, Qt::LeftButton);
         QVERIFY(details->isVisible());
         QVERIFY(details->isReadOnly());
-        QCOMPARE(details->toPlainText(), connection.failure.details);
+        QVERIFY(details->toPlainText().contains(connection.failure.message));
+        QVERIFY(details->toPlainText().contains(connection.failure.details));
         QVERIFY(messages.warnings.join('\n').contains(connection.failure.details));
         QTest::mouseClick(toggle, Qt::LeftButton);
         QVERIFY(!details->isVisible());
         manager->disconnectDevice();
+        QCOMPARE(guidance->text(), connection.failure.message);
+        manager->clearControllerRecovery();
         QVERIFY(guidance->text().isEmpty());
     }
     void oldConnectionDestructionDoesNotCloseNewConnection()
@@ -1021,11 +1454,11 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(!manager->firmwareError().message.isEmpty(), 2000);
         auto *dialog = page;
         QVERIFY(dialog->isVisible());
-        QCOMPARE(manager->firmwareStatus(), QString("Flight data unavailable"));
+        QCOMPARE(manager->firmwareStatus(), QString("Controller needs attention"));
         auto *guidance = dialog->findChild<QLabel *>("connectionErrorGuidance");
         QVERIFY(guidance);
         QVERIFY(guidance->text().contains(input.isEmpty() ? "sent no data"
-            : input.startsWith(char(0x3c)) ? "handshake didn't finish" : "can't read as UAVTalk"));
+            : input.startsWith(char(0x3c)) ? "connection could not finish" : "data could not be read"));
         auto *details = dialog->findChild<QPlainTextEdit *>("connectionErrorDetails");
         QVERIFY(details);
         QVERIFY(!details->isVisible());
@@ -1042,6 +1475,10 @@ private slots:
         boardFlight.setData(flightData);
         connection.io->receive(objectFrame(&boardFlight));
         QVERIFY(messages.information.join('\n').contains("UAVTalk handshake completed"));
+        // A late handshake alone must not make the failed card blip back to detection.
+        QVERIFY(!guidance->text().isEmpty());
+        QVERIFY(!manager->firmwareDetectionActive());
+        connection.io->receive(objectFrame(AttitudeActual::GetInstance(objects)));
         QTRY_VERIFY(guidance->text().isEmpty());
         QCOMPARE(messages.warnings.size(), 1);
     }
@@ -1105,7 +1542,7 @@ private slots:
     {
         const auto &catalog = Core::FirmwareCatalog::instance();
         QVERIFY2(catalog.error().isEmpty(), qPrintable(catalog.error()));
-        QCOMPARE(catalog.boards().size(), 18);
+        QCOMPARE(catalog.boards().size(), 20);
         const QDir targets(QFINDTESTDATA("../../flight/targets"));
         QVERIFY(targets.exists());
         int count = 0;
@@ -1132,7 +1569,7 @@ private slots:
             }
             ++count;
         }
-        QCOMPARE(count, 17);
+        QCOMPARE(count, 19);
         QCOMPARE(catalog.board("TauLink").target, QString("pipxtreme"));
         QCOMPARE(catalog.board("Sprf3e").target, QString("sprf3e"));
         QVERIFY(!catalog.board("Simulation").isValid());
@@ -1336,11 +1773,11 @@ private slots:
         connectButton->ensurePolished();
         QCOMPARE(connectButton->palette().color(QPalette::ButtonText),
                  QApplication::palette().color(QPalette::HighlightedText));
-        QVERIFY(!manager->isVisible());
+        QVERIFY(manager->isVisible()); // The telemetry footer is shared by every workspace.
         QCOMPARE(page->findChild<QLabel *>("firmwareUsbTitle")->text(), QString("USB controller detected"));
         QVERIFY(!page->findChild<QLabel *>("firmwareUsbHint")->text().contains("Plug"));
         QVERIFY(!page->findChild<QPushButton *>("firmwareInstallAction")->isVisible());
-        QVERIFY(!page->findChild<QWidget *>("firmwareRecoveryCard")->isVisible());
+        QVERIFY(!page->findChild<QWidget *>("firmwareRecoveryBody")->isVisible());
         captureFirmwarePage("firmware-controller-found");
         first.attachController();
         QCOMPARE(list->count(), 2); QCOMPARE(list->currentText(), first.device->getDisplayName());
@@ -1359,7 +1796,9 @@ private slots:
         QVERIFY(!page->findChild<QPushButton *>("firmwareInstallAction")->isVisible());
         QVERIFY(!page->findChild<QWidget *>("firmwareConnectCard")->isVisible());
         captureFirmwarePage("firmware-connecting");
-        QTest::mouseClick(page->findChild<QPushButton *>("firmwareDisconnectAction"), Qt::LeftButton);
+        auto *disconnect = page->findChild<QPushButton *>("firmwareDisconnectAction");
+        QTRY_VERIFY(disconnect->height() > 0);
+        QTest::mouseClick(disconnect, Qt::LeftButton);
         QVERIFY(!manager->isConnected()); QVERIFY(page->findChild<QWidget *>("firmwareConnectCard")->isVisible());
     }
     void firmwareUsbGuidanceTracksPresence()
@@ -1461,7 +1900,7 @@ private slots:
         manager->beginFirmwareInstallation();
         manager->telemetryConnectionFailed({"late timeout", {}, {}});
         QVERIFY(!manager->firmwareError().message.contains("late timeout"));
-        QCOMPARE(manager->firmwareVersion(), QString("3.2.3"));
+        QVERIFY(manager->firmwareVersion().isEmpty());
         manager->endFirmwareInstallation();
     }
     void initialDeviceInventoryDoesNotSelectFirmware()
@@ -1478,6 +1917,862 @@ private slots:
         QVERIFY(manager->firmwareDetectionActive());
         manager->disconnectDevice();
         QVERIFY(!page->findChild<QProgressBar *>("firmwareDetectionProgress")->isVisible());
+    }
+    void radixOffersItsOwnImage_data()
+    {
+        QTest::addColumn<QString>("target");
+        QTest::newRow("full-target-name") << QString("RADIX");
+        QTest::newRow("legacy-four-byte-identifier") << QString("RADI");
+    }
+    void radixOffersItsOwnImage()
+    {
+        QFETCH(QString, target);
+        TestConnection connection("BrainFPV RADIX - ttyACM0");
+        QVERIFY(manager->connectDevice({&connection, connection.device}));
+        manager->setFirmwareIdentity("BTFL", target, true, "4.5.1");
+        manager->telemetryConnectionFailed({"Foreign firmware detected", {}, {}});
+        QCOMPARE(page->findChild<QLabel *>("firmwarePageTitle")->text(), QString("Install DroniNG"));
+        auto *recommendation = page->findChild<QLabel *>("firmwareRecommendation");
+        QVERIFY(recommendation->isVisible());
+        QVERIFY(recommendation->text().contains("original RADIX"));
+        QVERIFY(recommendation->text().contains("PWM/OneShot"));
+        QVERIFY(recommendation->text().contains("FPGA OSD"));
+        QVERIFY(recommendation->text().contains("DShot and SD logging are not available"));
+        QVERIFY(!recommendation->text().contains("experimental", Qt::CaseInsensitive));
+        QVERIFY(!recommendation->text().contains("validation", Qt::CaseInsensitive));
+        QCOMPARE(page->findChild<QLabel *>("firmwareDetectedBoard")->text(), QString("BrainFPV RADIX"));
+        QCOMPARE(page->findChild<QLabel *>("firmwareDetectedFirmware")->text(), QString("Betaflight 4.5.1"));
+        QVERIFY(page->findChild<QComboBox *>("firmwareBoardModel")->isVisible());
+        QCOMPARE(page->findChild<QComboBox *>("firmwareBoardModel")->currentData().toString(), QString("radix"));
+        QVERIFY(page->findChild<QPushButton *>("firmwareInstallAction")->isVisible());
+        QVERIFY(page->findChild<QPushButton *>("firmwareInstallAction")->isEnabled());
+        QCOMPARE(page->findChild<QPushButton *>("firmwareInstallAction")->text(), QString("Install DroniNG"));
+        QCOMPARE(page->findChild<QLabel *>("firmwareBootloaderToInstall")->text(), QString("STM32 ROM · retained"));
+        const auto radix = Core::FirmwareCatalog::instance().board("radix");
+        QVERIFY(Core::FirmwareCatalog::imageName(radix, Core::FirmwareCatalog::ImageKind::Application).isEmpty());
+        QVERIFY(Core::FirmwareCatalog::imageName(radix, Core::FirmwareCatalog::ImageKind::BootloaderUpdate).isEmpty());
+        QVERIFY(page->findChild<QPushButton *>("firmwareDisconnectAction")->isVisible());
+        captureFirmwarePage("firmware-radix-image");
+        // Reconnecting a board with a reviewed mapping restores its offer.
+        manager->disconnectDevice();
+        QVERIFY(manager->connectDevice({&connection, connection.device}));
+        manager->setFirmwareIdentity("BTFL", "OBF4", true, "3.2.3");
+        manager->telemetryConnectionFailed({"Foreign firmware detected", {}, {}});
+        QCOMPARE(page->findChild<QComboBox *>("firmwareBoardModel")->currentData().toString(), QString("hglrc-f4-v6pro"));
+        QVERIFY(page->findChild<QPushButton *>("firmwareInstallAction")->isVisible());
+    }
+    void truncatedRadixDoesNotSelectOtherModels_data()
+    {
+        QTest::addColumn<QString>("product");
+        QTest::newRow("LI") << QString("BrainFPV RADIX LI - ttyACM0");
+        QTest::newRow("2") << QString("BrainFPV RADIX 2 - ttyACM0");
+        QTest::newRow("unknown") << QString("Betaflight - ttyACM0");
+    }
+    void truncatedRadixDoesNotSelectOtherModels()
+    {
+        QFETCH(QString, product); TestConnection connection(product);
+        QVERIFY(manager->connectDevice({&connection, connection.device}));
+        manager->setFirmwareIdentity("BTFL", "RADI", true, "4.5.1");
+        manager->telemetryConnectionFailed({"Foreign firmware detected", {}, {}});
+        QCOMPARE(page->findChild<QComboBox *>("firmwareBoardModel")->currentIndex(), 0);
+        QVERIFY(!page->findChild<QPushButton *>("firmwareInstallAction")->isEnabled());
+    }
+    void omnibusOffersItsOwnImage_data()
+    {
+        QTest::addColumn<QString>("target");
+        QTest::newRow("reported-target") << QString("OMNIBUSF4SD");
+        QTest::newRow("reported-four-byte-identifier") << QString("OBSD");
+    }
+    void omnibusOffersItsOwnImage()
+    {
+        QFETCH(QString, target);
+        TestConnection connection("OmnibusF4 - ttyACM0");
+        QVERIFY(manager->connectDevice({&connection, connection.device}));
+        manager->setFirmwareIdentity("BTFL", target, true, "3.4.0");
+        manager->telemetryConnectionFailed({"Foreign firmware detected", {}, {}});
+        QCOMPARE(page->findChild<QLabel *>("firmwareDetectedBoard")->text(), QString("Omnibus F4 SD"));
+        QCOMPARE(page->findChild<QLabel *>("firmwareDetectedFirmware")->text(), QString("Betaflight 3.4.0"));
+        QCOMPARE(page->findChild<QComboBox *>("firmwareBoardModel")->currentData().toString(), QString("omnibusf4sd"));
+        auto *install = page->findChild<QPushButton *>("firmwareInstallAction");
+        QVERIFY(install->isVisible()); QVERIFY(install->isEnabled());
+        QCOMPARE(install->text(), QString("Install DroniNG"));
+        const auto text = page->findChild<QLabel *>("firmwareRecommendation")->text();
+        QVERIFY(text.contains("analog OSD")); QVERIFY(text.contains("UART6"));
+        QVERIFY(!text.contains("experimental", Qt::CaseInsensitive));
+        const auto board = Core::FirmwareCatalog::instance().board("omnibusf4sd");
+        QCOMPARE(board.boardType, 225);
+        QVERIFY(Core::FirmwareCatalog::imageName(board, Core::FirmwareCatalog::ImageKind::Application).isEmpty());
+        captureFirmwarePage("firmware-omnibus-image");
+    }
+    void importedNativeConfigurationUsesCommonFields_data()
+    {
+        QTest::addColumn<int>("type"); QTest::addColumn<QString>("name");
+        QTest::newRow("Radix") << 224 << QString("BrainFPV RADIX");
+        QTest::newRow("OmnibusF4SD") << 225 << QString("Omnibus F4 SD");
+    }
+    void importedNativeConfigurationUsesCommonFields()
+    {
+        QFETCH(int, type); QFETCH(QString, name); const bool radix = type == 224;
+        TelemetryManager telemetry; UAVObjectUtilManager util;
+        plugins.addObject(&telemetry); plugins.addObject(&util);
+        const auto remove = qScopeGuard([&] { plugins.removeObject(&util); plugins.removeObject(&telemetry); });
+        QPluginLoader brain(QDir(GCS_BUILD_TREE_PATH).filePath("lib/droning/plugins/droniNG/libDroning.so"));
+        auto *plugin = qobject_cast<ExtensionSystem::IPlugin *>(brain.instance());
+        QVERIFY2(plugin, qPrintable(brain.errorString()));
+        QString error; QVERIFY2(plugin->initialize({}, &error), qPrintable(error));
+        plugin->extensionsInitialized();
+        const auto unload = qScopeGuard([&] { brain.unload(); });
+        Core::IBoardType *board = nullptr;
+        for (auto *candidate : plugins.getObjects<Core::IBoardType>())
+            if (candidate->getBoardType() == type) board = candidate;
+        QVERIFY(board); QCOMPARE(board->shortName(), name);
+        QCOMPARE(board->getHwUAVO(), QString("HwImported"));
+        QCOMPARE(board->queryMaxGyroRate(), radix ? 1600 : 1000);
+        QCOMPARE(board->getChannelBanks(), (radix ? QVector<QVector<int>>{{1, 2}, {3}, {4}} : QVector<QVector<int>>{{1, 2}, {3, 4}}));
+        QVERIFY(!board->supportsDShot());
+        QCOMPARE(board->getAdcNames(), (QStringList{"I", "V", "R"}));
+        QVERIFY(!board->queryCapabilities(Core::IBoardType::BOARD_CAPABILITIES_UPGRADEABLE));
+        QVERIFY(!board->isInputConfigurationSupported(Core::IBoardType::INPUT_TYPE_PPM));
+        auto *settings = HwImported::GetInstance(objects); const auto previous = settings->getData();
+        const bool wasPresent = settings->getIsPresentOnHardware(); settings->setIsPresentOnHardware(true);
+        const auto restore = qScopeGuard([&] { settings->setData(previous); settings->setIsPresentOnHardware(wasPresent); });
+        QVERIFY(board->setInputType(Core::IBoardType::INPUT_TYPE_SBUS));
+        QCOMPARE(board->getInputType(), Core::IBoardType::INPUT_TYPE_SBUS);
+        std::unique_ptr<QWidget> widget(board->getBoardConfiguration(nullptr, true));
+        widget->resize(650, 550); widget->show(); QCoreApplication::processEvents();
+        QCOMPARE(widget->findChild<QComboBox *>("importedReceiver")->currentText(), QString("S.Bus"));
+        auto fields = QStringList{"Telemetry", "GPS", "USB_VCPPort"};
+        if (radix) fields << "ReceiverTelemetry" << "BuzzerType";
+        else fields << "ReceiverPort";
+        for (const auto &name : fields) {
+            auto *combo = widget->findChild<QComboBox *>(QString("imported") + name);
+            QVERIFY(combo); QVERIFY(combo->count() > 1);
+        }
+        if (!radix) {
+            QVERIFY(!widget->findChild<QComboBox *>("importedReceiverTelemetry"));
+            QVERIFY(!widget->findChild<QComboBox *>("importedBuzzerType"));
+            auto *port = widget->findChild<QComboBox *>("importedReceiverPort");
+            const auto hasLabel = [&widget](const QString &text) {
+                for (auto *label : widget->findChildren<QLabel *>()) if (label->text() == text) return true;
+                return false;
+            };
+            port->setCurrentIndex(port->findText("UART6"));
+            QVERIFY(hasLabel("Receiver · UART6")); QVERIFY(hasLabel("GPS · UART3"));
+            port->setCurrentIndex(port->findText("UART3"));
+            QVERIFY(hasLabel("Receiver · UART3")); QVERIFY(hasLabel("GPS · UART6"));
+        }
+        QCOMPARE(widget->findChildren<QPushButton *>().size(), 3);
+        bool hasPortInstructions = false;
+        for (auto *label : widget->findChildren<QLabel *>()) {
+            QVERIFY(!label->text().contains("experimental", Qt::CaseInsensitive));
+            hasPortInstructions |= label->text() == "Save and reboot after changing ports.";
+        }
+        QVERIFY(hasPortInstructions);
+        const auto directory = qEnvironmentVariable("CONNECTION_DIALOG_CAPTURE_DIR");
+        if (!directory.isEmpty()) QVERIFY(widget->grab().save(directory + (radix ? "/radix-native-configuration.png" : "/omnibus-native-configuration.png")));
+    }
+    void controllerRecoveryOffersDetectedBoardWorkflow_data()
+    {
+        QTest::addColumn<QString>("boardId");
+        QTest::newRow("radix") << QString("radix");
+        QTest::newRow("omnibus") << QString("omnibusf4sd");
+        QTest::newRow("hglrc") << QString("hglrc-f4-v6pro");
+    }
+    void controllerRecoveryOffersDetectedBoardWorkflow()
+    {
+        QFETCH(QString, boardId);
+        const auto board = Core::FirmwareCatalog::instance().board(boardId);
+        TestConnection controller(board.name, "2-4"); controller.transport = "USB";
+        const Core::DevListItem device(&controller, controller.device);
+        QVERIFY(manager->autoConnectDevice(device));
+        emit controller.transportDisconnected(&controller);
+        QCOMPARE(manager->controllerRecovery().boardId, board.id);
+        auto *retry = page->findChild<QPushButton *>("firmwareRetryConnection");
+        auto *recover = page->findChild<QPushButton *>("firmwareRecoverInstallation");
+        auto *maintenance = page->findChild<QToolButton *>("firmwareRecoveryToolsToggle");
+        QVERIFY(retry->isVisible()); QVERIFY(retry->isEnabled());
+        QVERIFY(recover->isVisible()); QVERIFY(recover->isEnabled());
+        const auto hint = page->findChild<QLabel *>("firmwareRecoveryHint")->text();
+        const auto primary = recover->property("primary");
+        QVERIFY(!maintenance->isChecked());
+        QVERIFY(!page->findChild<QWidget *>("firmwareConnectCard")->isVisible());
+        QCOMPARE(page->findChild<QLabel *>("firmwareDetectedBoard")->text(), board.name);
+        // Inventory destruction must not erase the board or offer another controller's port.
+        controller.detachController();
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        QVERIFY(retry->isEnabled());
+        QCOMPARE(page->findChild<QLabel *>("firmwareRecoveryHint")->text(), hint);
+        QCOMPARE(recover->property("primary"), primary);
+        QCOMPARE(page->findChild<QLabel *>("firmwareDetectedBoard")->text(), board.name);
+        const auto captures = qEnvironmentVariable("CONNECTION_DIALOG_CAPTURE_DIR");
+        for (const int width : {640, 1280}) {
+            page->resize(width, 900); QCoreApplication::processEvents();
+            QVERIFY(recover->isVisible());
+            QVERIFY(page->findChild<QScrollArea *>("firmwareScrollArea")->horizontalScrollBar()->maximum() == 0);
+            if (!captures.isEmpty()) QVERIFY(page->grab().save(captures + QString("/recovery-%1-%2.png").arg(board.id).arg(width)));
+        }
+        QTest::mouseClick(recover, Qt::LeftButton);
+        auto *installation = page->findChild<Core::FirmwareInstallWidget *>();
+        QVERIFY(installation);
+        const QPointer<Core::FirmwareInstallWidget> activeInstallation(installation);
+        const auto cancelOnFailure = qScopeGuard([activeInstallation] {
+            if (activeInstallation) activeInstallation->cancelInstallation();
+        });
+        QTRY_VERIFY(installation->isVisible());
+        QVERIFY(!installation->autoFillBackground());
+        QVERIFY(!installation->findChild<QWidget *>("firmwareInstallTaskCard")->property("uiCard").toBool());
+        QVERIFY(!installation->findChild<QLabel *>("firmwareInstallHeading")->isVisible());
+        QVERIFY(page->findChild<QWidget *>("firmwareOverview")->isAncestorOf(installation));
+        QCOMPARE(page->findChild<QLabel *>("firmwarePageTitle")->text(), installation->title());
+        QCOMPARE(installation->findChild<QLabel *>("firmwareInstallBootStep1")->text(), board.bootInstructions.section('\n', 0, 0));
+        QVERIFY(!maintenance->isChecked());
+        QCoreApplication::processEvents();
+        if (!captures.isEmpty()) QVERIFY(page->grab().save(captures + QString("/recovery-%1-boot.png").arg(board.id)));
+        // Returning from BOOT instructions retains the failed controller and its actions.
+        installation->cancelInstallation();
+        QVERIFY(!page->findChild<Core::FirmwareInstallWidget *>());
+        QVERIFY(recover->isVisible());
+        QCOMPARE(page->findChild<QLabel *>("firmwareDetectedBoard")->text(), board.name);
+        TestConnection reconnected(board.name, "2-4"); reconnected.transport = "USB";
+        emit reconnected.availableDevChanged(&reconnected);
+        QVERIFY(!manager->isConnected());
+        QVERIFY(retry->isEnabled());
+        QTest::mouseClick(retry, Qt::LeftButton);
+        QVERIFY(manager->isConnected()); QVERIFY(manager->firmwareDetectionActive());
+        manager->setNativeFirmwareIdentity(board.name, "DroniNG");
+        manager->reportFlightDataReceived();
+        QVERIFY(!recover->isVisible()); QVERIFY(!retry->isVisible());
+        QVERIFY(manager->controllerRecovery().problem.message.isEmpty());
+    }
+    void controllerRecoveryWaitsForRequestedControllerOnly()
+    {
+        TestConnection failed("OMNIBUSF4SD", "2-4"); failed.transport = "USB";
+        QVERIFY(manager->connectDevice({&failed, failed.device}));
+        emit failed.transportDisconnected(&failed);
+        failed.detachController();
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        auto *retry = page->findChild<QPushButton *>("firmwareRetryConnection");
+        QVERIFY(retry->isEnabled());
+        QTest::mouseClick(retry, Qt::LeftButton);
+        QVERIFY(!retry->isEnabled());
+        QVERIFY(page->findChild<QLabel *>("firmwareRecoveryHint")->text().contains("Reconnect USB"));
+        TestConnection other("BrainFPV RADIX", "2-4"); other.transport = "USB";
+        emit other.availableDevChanged(&other);
+        QVERIFY(!manager->isConnected());
+        QVERIFY(!retry->isEnabled());
+        other.detachController();
+        TestConnection ready("OMNIBUSF4SD", "2-4"); ready.transport = "USB";
+        emit ready.availableDevChanged(&ready);
+        QVERIFY(manager->isConnected());
+        QCOMPARE(manager->getCurrentDevice().device.data(), ready.device);
+    }
+    void postInstallationUsbOpenFailuresHaveBoundedRetries()
+    {
+        const auto board = Core::FirmwareCatalog::instance().board("omnibusf4sd");
+        const auto image = Core::FirmwareInstallImage::load(board,
+            Core::FirmwareCatalog::imagePath(board, Core::FirmwareCatalog::ImageKind::FullInstall));
+        QVERIFY(image.valid());
+        manager->beginFirmwareInstallation();
+        const auto finish = qScopeGuard([this] { manager->endFirmwareInstallation(); });
+        manager->recordVerifiedInstallation(board.id, "2-4", image.descriptor);
+        TestConnection settling("OMNIBUSF4SD", "2-4"); settling.transport = "USB"; settling.failOpen = true;
+        const Core::DevListItem device(&settling, settling.device);
+        for (int attempt = 0; attempt < 6; ++attempt) {
+            QVERIFY(!manager->autoConnectDevice(device));
+            QVERIFY(!manager->automaticConnectionBlocked("2-4"));
+            QVERIFY(manager->controllerRecovery().problem.message.isEmpty());
+        }
+        settling.failOpen = false;
+        QVERIFY(manager->autoConnectDevice(device));
+        // A real startup reset must still stop immediately, after open succeeds.
+        emit settling.transportDisconnected(&settling);
+        QVERIFY(manager->automaticConnectionBlocked("2-4"));
+        manager->resetAutomaticConnectionFailures("2-4");
+        settling.failOpen = true;
+        for (int attempt = 0; attempt < 7; ++attempt) QVERIFY(!manager->autoConnectDevice(device));
+        QVERIFY(manager->automaticConnectionBlocked("2-4"));
+        QVERIFY(manager->controllerRecovery().problem.details.contains("simulated permission denied"));
+        QVERIFY(!manager->autoConnectDevice(device));
+    }
+    void rawHidOpenFailureIncludesNodeAndOperatingSystemError()
+    {
+        class Inventory : public RawHIDConnection {
+        public:
+            using RawHIDConnection::devicesForPorts;
+        } connection;
+        USBPortInfo port{};
+        port.path = "/dev/droning-nonexistent-test-hid";
+        port.serialNumber = "test-missing-hid";
+        auto *device = static_cast<USBDevice *>(connection.devicesForPorts({port}).first());
+        RawHID io(device);
+        QVERIFY(!io.open(QIODevice::ReadWrite));
+        QVERIFY(io.errorString().contains(device->getPath()));
+        QVERIFY(io.errorString().contains("errno 2"));
+        QVERIFY(!io.errorString().contains("Unknown error"));
+    }
+    void rawHidWorkerFailuresCloseTransport_data()
+    {
+        QTest::addColumn<bool>("readFailure");
+        QTest::addColumn<int>("writeResult");
+        QTest::addColumn<int>("failureErrno");
+        QTest::newRow("unplugged-reader") << true << 64 << ENODEV;
+        QTest::newRow("timed-out-writer") << false << -1 << ETIMEDOUT;
+        QTest::newRow("io-error-writer") << false << -1 << EIO;
+        QTest::newRow("short-report-writer") << false << 20 << 0;
+    }
+    void rawHidWorkerFailuresCloseTransport()
+    {
+        QFETCH(bool, readFailure);
+        QFETCH(int, writeResult);
+        QFETCH(int, failureErrno);
+        HidTestInventory inventory;
+        std::atomic_int closes{0}, writes{0};
+        const RawHIDBackend backend{
+            [](const char *) { return reinterpret_cast<hid_device *>(quintptr(1)); },
+            [&](hid_device *, unsigned char *, size_t, int) {
+                if (readFailure) { errno = failureErrno; return -1; }
+                QThread::msleep(5); return 0;
+            },
+            [&](hid_device *, const unsigned char *, size_t) {
+                ++writes; errno = failureErrno; return writeResult;
+            },
+            [&](hid_device *) { ++closes; }
+        };
+        MessageCapture messages;
+        RawHID io(inventory.device, backend);
+        QSignalSpy failed(&io, &RawHID::transportFailed);
+        QSignalSpy closed(&io, &QIODevice::aboutToClose);
+        QSignalSpy written(&io, &QIODevice::bytesWritten);
+        QVERIFY(io.open(QIODevice::ReadWrite));
+        if (!readFailure) QCOMPARE(io.write("request", 7), qint64(7));
+        QTRY_COMPARE(failed.size(), 1);
+        QVERIFY(!io.isOpen());
+        QCOMPARE(closed.size(), 1);
+        QCOMPARE(closes.load(), 1);
+        QCOMPARE(written.size(), 0); // Accepting bytes is not a successful USB write.
+        QCOMPARE(writes.load(), readFailure ? 0 : 1);
+        QVERIFY(io.errorString().contains(inventory.device->getPath()));
+        QVERIFY(io.errorString().contains(readFailure ? "read" : "write"));
+        if (writeResult == 20) QVERIFY(io.errorString().contains("20 of 64"));
+        else QVERIFY(io.errorString().contains(QString("errno %1").arg(failureErrno)));
+        QCOMPARE(io.write("late", 4), qint64(-1));
+        io.close();
+        QCOMPARE(closes.load(), 1);
+    }
+    void rawHidTransientWriteRetriesResetAfterSuccessfulReport()
+    {
+        HidTestInventory inventory;
+        std::atomic_int attempts{0}, closes{0};
+        QList<QByteArray> reports;
+        const RawHIDBackend backend{
+            [](const char *) { return reinterpret_cast<hid_device *>(quintptr(1)); },
+            [](hid_device *, unsigned char *, size_t, int) { QThread::msleep(5); return 0; },
+            [&](hid_device *, const unsigned char *data, size_t size) {
+                const int attempt = ++attempts;
+                if (attempt % 8) { errno = EAGAIN; return -1; }
+                reports.append(QByteArray(reinterpret_cast<const char *>(data), size));
+                return int(size);
+            },
+            [&](hid_device *) { ++closes; }
+        };
+        RawHID io(inventory.device, backend);
+        QSignalSpy failed(&io, &RawHID::transportFailed);
+        QSignalSpy written(&io, &QIODevice::bytesWritten);
+        QVERIFY(io.open(QIODevice::ReadWrite));
+        const QByteArray payload(100, 'x');
+        QCOMPARE(io.write(payload), qint64(payload.size()));
+        QTRY_COMPARE(written.size(), 2);
+        QCOMPARE(attempts.load(), 16);
+        QCOMPARE(written[0][0].toLongLong(), qint64(62));
+        QCOMPARE(written[1][0].toLongLong(), qint64(38));
+        QVERIFY(failed.isEmpty());
+        io.close(); // Join workers before inspecting their report list.
+        QCOMPARE(closes.load(), 1);
+        QCOMPARE(reports.size(), 2);
+        QCOMPARE(reports[0].left(2), QByteArray::fromHex("023e"));
+        QCOMPARE(reports[1].left(2), QByteArray::fromHex("0226"));
+        QCOMPARE(reports[0].mid(2, 62) + reports[1].mid(2, 38), payload);
+    }
+    void rawHidMalformedReportsCannotEscapeTheirBuffer()
+    {
+        HidTestInventory inventory;
+        QList<QByteArray> reports{QByteArray::fromHex("01"), QByteArray::fromHex("013f00"),
+            QByteArray::fromHex("02026162"), QByteArray::fromHex("0100"), QByteArray::fromHex("0103616263")};
+        std::atomic_int reads{0}, closes{0};
+        const RawHIDBackend backend{
+            [](const char *) { return reinterpret_cast<hid_device *>(quintptr(1)); },
+            [&](hid_device *, unsigned char *data, size_t, int) {
+                const int index = reads++;
+                if (index >= reports.size()) { QThread::msleep(5); return 0; }
+                const auto &report = reports[index];
+                std::memcpy(data, report.constData(), report.size()); return int(report.size());
+            },
+            [](hid_device *, const unsigned char *, size_t size) { return int(size); },
+            [&](hid_device *) { ++closes; }
+        };
+        RawHID io(inventory.device, backend);
+        QSignalSpy ready(&io, &QIODevice::readyRead);
+        QSignalSpy failed(&io, &RawHID::transportFailed);
+        QVERIFY(io.open(QIODevice::ReadWrite));
+        QTRY_COMPARE(ready.size(), 1);
+        QCOMPARE(io.readAll(), QByteArray("abc"));
+        QVERIFY(failed.isEmpty());
+        io.close();
+        QCOMPARE(closes.load(), 1);
+    }
+    void liveTransportFailurePersistsInRecoveryCard_data()
+    {
+        QTest::addColumn<int>("failureError");
+        QTest::newRow("stalled-usb") << ETIMEDOUT;
+        QTest::newRow("normal-usb-unplug") << ENODEV;
+    }
+    void liveTransportFailurePersistsInRecoveryCard()
+    {
+        QFETCH(int, failureError);
+        class FaultConnection : public RawHIDConnection {
+        public:
+            std::atomic_bool failWrite{false};
+            std::atomic_int closes{0};
+            int failureError;
+            QPointer<RawHID> io;
+            Core::IDevice *device;
+            bool registered = false;
+            explicit FaultConnection(int error) : failureError(error) {
+                USBPortInfo port{};
+                port.path = "/dev/test-hid"; port.serialNumber = "test-controller"; port.product = "OMNIBUSF4SD";
+                device = devicesForPorts({port}).first(); device->setUsbTopologyPath("2-4");
+            }
+            ~FaultConnection() override {
+                closeDevice({});
+                if (registered) ExtensionSystem::PluginManager::instance()->removeObject(this);
+            }
+            void registerInventory() {
+                registered = true;
+                ExtensionSystem::PluginManager::instance()->addObject(this);
+            }
+            QList<Core::IDevice *> availableDevices() override { return {device}; }
+        protected:
+            RawHID *createTransport(USBDevice *device) override {
+                const RawHIDBackend backend{
+                    [](const char *) { return reinterpret_cast<hid_device *>(quintptr(1)); },
+                    [](hid_device *, unsigned char *, size_t, int) { QThread::msleep(5); return 0; },
+                    [this](hid_device *, const unsigned char *, size_t size) {
+                        if (failWrite) { errno = failureError; return -1; }
+                        return int(size);
+                    },
+                    [this](hid_device *) { ++closes; }
+                };
+                io = new RawHID(device, backend); return io;
+            }
+        } connection(failureError);
+        QVERIFY(manager->connectDevice({&connection, connection.device}));
+        connection.registerInventory();
+        manager->reportFlightDataReceived();
+        connection.failWrite = true;
+        QCOMPARE(connection.io->write("request", 7), qint64(7));
+        QTRY_VERIFY(!manager->isConnected());
+        QVERIFY(!manager->flightDataAvailable());
+        const auto problem = manager->controllerRecovery().problem;
+        QCOMPARE(connection.closes.load(), 1);
+        QVERIFY(connection.io.isNull());
+        if (failureError == ENODEV) {
+            QVERIFY(problem.message.isEmpty());
+            QVERIFY(!manager->automaticConnectionBlocked("2-4"));
+            return;
+        }
+        QVERIFY(problem.message.contains("USB communication"));
+        QVERIFY(problem.message.contains("retry the connection"));
+        QVERIFY(problem.details.contains("/dev/test-hid"));
+        QVERIFY(problem.details.contains("errno 110"));
+        QVERIFY(manager->automaticConnectionBlocked("2-4"));
+        QVERIFY(page->findChild<QPushButton *>("firmwareRetryConnection")->isVisible());
+        captureFirmwarePage("live-usb-failure");
+    }
+    void receivedSamplesFollowValidatedUavTalkAndResetOnDisconnect()
+    {
+        TestDevice io; QVERIFY(io.open(QIODevice::ReadWrite));
+        UAVTalk protocol(&io, objects);
+        auto *baro = BaroAltitude::GetInstance(objects);
+        const auto saved = baro->getData();
+        const auto restore = qScopeGuard([&] { baro->setData(saved); baro->resetIsPresentOnHardware(); });
+        baro->resetIsPresentOnHardware();
+        auto data = saved; data.Pressure = 101.325f; data.Temperature = 22.5f;
+        baro->setData(data);
+        QVERIFY(!baro->getReceived()); // Editing local data cannot count as telemetry.
+        baro->setIsPresentOnHardware(true);
+        QVERIFY(!baro->getReceived()); // Presence alone cannot count either.
+        auto frame = objectFrame(baro);
+        auto corrupt = frame; corrupt.back() ^= 0x01;
+        io.receive(corrupt);
+        QVERIFY(!baro->getReceived());
+        io.receive(frame);
+        QVERIFY(baro->getReceived());
+        QCOMPARE(baro->getData().Pressure, 101.325f);
+        baro->setIsPresentOnHardware(true);
+        QVERIFY(baro->getReceived());
+        QSignalSpy presence(baro, QOverload<bool>::of(&UAVDataObject::presentOnHardwareChanged));
+        baro->resetIsPresentOnHardware();
+        QVERIFY(!baro->getReceived());
+        QVERIFY(!baro->getPresenceKnown());
+        QCOMPARE(presence.size(), 1);
+        QCOMPARE(presence[0][0].toBool(), false);
+    }
+    void liveControllerHealthLogsAlarmChangesAndReasons()
+    {
+        TestConnection connection("Native controller", "2-4");
+        QVERIFY(manager->connectDevice({&connection, connection.device}));
+        manager->reportFlightDataReceived();
+        auto *alarms = SystemAlarms::GetInstance(objects);
+        const auto saved = alarms->getData();
+        const auto restore = qScopeGuard([&] { alarms->setData(saved); });
+        MessageCapture messages;
+        UAVTalk protocol(connection.io, objects);
+        Telemetry telemetry(&protocol, objects);
+        TelemetryMonitor monitor(objects, &telemetry);
+        auto *baro = BaroAltitude::GetInstance(objects);
+        auto *gps = GPSPosition::GetInstance(objects);
+        auto *stats = SystemStats::GetInstance(objects);
+        const auto savedBaro = baro->getData();
+        const auto savedGps = gps->getData();
+        const auto savedStats = stats->getData();
+        const auto restoreReadings = qScopeGuard([&] {
+            baro->setData(savedBaro); gps->setData(savedGps); stats->setData(savedStats);
+        });
+        baro->resetIsPresentOnHardware(); gps->resetIsPresentOnHardware(); stats->resetIsPresentOnHardware();
+        auto data = saved;
+        for (auto &severity : data.Alarm) severity = SystemAlarms::ALARM_OK;
+        data.Alarm[SystemAlarms::ALARM_SENSORS] = SystemAlarms::ALARM_CRITICAL;
+        data.Alarm[SystemAlarms::ALARM_TEMPBARO] = SystemAlarms::ALARM_ERROR;
+        data.Alarm[SystemAlarms::ALARM_MANUALCONTROL] = SystemAlarms::ALARM_CRITICAL;
+        data.ManualControl = SystemAlarms::MANUALCONTROL_SETTINGS;
+        data.StateEstimation = SystemAlarms::STATEESTIMATION_NONE;
+        alarms->setData(data);
+        QVERIFY(messages.information.join('\n').contains("Sensors=Critical"));
+        QVERIFY(messages.information.join('\n').contains("TempBaro=Error"));
+        QVERIFY(messages.information.join('\n').contains("ManualControl reason=Settings"));
+        QVERIFY(messages.information.last().contains("BaroAltitude: no telemetry samples received"));
+        QCOMPARE(messages.information.filter("Controller health:").size(), 1);
+        alarms->setData(data);
+        QCOMPARE(messages.information.filter("Controller health:").size(), 1);
+        auto baroData = savedBaro; baroData.Pressure = 101.325f; baroData.Temperature = 22.5f;
+        baro->setData(baroData); connection.io->receive(objectFrame(baro));
+        auto gpsData = savedGps; gpsData.Status = GPSPosition::STATUS_NOGPS; gpsData.Satellites = 0;
+        gps->setData(gpsData); connection.io->receive(objectFrame(gps));
+        auto statsData = savedStats;
+        statsData.ObjectManagerQueueID = AttitudeActual::OBJID;
+        statsData.ObjectManagerCallbackID = 0x12345678;
+        statsData.EventSystemWarningID = 0;
+        stats->setData(statsData); connection.io->receive(objectFrame(stats));
+        data.Alarm[SystemAlarms::ALARM_EVENTSYSTEM] = SystemAlarms::ALARM_WARNING;
+        alarms->setData(data);
+        QCOMPARE(messages.information.filter("Controller health:").size(), 2);
+        const auto warning = messages.information.last();
+        QVERIFY(warning.contains("ObjectManagerQueueID=AttitudeActual"));
+        QVERIFY(warning.contains("ObjectManagerCallbackID=0x12345678"));
+        const auto pressure = QRegularExpression("BaroAltitude[.]Pressure=([^; ]+)").match(warning);
+        QVERIFY2(pressure.hasMatch(), qPrintable(warning));
+        QVERIFY(qFuzzyCompare(pressure.captured(1).toFloat(), 101.325f));
+        QVERIFY(warning.contains("BaroAltitude.Temperature=22.5"));
+        QVERIFY(warning.contains("GPSPosition.Status=NoGPS"));
+        QVERIFY(!warning.contains("no telemetry samples received"));
+        for (auto &severity : data.Alarm) severity = SystemAlarms::ALARM_OK;
+        data.ManualControl = SystemAlarms::MANUALCONTROL_NONE;
+        alarms->setData(data);
+        QCOMPARE(messages.information.filter("Controller health:").size(), 3);
+        QVERIFY(messages.information.last().contains("No active alarms"));
+        QVERIFY(!messages.information.last().contains("ObjectManagerQueueID")); // Saved IDs are historical after the alarm clears.
+        manager->disconnectDevice();
+        data.Alarm[SystemAlarms::ALARM_SENSORS] = SystemAlarms::ALARM_CRITICAL;
+        alarms->setData(data);
+        QCOMPARE(messages.information.filter("Controller health:").size(), 3);
+    }
+    void controllerRecoveryInstallationHandsOffToLiveDashboard_data()
+    {
+        QTest::addColumn<QString>("boardId");
+        QTest::newRow("radix") << QString("radix");
+        QTest::newRow("omnibus") << QString("omnibusf4sd");
+        QTest::newRow("hglrc") << QString("hglrc-f4-v6pro");
+    }
+    void controllerRecoveryInstallationHandsOffToLiveDashboard()
+    {
+        QFETCH(QString, boardId);
+        const auto board = Core::FirmwareCatalog::instance().board(boardId);
+        const auto imagePath = Core::FirmwareCatalog::imagePath(board, Core::FirmwareCatalog::ImageKind::FullInstall);
+        const auto image = Core::FirmwareInstallImage::load(board, imagePath);
+        QVERIFY2(image.valid(), qPrintable(image.error));
+        class InstallRunner final : public Core::DfuCommandRunner {
+        public:
+            QByteArray written;
+            QString listing;
+            int downloads = 0;
+            void run(const QString &, const QStringList &arguments, int) override {
+                QString output;
+                if (arguments.contains("-D")) {
+                    ++downloads;
+                    QFile file(arguments[arguments.indexOf("-D") + 1]);
+                    QVERIFY(file.open(QIODevice::ReadOnly)); written = file.readAll();
+                } else if (arguments.contains("-U")) {
+                    const auto bytes = arguments.join(' ').contains(":leave") ? written.left(1) : written;
+                    QFile file(arguments[arguments.indexOf("-U") + 1]);
+                    QVERIFY(file.open(QIODevice::WriteOnly)); QCOMPARE(file.write(bytes), qint64(bytes.size()));
+                } else if (written.isEmpty()) output = listing;
+                QTimer::singleShot(0, this, [this, output] { emit finished(0, output); });
+            }
+            void cancel() override {}
+        } runner;
+        runner.listing = QString("Found DFU: [0483:df11] ver=2200, devnum=8, cfg=1, intf=0, path=\"2-4\", alt=0, name=\"@Internal Flash /0x08000000/04*016Kg,01*064Kg,%1*128Kg\", serial=\"1234ABCD\"\n")
+            .arg(boardId == "radix" ? "03" : "07");
+        Core::FirmwarePage dashboard(manager, nullptr, &runner);
+        dashboard.resize(1280, 900); dashboard.show();
+        const QStringList cards{"firmwareAttitudeCard", "firmwareModelCard", "firmwareHealthCard"};
+        for (int index = 0; index < cards.size(); ++index) {
+            auto *panel = new QLabel("Live instrument", &dashboard);
+            dashboard.setFlightPanel(index, panel);
+        }
+        TestConnection controller(board.name, "2-4"); controller.transport = "USB";
+        const Core::DevListItem device(&controller, controller.device);
+        QVERIFY(manager->autoConnectDevice(device));
+        emit controller.transportDisconnected(&controller);
+        auto *recover = dashboard.findChild<QPushButton *>("firmwareRecoverInstallation");
+        QVERIFY(recover->isVisible());
+        QTest::mouseClick(recover, Qt::LeftButton);
+        QPointer<Core::FirmwareInstallWidget> installation = dashboard.findChild<Core::FirmwareInstallWidget *>();
+        QVERIFY(installation);
+        const auto cancelOnFailure = qScopeGuard([installation] {
+            if (installation) installation->cancelInstallation();
+        });
+        auto *installer = installation->findChild<Core::DfuInstaller *>();
+        QTRY_COMPARE(installer->stage(), Core::DfuInstaller::Stage::AwaitingTelemetry);
+        QVERIFY(runner.downloads > 0);
+        QVERIFY(!dashboard.findChild<QPushButton *>("firmwareConfigureAction")->isVisible());
+        QVERIFY(!installation->findChild<QWidget *>("firmwareInstallTaskCard")->property("uiCard").toBool());
+        QVERIFY(!installation->findChild<QLabel *>("firmwareInstallHeading")->isVisible());
+        const auto captures = qEnvironmentVariable("CONNECTION_DIALOG_CAPTURE_DIR");
+        if (!captures.isEmpty()) QVERIFY(dashboard.grab().save(captures + "/inline-install-" + boardId + ".png"));
+        auto *logToggle = installation->findChild<QToolButton *>("firmwareInstallDetailsToggle");
+        auto *cancel = installation->findChild<QDialogButtonBox *>()->button(QDialogButtonBox::Cancel);
+        QCoreApplication::processEvents();
+        QVERIFY(std::abs(logToggle->mapTo(installation, logToggle->rect().center()).y()
+            - cancel->mapTo(installation, cancel->rect().center()).y()) <= 4);
+        QTest::mouseClick(logToggle, Qt::LeftButton);
+        auto *logDetails = installation->findChild<QPlainTextEdit *>("firmwareInstallDetails");
+        QVERIFY(logDetails->isVisible());
+        QVERIFY(installation->findChild<QWidget *>("firmwareInstallTaskCard")->isAncestorOf(logDetails));
+        QTest::mouseClick(logToggle, Qt::LeftButton);
+        // An early node/access failure must recover through the install timer,
+        // without requiring Start controller and without hiding the install.
+        controller.failOpen = true;
+        QVERIFY(!manager->autoConnectDevice(device));
+        QCOMPARE(installer->stage(), Core::DfuInstaller::Stage::AwaitingTelemetry);
+        QVERIFY(!manager->automaticConnectionBlocked("2-4"));
+        controller.failOpen = false;
+        QTRY_VERIFY_WITH_TIMEOUT(manager->isConnected(), 3000);
+        QCOMPARE(installer->stage(), Core::DfuInstaller::Stage::AwaitingTelemetry);
+        const auto reportLiveData = [&] {
+            if (!manager->isConnected()) QVERIFY(manager->connectDevice(device));
+            manager->setNativeFirmwareIdentity(board.name, "DroniNG 1.0");
+            manager->setControllerSetupRequired(true);
+            manager->reportFirmwareDescription(image.descriptor);
+            if (!board.layoutId.isEmpty()) manager->reportFirmwareProfile(1, board.id, board.layoutId, image.profileHash);
+            manager->reportFlightDataReceived();
+        };
+        reportLiveData();
+        if (installer->stage() == Core::DfuInstaller::Stage::Configuring) {
+            emit manager->boardSettingsFinished(true, "Board settings saved.");
+            QVERIFY(!manager->isConnected());
+            reportLiveData();
+        }
+        // Complete must reveal the ordinary card and all instruments without Done.
+        QVERIFY(manager->flightDataAvailable());
+        QVERIFY(!manager->firmwareInstallationActive());
+        QVERIFY(!installation->isVisible());
+        QCOMPARE(dashboard.findChild<QLabel *>("firmwarePageTitle")->text(), QString("Set up controller?"));
+        QVERIFY(dashboard.findChild<QWidget *>("firmwareControllerCard")->isVisible());
+        QVERIFY(!dashboard.findChild<QPushButton *>("firmwareInstallAction")->isVisible());
+        int setupActions = 0;
+        for (const auto *button : dashboard.findChildren<QPushButton *>())
+            if (button->isVisible() && button->text() == "Launch setup wizard") ++setupActions;
+        QCOMPARE(setupActions, 1);
+        for (const auto &card : cards) QVERIFY(dashboard.findChild<QWidget *>(card)->isEnabled());
+        QVERIFY(!dashboard.findChild<QDialog *>());
+        QTRY_VERIFY(!installation);
+        for (const int width : {640, 1280}) {
+            dashboard.resize(width, 900); QCoreApplication::processEvents();
+            QVERIFY(dashboard.findChild<QScrollArea *>("firmwareScrollArea")->horizontalScrollBar()->maximum() == 0);
+            if (!captures.isEmpty()) QVERIFY(dashboard.grab().save(captures + QString("/installed-live-%1-%2.png").arg(boardId).arg(width)));
+            for (const auto &card : cards) QVERIFY(dashboard.findChild<QWidget *>(card)->isEnabled());
+        }
+        // Firmware offers compare the descriptor, even after a fresh connection.
+        manager->disconnectDevice();
+        reportLiveData();
+        auto *update = dashboard.findChild<QPushButton *>("firmwareInstallAction");
+        QVERIFY(!update->isVisible());
+        if (!board.layoutId.isEmpty()) {
+            auto otherDescriptor = image.descriptor; otherDescriptor[8] ^= 1;
+            manager->reportFirmwareDescription(otherDescriptor);
+            QVERIFY(update->isVisible());
+            QVERIFY(!update->property("primary").toBool());
+            manager->reportFirmwareDescription(image.descriptor);
+            QVERIFY(!update->isVisible());
+        }
+        QSignalSpy setupRequests(manager, &Core::ConnectionManager::setupWizardRequested);
+        QTest::mouseClick(dashboard.findChild<QPushButton *>("firmwareConfigureAction"), Qt::LeftButton);
+        QCOMPARE(setupRequests.size(), 1);
+    }
+    void controllerRecoveryRetainsTimeoutAndRequiresUnknownBoardSelection()
+    {
+        TestConnection controller("Unidentified controller", "2-8");
+        QVERIFY(manager->connectDevice({&controller, controller.device}));
+        manager->telemetryConnectionFailed({"No response from the controller. Reconnect USB, then retry.", {}, "Handshake timeout"});
+        manager->disconnectDevice();
+        QVERIFY(manager->firmwareError().message.contains("No response"));
+        QVERIFY(!manager->firmwareDetectionActive());
+        QVERIFY(manager->controllerRecovery().boardId.isEmpty());
+        auto *recover = page->findChild<QPushButton *>("firmwareRecoverInstallation");
+        QVERIFY(recover->isVisible()); QCOMPARE(recover->text(), QString("Select board…"));
+        QVERIFY(page->findChild<QLabel *>("connectionErrorGuidance")->isVisible());
+        QTest::mouseClick(recover, Qt::LeftButton);
+        auto *boards = page->findChild<QComboBox *>("firmwareBoardModel");
+        QVERIFY(boards->isVisible()); QCOMPARE(boards->currentData().toString(), QString());
+        QVERIFY(!page->findChild<QPushButton *>("firmwareInstallAction")->isEnabled());
+        QVERIFY(!page->findChild<Core::FirmwareInstallWidget *>());
+        QTest::mouseClick(page->findChild<QToolButton *>("firmwareBackAction"), Qt::LeftButton);
+        QVERIFY(recover->isVisible());
+        QTest::mouseClick(page->findChild<QPushButton *>("firmwareOtherController"), Qt::LeftButton);
+        QVERIFY(page->findChild<QWidget *>("firmwareConnectCard")->isVisible());
+        QVERIFY(manager->controllerRecovery().problem.message.isEmpty());
+    }
+    void controllerRecoveryDoesNotReuseBoardForDifferentUsbProduct()
+    {
+        TestConnection known("BrainFPV RADIX", "2-6");
+        QVERIFY(manager->connectDevice({&known, known.device}));
+        manager->telemetryConnectionFailed({"No response", {}, {}});
+        QCOMPARE(manager->controllerRecovery().boardId, QString("radix"));
+        manager->disconnectDevice();
+        TestConnection different("Unidentified controller", "2-6");
+        QVERIFY(manager->connectDevice({&different, different.device}));
+        manager->telemetryConnectionFailed({"No response", {}, {}});
+        QVERIFY(manager->controllerRecovery().boardId.isEmpty());
+        QCOMPARE(page->findChild<QPushButton *>("firmwareRecoverInstallation")->text(), QString("Select board…"));
+    }
+    void controllerRecoveryDoesNotApplyPreviousInstallToAnotherDetectedBoard()
+    {
+        const auto &catalog = Core::FirmwareCatalog::instance();
+        const auto radix = catalog.board("radix");
+        const auto image = Core::FirmwareInstallImage::load(radix, Core::FirmwareCatalog::imagePath(radix,
+            Core::FirmwareCatalog::ImageKind::FullInstall));
+        QVERIFY2(image.valid(), qPrintable(image.error));
+        manager->recordVerifiedInstallation(radix.id, "2-7", image.descriptor);
+        const auto other = catalog.board("omnibusf4sd");
+        TestConnection controller(other.name, "2-7");
+        QVERIFY(manager->connectDevice({&controller, controller.device}));
+        manager->telemetryConnectionFailed({"No response", {}, {}});
+        QCOMPARE(manager->controllerRecovery().boardId, other.id);
+        QCOMPARE(page->findChild<QLabel *>("firmwareDetectedBoard")->text(), other.name);
+        manager->setNativeFirmwareIdentity(other.name, "DroniNG");
+        manager->reportFlightDataReceived(); manager->disconnectDevice();
+        QVERIFY(page->findChild<QWidget *>("firmwareConnectCard")->isVisible());
+        QVERIFY(!page->findChild<QPushButton *>("firmwareRecoverInstallation")->isVisible());
+    }
+    void controllerRecoveryExplainsMissingCompatibleImage()
+    {
+        const auto board = Core::FirmwareCatalog::instance().board("flyingpio");
+        QVERIFY(board.isValid());
+        QVERIFY(!Core::FirmwareInstallImage::load(board, Core::FirmwareCatalog::imagePath(board,
+            Core::FirmwareCatalog::ImageKind::FullInstall)).valid());
+        TestConnection controller(board.name, "2-9");
+        QVERIFY(manager->connectDevice({&controller, controller.device}));
+        manager->telemetryConnectionFailed({"No response from the controller.", {}, {}});
+        auto *recover = page->findChild<QPushButton *>("firmwareRecoverInstallation");
+        QVERIFY(recover->isVisible()); QVERIFY(!recover->isEnabled());
+        QVERIFY(page->findChild<QLabel *>("firmwareRecoveryHint")->text().contains("missing from this build"));
+        QVERIFY(page->findChild<QPushButton *>("firmwareRetryConnection")->isEnabled());
+    }
+    void nativeUsbStartupResetsStopAutomaticRetries()
+    {
+        TestConnection controller("OMNIBUSF4SD", "3-1.4.3.4"); controller.transport = "USB";
+        const Core::DevListItem device(&controller, controller.device);
+        QVERIFY(manager->autoConnectDevice(device));
+        QVERIFY(manager->firmwareDetectionActive());
+        emit controller.transportDisconnected(&controller);
+        QVERIFY(!manager->isConnected());
+        QVERIFY(!manager->firmwareDetectionActive());
+        QVERIFY(manager->automaticConnectionBlocked("3-1.4.3.4"));
+        QVERIFY(!manager->autoConnectDevice(device));
+        QCOMPARE(controller.closeCalls, 1);
+        QCOMPARE(manager->firmwareStatus(), QString("Controller needs attention"));
+        QVERIFY(manager->firmwareError().message.contains("Automatic retries have stopped"));
+        QCOMPARE(manager->connectionLog().count("OMNIBUSF4SD disconnected before live data was ready. USB path: 3-1.4.3.4."), 1);
+        // Closing the installation and repeated inventories must retain the diagnosis.
+        manager->endFirmwareInstallation();
+        emit controller.availableDevChanged(&controller);
+        QVERIFY(!manager->isConnected());
+        QVERIFY(manager->firmwareError().details.contains("USB path: 3-1.4.3.4"));
+        QSignalSpy changes(manager, &Core::ConnectionManager::firmwareStateChanged);
+        for (int inventory = 0; inventory < 5; ++inventory) {
+            emit controller.availableDevChanged(&controller);
+            manager->telemetryHandshakeCompleted();
+            manager->setFirmwareDetectionActive(true);
+            QVERIFY(!manager->autoConnectDevice(device));
+            QVERIFY(!manager->firmwareDetectionActive());
+            QCOMPARE(page->findChild<QLabel *>("firmwarePageTitle")->text(), QString("Controller needs attention"));
+        }
+        QCOMPARE(changes.size(), 0);
+        // Serial discovery can briefly lose its sysfs path during USB re-enumeration.
+        TestConnection serial("OMNIBUSF4SD - ttyACM0", "");
+        QVERIFY(!manager->autoConnectDevice({&serial, serial.device}));
+        auto *error = page->findChild<QLabel *>("connectionErrorGuidance");
+        QVERIFY(error); QVERIFY(error->text().contains("Automatic retries have stopped"));
+        page->resize(900, 700);
+        QCoreApplication::processEvents();
+        QVERIFY(error->isVisible());
+        const auto captures = qEnvironmentVariable("CONNECTION_DIALOG_CAPTURE_DIR");
+        if (!captures.isEmpty()) QVERIFY(page->grab().save(captures + "/controller-startup-resets.png"));
+        // A different controller remains usable, with its own connection state.
+        {
+            TestConnection other("Other controller", "1-6"); other.transport = "USB";
+            QVERIFY(manager->autoConnectDevice({&other, other.device}));
+            manager->reportFlightDataReceived();
+            manager->disconnectDevice();
+            QVERIFY(!manager->firmwareStatus().contains("Connected."));
+            QVERIFY(manager->automaticConnectionBlocked("3-1.4.3.4"));
+        }
+        // Connect is an explicit new attempt. Successful telemetry clears the budget.
+        QVERIFY(manager->connectDevice(device));
+        QVERIFY(!manager->automaticConnectionBlocked("3-1.4.3.4"));
+        manager->reportFlightDataReceived();
+        emit controller.transportDisconnected(&controller);
+        QVERIFY(!manager->automaticConnectionBlocked("3-1.4.3.4"));
+        QVERIFY(manager->autoConnectDevice(device));
+    }
+    void nativeUsbManualDisconnectDoesNotCountAsStartupFailure()
+    {
+        TestConnection controller("OMNIBUSF4SD", "1-5"); controller.transport = "USB";
+        const Core::DevListItem device(&controller, controller.device);
+        for (int attempt = 0; attempt < 4; ++attempt) {
+            QVERIFY(manager->autoConnectDevice(device));
+            QVERIFY(manager->disconnectDevice());
+        }
+        QVERIFY(!manager->automaticConnectionBlocked("1-5"));
+        QVERIFY(!manager->connectionLog().contains("USB path: 1-5."));
+    }
+    void nativeUsbInventoryLossStopsAutomaticRetries()
+    {
+        for (int attempt = 0; attempt < 2; ++attempt) {
+            manager->resetAutomaticConnectionFailures("1-7");
+            TestConnection controller("OMNIBUSF4SD", "1-7"); controller.transport = "USB";
+            QVERIFY(manager->autoConnectDevice({&controller, controller.device}));
+            if (attempt == 1) {
+                controller.io->close();
+                QCoreApplication::processEvents();
+            } else controller.detachController();
+            QVERIFY(!manager->isConnected());
+        }
+        QVERIFY(manager->automaticConnectionBlocked("1-7"));
+        TestConnection controller("OMNIBUSF4SD", "1-7"); controller.transport = "USB";
+        QVERIFY(!manager->autoConnectDevice({&controller, controller.device}));
+        manager->resetAutomaticConnectionFailures("1-7");
+        QVERIFY(manager->autoConnectDevice({&controller, controller.device}));
     }
     void nativeUsbInventoryPreservesConnectionAndSelection()
     {
@@ -1564,6 +2859,46 @@ private slots:
         QVERIFY(guidance->wordWrap());
         page->resize(650, 500);
     }
+    void connectionHistoryExplainsSuccessFailureAndReconnect()
+    {
+        TestConnection connection;
+        QVERIFY(manager->connectDevice({&connection, connection.device}));
+        manager->telemetryHandshakeCompleted();
+        manager->setNativeFirmwareIdentity("Revolution", "DroniNG 1.0", "dRonin 0x88");
+        manager->telemetryConnected();
+        manager->reportFlightDataReceived();
+        auto *toggle = page->findChild<QToolButton *>("connectionErrorDetailsToggle");
+        auto *details = page->findChild<QPlainTextEdit *>("connectionErrorDetails");
+        QVERIFY(toggle->isVisible());
+        QVERIFY(!details->isVisible());
+        QTest::mouseClick(toggle, Qt::LeftButton);
+        QVERIFY(details->isVisible());
+        QVERIFY(details->isReadOnly());
+        const auto history = details->toPlainText();
+        QVERIFY(history.contains("Connecting to"));
+        QVERIFY(history.contains("Transport opened"));
+        QVERIFY(history.contains("UAVTalk handshake completed"));
+        QVERIFY(history.contains("Revolution"));
+        QVERIFY(history.contains("DroniNG 1.0"));
+        QVERIFY(history.contains("dRonin 0x88"));
+        QVERIFY(history.contains("Controller data retrieved"));
+        QVERIFY(history.contains("sending flight data"));
+        captureFirmwarePage("firmware-connected-history");
+        QSignalSpy logChanges(manager, &Core::ConnectionManager::connectionLogChanged);
+        for (int packet = 0; packet < 10; ++packet) manager->reportFlightDataReceived();
+        QCOMPARE(logChanges.count(), 0);
+        QCOMPARE(details->toPlainText(), history);
+        manager->telemetryConnectionFailed({"Controller stopped responding", {}, "rxBytes=0"});
+        QVERIFY(details->toPlainText().contains("Controller stopped responding"));
+        QVERIFY(details->toPlainText().contains("rxBytes=0"));
+        manager->disconnectDevice();
+        QVERIFY(details->toPlainText().contains("Disconnected from"));
+        QVERIFY(details->toPlainText().contains("Controller stopped responding"));
+        QVERIFY(manager->connectDevice({&connection, connection.device}));
+        QVERIFY(details->toPlainText().contains("Connecting to"));
+        QVERIFY(!details->toPlainText().contains("Controller stopped responding"));
+        QVERIFY(!details->toPlainText().contains("dRonin 0x88"));
+    }
     void nativeBootloaderAndFlightDataState()
     {
         TestConnection connection;
@@ -1573,12 +2908,12 @@ private slots:
         QCOMPARE(page->findChild<QLabel *>("firmwareDetectedFirmware")->text(), QString("dRonin 20261010"));
         manager->reportFlightDataReceived();
         QVERIFY(page->findChild<QLabel *>("firmwareStatus")->text().contains("sending flight data"));
-        QVERIFY(page->findChild<QPushButton *>("firmwareFlightAction")->isVisible());
+        QVERIFY(!page->findChild<QPushButton *>("firmwareFlightAction"));
         QVERIFY(page->findChild<QPushButton *>("firmwareConfigureAction")->isVisible());
         QVERIFY(page->findChild<QPushButton *>("firmwareDisconnectAction")->isVisible());
         QVERIFY(!page->findChild<QComboBox *>("firmwareBoardModel")->isVisible());
         QVERIFY(!page->findChild<QPushButton *>("firmwareInstallAction")->isVisible());
-        QVERIFY(!page->findChild<QWidget *>("firmwareRecoveryCard")->isVisible());
+        QVERIFY(!page->findChild<QWidget *>("firmwareRecoveryBody")->isVisible());
         QVERIFY(page->findChild<QPushButton *>("firmwareConfigureAction")->property("primary").toBool());
         QVERIFY(!page->findChild<QLabel *>("firmwareStep1"));
         captureFirmwarePage("firmware-connected-ready");
@@ -1593,17 +2928,27 @@ private slots:
         manager->setNativeFirmwareIdentity("Revolution", "dRonin", "dRonin 0x88");
         manager->reportFlightDataReceived();
         QVERIFY(manager->flightDataAvailable());
-        QVERIFY(page->findChild<QPushButton *>("firmwareFlightAction")->isVisible());
+        QVERIFY(page->findChild<QPushButton *>("firmwareConfigureAction")->isVisible());
         manager->telemetryDisconnected();
         QVERIFY(!manager->flightDataAvailable()); QVERIFY(manager->firmwareDetectionActive());
-        QVERIFY(!page->findChild<QPushButton *>("firmwareFlightAction")->isVisible());
+        QVERIFY(!page->findChild<QPushButton *>("firmwareConfigureAction")->isVisible());
         QVERIFY(page->findChild<QProgressBar *>("firmwareDetectionProgress")->isVisible());
         manager->reportFlightDataReceived();
         QVERIFY(manager->flightDataAvailable()); QVERIFY(!manager->firmwareDetectionActive());
-        QVERIFY(page->findChild<QPushButton *>("firmwareFlightAction")->isVisible());
+        QVERIFY(page->findChild<QPushButton *>("firmwareConfigureAction")->isVisible());
+    }
+    void controllerSetupOfferAndExplicitWizard_data()
+    {
+        QTest::addColumn<int>("boardType");
+        QTest::addColumn<bool>("dshotSupported");
+        QTest::newRow("legacy-RE1") << 0x8b << true;
+        QTest::newRow("native-Radix") << 224 << false;
+        QTest::newRow("native-OmnibusF4SD") << 225 << false;
     }
     void controllerSetupOfferAndExplicitWizard()
     {
+        QFETCH(int, boardType);
+        QFETCH(bool, dshotSupported);
         TelemetryManager telemetry;
         UAVObjectUtilManager util;
         plugins.addObject(&telemetry); plugins.addObject(&util);
@@ -1619,13 +2964,23 @@ private slots:
             plugins.removeObject(&util); plugins.removeObject(&telemetry);
         });
         const QDir build(GCS_BUILD_TREE_PATH);
+        QPluginLoader brain(build.filePath("lib/droning/plugins/droniNG/libBrainFPV.so"));
+        QPluginLoader imported(build.filePath("lib/droning/plugins/droniNG/libDroning.so"));
         QPluginLoader config(build.filePath("lib/droning/plugins/droniNG/libConfig.so"));
         QPluginLoader setup(build.filePath("lib/droning/plugins/droniNG/libSetupWizard.so"));
         auto *configPlugin = qobject_cast<ExtensionSystem::IPlugin *>(config.instance());
+        auto *brainPlugin = qobject_cast<ExtensionSystem::IPlugin *>(brain.instance());
+        auto *importedPlugin = qobject_cast<ExtensionSystem::IPlugin *>(imported.instance());
         auto *setupPlugin = qobject_cast<ExtensionSystem::IPlugin *>(setup.instance());
         QVERIFY2(configPlugin, qPrintable(config.errorString()));
+        QVERIFY2(brainPlugin, qPrintable(brain.errorString()));
+        QVERIFY2(importedPlugin, qPrintable(imported.errorString()));
         QVERIFY2(setupPlugin, qPrintable(setup.errorString()));
         QString error;
+        QVERIFY2(brainPlugin->initialize({}, &error), qPrintable(error));
+        brainPlugin->extensionsInitialized();
+        QVERIFY2(importedPlugin->initialize({}, &error), qPrintable(error));
+        importedPlugin->extensionsInitialized();
         QVERIFY2(configPlugin->initialize({}, &error), qPrintable(error));
         QVERIFY2(setupPlugin->initialize({}, &error), qPrintable(error));
         setupPlugin->extensionsInitialized();
@@ -1633,14 +2988,18 @@ private slots:
             for (auto *wizard : manager->window()->findChildren<QWizard *>("controllerSetupWizard"))
                 wizard->reject();
             QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
-            setup.unload(); config.unload();
+            setup.unload(); config.unload(); imported.unload(); brain.unload();
         });
         auto metadata = previousIap;
+        metadata.BoardType = boardType;
+        metadata.BoardRevision = 1;
         std::fill(std::begin(metadata.Description), std::end(metadata.Description), 0);
         std::copy_n("TlFw", 4, metadata.Description);
         const auto hash = QByteArray::fromHex(util.getGcsHash().toLatin1());
         QCOMPARE(hash.size(), 4);
         for (int i = 0; i < 4; ++i) metadata.Description[4 + i] = quint8(hash[3 - i]);
+        const auto uavoHash = Core::FirmwareInstallImage::gcsUavoHash();
+        std::copy(uavoHash.begin(), uavoHash.end(), metadata.Description + 60);
         iap->setData(metadata);
         QVERIFY(util.firmwareHashMatchesGcs());
         auto outputs = previousActuators;
@@ -1665,14 +3024,46 @@ private slots:
         QCOMPARE(workspaceChanges.size(), 0);
         QCOMPARE(page->findChild<QLabel *>("firmwarePageTitle")->text(), QString("Set up controller?"));
         QVERIFY(page->findChild<QLabel *>("firmwareSetupIntro")->isVisible());
-        QVERIFY(!page->findChild<QWidget *>("firmwareRecoveryCard")->isVisible());
+        QVERIFY(!page->findChild<QWidget *>("firmwareRecoveryBody")->isVisible());
         auto *launch = page->findChild<QPushButton *>("firmwareConfigureAction");
         QCOMPARE(launch->text(), QString("Launch setup wizard"));
+        const QSize originalSize = page->size();
+        auto *overview = page->findChild<QWidget *>("firmwareOverview");
+        for (const auto &size : {QSize(1100, 740), QSize(1320, 1100), QSize(680, 740), QSize(800, 740)}) {
+            page->resize(size); QCoreApplication::processEvents();
+            QTRY_COMPARE(page->size(), size);
+            int bottom = 0;
+            for (const auto *name : {"firmwareConfigureAction", "firmwareScopesAction", "firmwareDisconnectAction"}) {
+                auto *button = page->findChild<QPushButton *>(name);
+                if (!button->isVisible()) continue;
+                const QRect bounds(button->mapTo(overview, QPoint()), button->size());
+                QVERIFY(overview->rect().contains(bounds));
+                bottom = qMax(bottom, bounds.bottom());
+            }
+            QVERIFY2(qAbs(overview->height() - 21 - bottom) <= 1, "Setup actions must stay at the bottom of their card");
+            QVERIFY(overview->rect().contains(QRect(launch->mapTo(overview, QPoint()), launch->size())));
+        }
+        page->resize(originalSize); QCoreApplication::processEvents();
         captureFirmwarePage("firmware-controller-needs-setup");
+        QTRY_VERIFY(launch->isVisible() && launch->isEnabled() && launch->height() > 0);
         QTest::mouseClick(launch, Qt::LeftButton);
         QPointer<QWizard> wizard = manager->window()->findChild<QWizard *>("controllerSetupWizard");
         QVERIFY(wizard); QVERIFY(wizard->isVisible()); QCOMPARE(requests.size(), 1);
         QCOMPARE(workspaceChanges.size(), 0);
+        QWizardPage *outputsPage = nullptr;
+        for (int id : wizard->pageIds())
+            if (wizard->page(id)->findChild<QToolButton *>("dshot300Button")) outputsPage = wizard->page(id);
+        QVERIFY(outputsPage);
+        outputsPage->findChild<QToolButton *>("dshot300Button")->setChecked(true);
+        outputsPage->initializePage();
+        for (const auto *name : {"dshot300Button", "dshot600Button", "dshot1200Button"})
+            QCOMPARE(outputsPage->findChild<QToolButton *>(name)->isEnabled(), dshotSupported);
+        if (!dshotSupported) {
+            QVERIFY(outputsPage->findChild<QToolButton *>("oneShot125Button")->isChecked());
+            QVERIFY(outputsPage->validatePage());
+            outputsPage->findChild<QToolButton *>("dshot600Button")->setChecked(true);
+            QVERIFY(!outputsPage->validatePage());
+        }
         // Cancellation must close immediately without a second question.
         QTimer cancellationGuard;
         bool suppressionPromptSeen = false;
@@ -1729,6 +3120,26 @@ private slots:
         metadata.Description[4] ^= 1; iap->setData(metadata);
         actuators->setIsPresentOnHardware(true); actuators->setData(outputs);
         QVERIFY(!manager->controllerSetupRequired());
+    }
+    void firmwareCompatibilitySurvivesApplicationCommits()
+    {
+        const auto board = Core::FirmwareCatalog::instance().board("revolution");
+        const auto image = Core::FirmwareInstallImage::load(board, Core::FirmwareCatalog::imagePath(
+            board, Core::FirmwareCatalog::ImageKind::FullInstall));
+        QVERIFY2(image.valid(), qPrintable(image.error));
+        auto *iap = FirmwareIAPObj::GetInstance(objects);
+        const auto previous = iap->getData();
+        const auto restore = qScopeGuard([&] { iap->setData(previous); });
+        auto metadata = previous;
+        std::copy(image.descriptor.begin(), image.descriptor.end(), metadata.Description);
+        metadata.Description[4] ^= 1; // Same executable, a different application commit.
+        iap->setData(metadata);
+        UAVObjectUtilManager util;
+        QVERIFY(util.firmwareHashMatchesGcs());
+        metadata.Description[40] ^= 1; iap->setData(metadata);
+        QVERIFY(!util.firmwareHashMatchesGcs());
+        metadata.Description[40] ^= 1; metadata.Description[60] ^= 1; iap->setData(metadata);
+        QVERIFY(!util.firmwareHashMatchesGcs());
     }
     void mspFirmwareDiagnosis_data()
     {
@@ -1817,6 +3228,10 @@ private slots:
             QVERIFY(!manager->hasMspFirmware());
         }
         manager->disconnectDevice();
+        if (variant == "DRON") {
+            QVERIFY(!manager->firmwareError().message.isEmpty());
+            manager->clearControllerRecovery();
+        }
         QVERIFY(manager->firmwareError().message.isEmpty());
         QVERIFY(manager->firmwareBoardTarget().isEmpty());
         QVERIFY(!manager->hasMspFirmware());
@@ -1849,11 +3264,13 @@ private slots:
         AttitudeActual boardAttitude;
         auto attitudeData = boardAttitude.getData(); attitudeData.Roll = 12.5f;
         boardAttitude.setData(attitudeData);
+        int attitudeRequests = 0;
         connection.io->onWrite = [&](const QByteArray &request) {
             if (request.size() < 9 || quint8(request[0]) != 0x3c || quint8(request[1]) != 0x21) return;
             quint32 id = 0;
             for (int byte = 0; byte < 4; ++byte) id |= quint32(quint8(request[4 + byte])) << (8 * byte);
             auto *object = objects->getObject(id);
+            if (id == boardAttitude.getObjID()) ++attitudeRequests;
             if (!object || !object->isSingleInstance() || (!attitudePresent && id == boardAttitude.getObjID()))
                 connection.io->receive(nackFrame(id));
             else connection.io->receive(objectFrame(id == boardAttitude.getObjID() ? &boardAttitude : object));
@@ -1865,6 +3282,7 @@ private slots:
         manager->setNativeFirmwareIdentity("Revolution", "DroniNG 1.0");
         if (earlyAttitude) connection.io->receive(objectFrame(&boardAttitude));
         QTRY_COMPARE_WITH_TIMEOUT(retrieved.count(), 1, 6000);
+        QCOMPARE(attitudeRequests, earlyAttitude ? 0 : 1);
         if (!attitudePresent) {
             QVERIFY(!manager->flightDataAvailable());
             QVERIFY(QMetaObject::invokeMethod(&monitor, "liveDataTimeoutCB", Qt::DirectConnection));
@@ -1878,7 +3296,7 @@ private slots:
         QVERIFY(!manager->firmwareDetectionActive());
         QCOMPARE(manager->detectedBoard(), QString("Revolution"));
         QCOMPARE(manager->detectedFirmware(), QString("DroniNG 1.0"));
-        QVERIFY(page->findChild<QPushButton *>("firmwareFlightAction")->isVisible());
+        QVERIFY(page->findChild<QPushButton *>("firmwareConfigureAction")->isVisible());
         QVERIFY(!page->findChild<QProgressBar *>("firmwareDetectionProgress")->isVisible());
         QCOMPARE(AttitudeActual::GetInstance(objects)->getData().Roll, 12.5f);
         captureFirmwarePage("firmware-native-retrieval-complete");
@@ -1894,6 +3312,40 @@ private slots:
         flightData.Status = FlightTelemetryStats::STATUS_DISCONNECTED; boardFlight.setData(flightData);
         connection.io->receive(objectFrame(&boardFlight));
         QVERIFY(!manager->flightDataAvailable());
+    }
+    void nativeProfileIdentityRequiresReceivedPacket()
+    {
+        TestConnection connection;
+        QVERIFY(manager->connectDevice({&connection, connection.device}));
+        UAVTalk protocol(connection.io, objects);
+        Telemetry telemetry(&protocol, objects);
+        TelemetryMonitor monitor(objects, &telemetry);
+        auto *profile = BoardProfile::GetInstance(objects);
+        profile->resetIsPresentOnHardware();
+        QSignalSpy received(manager, &Core::ConnectionManager::firmwareProfileReceived);
+        BoardProfile remote;
+        auto data = remote.getData();
+        const QByteArray id("radix"), layout("radix-f446-rom-v1");
+        const auto hash = Core::FirmwareInstallImage::importedProfileHash();
+        data.SchemaVersion = 1;
+        memset(data.ProfileId, 0, sizeof(data.ProfileId));
+        memset(data.LayoutId, 0, sizeof(data.LayoutId));
+        memcpy(data.ProfileId, id.constData(), id.size());
+        memcpy(data.LayoutId, layout.constData(), layout.size());
+        memcpy(data.ProfileHash, hash.constData(), sizeof(data.ProfileHash));
+        // A flight packet supplies this read-only object; its GCS setter must refuse writes.
+        remote.unpack(reinterpret_cast<const quint8 *>(&data));
+        profile->setData(data); // Cached values must not prove a live identity.
+        QCOMPARE(received.count(), 0);
+        connection.io->receive(objectFrame(&remote));
+        QCOMPARE(received.count(), 1);
+        QCOMPARE(received.first()[0].toInt(), 1);
+        QCOMPARE(received.first()[1].toString(), QString::fromLatin1(id));
+        QCOMPARE(received.first()[2].toString(), QString::fromLatin1(layout));
+        QCOMPARE(received.first()[3].toByteArray(), hash);
+        manager->disconnectDevice();
+        profile->unpack(reinterpret_cast<const quint8 *>(&data));
+        QCOMPARE(received.count(), 1); // The old transport cannot certify a new connection.
     }
     void successfulHandshakeDoesNotWarn()
     {

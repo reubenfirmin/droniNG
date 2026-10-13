@@ -11,6 +11,7 @@ namespace Core {
 
 struct CORE_EXPORT FirmwareBoardProfile {
     QString id, name, target, mapping, notes, evidence, systemBootloader, bootInstructions, manualUrl;
+    QString layoutId, supportLevel;
     QStringList aliases, mspTargets;
     QJsonArray settings;
     int boardType = 0;
@@ -35,6 +36,8 @@ public:
     static QStringList defaultImageRoots();
     static QString firmwareName(const QByteArray &descriptor,
                                 const QStringList &roots = defaultImageRoots());
+    static QByteArray matchingFirmwareDescriptor(const QByteArray &descriptor,
+                                                const QStringList &roots = defaultImageRoots());
 
 private:
     QList<FirmwareBoardProfile> m_boards;

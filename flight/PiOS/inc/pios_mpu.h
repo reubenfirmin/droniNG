@@ -177,7 +177,7 @@ int32_t PIOS_MPU_SetSampleRate(uint16_t samplerate_hz);
  * low-pass filter capable of providing the desired bandwidth.
  * @param[in] bandwidth The desired bandwidth [Hz]
  */
-void PIOS_MPU_SetGyroBandwidth(uint16_t bandwidth);
+int32_t PIOS_MPU_SetGyroBandwidth(uint16_t bandwidth);
 
 /**
  * @brief Sets the bandwidth desired from the accelerometer.
@@ -185,7 +185,7 @@ void PIOS_MPU_SetGyroBandwidth(uint16_t bandwidth);
  * low-pass filter capable of providing the desired bandwidth.
  * @param[in] bandwidth The desired bandwidth [Hz]
  */
-void PIOS_MPU_SetAccelBandwidth(uint16_t bandwidth);
+int32_t PIOS_MPU_SetAccelBandwidth(uint16_t bandwidth);
 
 /**
  * @brief The IMU interrupt handler.

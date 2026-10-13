@@ -12,14 +12,14 @@ import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SURVEY = ROOT / "flight/PiOS/Betaflight"
+SURVEY = ROOT / "flight/Betaflight"
 UPSTREAM = SURVEY / "upstream/betaflight"
 PIN = re.compile(r"P[A-K]\d{1,2}$")
 
 
-def verify_sources():
-    lock = json.loads((SURVEY / "survey.lock.json").read_text())
-    manifest = json.loads((SURVEY / "source-manifest.json").read_text())
+def verify_sources(lock_path=None, manifest_path=None):
+    lock = json.loads((lock_path or SURVEY / "survey.lock.json").read_text())
+    manifest = json.loads((manifest_path or SURVEY / "source-manifest.json").read_text())
     expected = {(k, p) for k, repo in lock["repositories"].items() for p in repo["files"]}
     actual = [(f["repository"], f["path"]) for f in manifest["files"]]
     if len(actual) != len(set(actual)) or set(actual) != expected:

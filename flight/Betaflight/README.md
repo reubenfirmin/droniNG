@@ -6,10 +6,13 @@ keep acquisition, scheduling and flight control in PiOS/droniNG. The register
 logic of the untouched upstream ICM426xx driver compiled and passed a host
 probe through the real PiOS SPI API declarations.
 
-This directory does not implement a production adapter or add a supported
-board. It is outside firmware source selection. No controller was flashed or
-reconfigured. The C probe simulates hardware; it does not validate STM32 SPI,
-interrupts, sample deadlines, orientation, flash/RAM fit, or flight behavior.
+The survey and probe sources are outside firmware source selection. They do
+not establish production board support. The separate
+[Radix implementation](RADIX_IMPLEMENTATION.md) and
+[Omnibus F4 SD implementation](OMNIBUSF4SD_IMPLEMENTATION.md) import their
+pinned wiring and build native firmware images. No controller was
+flashed or reconfigured. The C probe simulates hardware; it does not validate
+STM32 SPI, interrupts, sample deadlines or flight behavior.
 
 ## Sources and reproducibility
 
@@ -18,7 +21,13 @@ exercise different integration cases, not a measured popularity ranking. A
 target name can cover multiple PCB revisions and fitted parts. In particular,
 `MAMBAF405_2022A` is a family fixture, not a claim that it is the newest Mamba.
 
-The source pins are:
+Complete source snapshots are cached under `downloads/betaflight/`, outside the
+tracked firmware tree. One archive is downloaded per pinned repository revision;
+later imports and checks use those local snapshots without network access. Only
+the reviewed inputs listed in the locks are copied into `upstream/` and selected
+for builds. Downloading a repository does not enable its boards or drivers.
+
+The survey source pins are:
 
 | Repository | Commit | Scope |
 | --- | --- | --- |
@@ -32,20 +41,21 @@ BMP280/DPS310, NOR/NAND, MAX7456 and SD-card drivers are included for inspection
 
 [survey.lock.json](survey.lock.json) lists every selected remote file.
 [source-manifest.json](source-manifest.json) records each file's Git blob hash,
-SHA-256 and byte count. The downloader verifies the blob against the immutable
-GitHub tree before writing. It refuses to overwrite a locally changed upstream
-file. Upstream code and copyright headers remain unmodified; both repository
+SHA-256 and byte count. The downloader checks previously verified hashes against
+the complete pinned snapshot before writing. It refuses to overwrite a locally
+changed upstream file. Upstream code and copyright headers remain unmodified; both repository
 GPL licenses and the Bosch BSD license are retained.
 
 Run from the repository root:
 
 ```sh
-# Requires network access, GitHub CLI and Python 3. Reuses verified local files.
-python3 make/scripts/fetch-betaflight-survey.py
+# Fetch all existing pins once; requires network access and Python 3.
+# Subsequent runs and additional source imports use the complete local cache.
+python3 make/scripts/fetch-betaflight-survey.py --all
 
 # Offline; requires Python 3 and a host C compiler.
 python3 make/scripts/betaflight-desk-check.py
-python3 flight/PiOS/Betaflight/survey/test_desk_check.py
+python3 flight/Betaflight/survey/test_desk_check.py
 python3 make/scripts/betaflight-driver-probe.py
 ```
 
@@ -57,7 +67,7 @@ results describe this host, not ARM firmware.
 
 ## Board-definition dry run
 
-The [audit script](../../../make/scripts/betaflight-desk-check.py) used the host
+The [audit script](../../make/scripts/betaflight-desk-check.py) used the host
 C preprocessor on all six untouched definitions. It expanded aliases such as
 `TIMER_PIN_MAP(..., MOTOR1_PIN, ...)`, evaluated the F405 timer table's
 conditionals, and resolved all **40 physical timer/channel mappings** for the
@@ -105,7 +115,7 @@ Important consequences for the importer:
   does not infer the physical crystal from that behavior. Missing HSE fields
   remain explicit review items rather than guessing 8 MHz for every board.
 - Mamba requests ADC3, but
-  [the current ADC backend](../STM32F4xx/pios_internal_adc.c) unconditionally
+  [the current ADC backend](../PiOS/STM32F4xx/pios_internal_adc.c) unconditionally
   enables the ADC1 peripheral clock. This is a specific backend concern, even
   though the processor family already exists.
 - Betaflight settings such as current-meter scales, DShot mode, PID-loop
@@ -120,7 +130,7 @@ The [host probe](survey/icm42688_host.c) compiles the original
 with its actual MPU enums/WHO_AM_I constants. The
 [bounded mock header](survey/mock/survey_mock.h) supplies only the device fields
 and services this chip source needs. The bridge calls the real declarations in
-[pios_spi.h](../inc/pios_spi.h); mock implementations emulate a banked register
+[pios_spi.h](../PiOS/inc/pios_spi.h); mock implementations emulate a banked register
 device. It claims/releases the bus, sets clock rate and asserts/deasserts CS for
 each transaction. A simple synchronous acquisition replacement decodes samples.
 
@@ -170,7 +180,7 @@ following macro; the survey was corrected and regenerated when this was found.
 
 | Chip/service | Local comparison and port implication |
 | --- | --- |
-| MPU6000/6500 | Existing [PiOS MPU driver](../Common/pios_mpu.c) already covers these families. Reuse it with reviewed wiring/orientation; importing Betaflight's duplicate driver is unnecessary for initial support. |
+| MPU6000/6500 | Existing [PiOS MPU driver](../PiOS/Common/pios_mpu.c) already covers these families. Reuse it with reviewed wiring/orientation; importing Betaflight's duplicate driver is unnecessary for initial support. |
 | ICM42688P | The host probe demonstrates a small register-service boundary. Build a native PiOS driver around the reviewed detection/configuration logic, with explicit initialization errors and native sample delivery. |
 | BMI270 | A dedicated port. This pin uses Bosch's **328-byte maximum-FIFO configuration blob**, not an assumed 8 KiB standard image. SPI reads include a dummy byte, samples are little endian, and startup toggles CS to enter SPI. Its own EXTI/DMA path and optional 6.4 kHz FIFO mode need replacement/review. The existing BMI160 driver is not a BMI270 implementation. |
 | LSM6DSK320X | GEPRC's newest permitted alternative is implemented in `accgyro_spi_lsm6dsv16x.c`, not the older LSM6DSO file. It has its own sample rates/scales and segmented reads. Treat it as a separate reviewed chip-family port. |
@@ -199,21 +209,31 @@ them candidates for these requirements. Exact fitted OSD hardware, simultaneous
 resource allocation, build fit and runtime behavior remain unverified. The
 generated desk check is a wiring survey, not a required-feature acceptance test.
 
-Proceed with the existing HGLRC/Omnibus F405 baseline, then an exact GEPRC F405
-revision with ICM42688P and a supported barometer. Verify the fitted parts before
+Keep the existing HGLRC/Omnibus F405 baseline, and use the owner's BrainFPV
+RADIX as the first imported-board implementation, per the 2026-10-11 decision
+in [FIRMWARE_PLAN.md](../../FIRMWARE_PLAN.md). Radix is outside this six-board
+survey: the [Radix dry run](RADIX_DRY_RUN.md) separately pins its manufacturer
+sources, confirms F446 and exercises its unchanged FPGA driver through a host
+PiOS bridge and Cortex-M4 compilation. Reuse native BMI160/BMP280 and adapt
+the existing RE1 FPGA/video services before a
+production firmware offer. An exact GEPRC F405 revision with ICM42688P follows
+as the new IMU port and expansion proof. Verify the fitted parts before
 declaring the broad `GEPRCF405` profile supported. SpeedyBee V4 is a useful
 second ICM profile because it tests different mounting and optional SD logging.
 SpeedyBee V5 should follow an explicit CLKIN port or a separately documented,
 bench-tested internal-clock profile. An exact MPU-equipped Mamba is another
 reuse candidate after clock and ADC review.
 
-The next implementation proof should compile a native ICM PiOS port for F405,
-deliver coherent samples into `PIOS_SENSORS`, and measure behavior on real
-hardware. Then generate profile-driven tables and firmware for a second board.
+The [Radix implementation](RADIX_IMPLEMENTATION.md) now builds
+profile-driven tables, shared F4 initialization and native BrainFPV FPGA/video
+services into a real F446 image, with a segmented ROM-DFU GCS install path.
+Bench/flight validation and broader importer support remain pending. The following ICM PiOS
+port must deliver coherent samples into `PIOS_SENSORS` and measure behavior on
+the GEPRC hardware.
 Keep F7/H7 processor work, BMI270/LSM ports and optional NAND/SD logging as
 separate increments. No general Betaflight scheduler/configuration emulator is
 needed by the demonstrated register boundary.
 
-The result supports the architecture in [FIRMWARE_PLAN.md](../../../FIRMWARE_PLAN.md)
+The result supports the architecture in [FIRMWARE_PLAN.md](../../FIRMWARE_PLAN.md)
 while narrowing the first implementation to evidence-backed chip/profile ports.
 It does not establish that downloaded targets are ready to install.

@@ -1,6 +1,5 @@
 #MainContentFrame {
 	background: palette(Window);
-	padding-bottom: 5px;
 	border-top: 1px solid palette(Mid);
 }
 
@@ -19,22 +18,50 @@ MyTabWidget::pane QTabWidget > QWidget {
 	background: palette(Window);
 }
 
-/* Main tabbed content pane's tab bar */
-MyTabWidget::tab-bar {
-	left: 9px;
+/* Main navigation uses the same palette as the workspace pages. */
+#workspaceNavigation {
+    background: palette(Base);
+    border-right: 1px solid palette(Mid);
 }
-
-MyTabWidget > QTabBar::tab {
-	min-height: 36px;
-	max-height: 36px;
+#navigationBrand { font-size: 22px; font-weight: 600; padding-left: 14px; }
+QPushButton[navigationItem="true"] {
+    background: transparent;
+    color: palette(WindowText);
+    border: 2px solid transparent;
+    border-radius: 7px;
+    padding: 8px 12px;
+    text-align: left;
+    font-size: 14px;
 }
+QPushButton[navigationItem="true"][expanded="false"] { padding: 8px; text-align: center; }
+QPushButton[navigationItem="true"]::menu-indicator { image: none; width: 0px; }
+QPushButton[navigationItem="true"]:hover { background: palette(Button); }
+QPushButton[navigationItem="true"]:checked {
+    background: palette(AlternateBase);
+    border-color: palette(Highlight);
+    font-weight: 600;
+}
+QPushButton[navigationItem="true"]:focus { border-color: palette(Highlight); }
+QPushButton[navigationItem="true"]:disabled { color: @muted@; }
+#applicationTelemetryFooter { background: palette(Base); border-top: 1px solid palette(Mid); }
+QFrame[flightPanel="true"]:disabled { color: @muted@; }
+#systemWorkspaceNavigation::tab {
+    background: transparent;
+    color: @muted@;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 10px 16px;
+    font-size: 14px;
+}
+#systemWorkspaceNavigation::tab:selected { color: palette(WindowText); border-bottom-color: palette(Highlight); }
+#systemWorkspaceNavigation::tab:hover { color: palette(Highlight); }
 
 SystemHealthGadgetWidget, PfdQmlGadgetWidget, LineardialGadgetWidget, ModelViewGadgetWidget > *, OPMapGadgetWidget, DialGadgetWidget {
 	background: palette(Base);
 	border: 1px solid palette(Mid);
 }
 
-#frameStatusBar, #frameTopBar, #frameMapControls {
+#frameStatusBar, #frameTopBar, #frameMapControls, #frameMapLocationBar {
 	background: palette(Window);
 }
 

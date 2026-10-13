@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": "2026-10-10",
+  "catalogVersion": "2026-10-11",
   "boards": [
     {
       "id": "aq32", "name": "AeroQuad AQ32", "target": "aq32",
@@ -65,6 +65,27 @@
       "id": "quanton", "name": "Quantec Quanton", "target": "quanton",
       "boardType": 134, "boardRevision": 1, "mapping": "native",
       "aliases": ["Quanton"], "evidence": "flight/targets/quanton/board-info/board-info.mk"
+    },
+    {
+      "id": "radix", "name": "BrainFPV RADIX", "target": "radix",
+      "boardType": 224, "boardRevision": 1, "mapping": "native",
+      "layoutId": "radix-f446-rom-v1", "supportLevel": "experimental",
+      "systemBootloader": "STM32 system bootloader (USB DFU)",
+      "bootInstructions": "Disconnect USB and the flight battery.\nTemporarily bridge the BOOT pad on the bottom side to the 3.3V pad directly opposite it on the top side of the original RADIX. Keep this connection in place while reconnecting USB to the same port.\nAfter installation, disconnect USB, remove the BOOT connection, and reconnect USB.",
+      "manualUrl": "https://www.brainfpv.com/knowledgebase/betaflight-quick-start-guide/",
+      "mspTargets": ["RADIX", "RADI"],
+      "notes": "For the original RADIX. Includes four PWM/OneShot motor outputs, BMI160 motion sensors, BMP280 barometer, GPS and FPGA OSD. DShot and SD logging are not available.",
+      "evidence": "shared/firmware/profiles/radix.json"
+    },
+    {
+      "id": "omnibusf4sd", "name": "Omnibus F4 SD", "target": "omnibusf4sd",
+      "boardType": 225, "boardRevision": 1, "mapping": "native",
+      "layoutId": "omnibusf4sd-f405-rom-v1", "supportLevel": "experimental",
+      "systemBootloader": "STM32 system bootloader (USB DFU)",
+      "bootInstructions": "Disconnect USB and the flight battery.\nHold the board's BOOT button while reconnecting USB to the same port, then release it.\nAfter installation, disconnect and reconnect USB with the BOOT button released.",
+      "mspTargets": ["OMNIBUSF4SD", "OBSD"],
+      "notes": "Includes four PWM/OneShot motor outputs, motion sensors, BMP280 barometer, GPS and analog OSD. Receiver uses UART6 and GPS uses UART3; these can be swapped in controller settings. External telemetry uses UART1. DShot and SD logging are not available.",
+      "evidence": "shared/firmware/profiles/omnibusf4sd.json"
     },
     {
       "id": "revolution", "name": "OpenPilot Revolution", "target": "revolution",

@@ -17,16 +17,16 @@
 #define PFDQMLGADGETWIDGET_H_
 
 #include "pfdqmlgadgetconfiguration.h"
-#include <QtQuick/QQuickView>
+#include <QQuickWidget>
 
 class UAVObjectManager;
 
-class PfdQmlGadgetWidget : public QQuickView
+class PfdQmlGadgetWidget : public QQuickWidget
 {
     Q_OBJECT
 
 public:
-    PfdQmlGadgetWidget(QWindow *parent = nullptr);
+    PfdQmlGadgetWidget(QWidget *parent = nullptr);
     ~PfdQmlGadgetWidget();
     void setQmlFile(QString fn);
 

@@ -41,6 +41,10 @@
 #include "systemalarms.h"
 #include "systemsettings.h"
 #include "systemident.h"
+#if defined(PIOS_SERVO_DISABLE_DSHOT)
+#include "actuatorsettings.h"
+#include "pios_servo_rate.h"
+#endif
 
 #include "pios_sensors.h"
 
@@ -191,6 +195,12 @@ int32_t configuration_check()
 
 	// Only check safe to arm if no other errors exist
 	error_code = (error_code == SYSTEMALARMS_CONFIGERROR_NONE) ? check_safe_to_arm() : error_code;
+#if defined(PIOS_SERVO_DISABLE_DSHOT)
+	uint16_t rates[ACTUATORSETTINGS_TIMERUPDATEFREQ_NUMELEM];
+	ActuatorSettingsTimerUpdateFreqGet(rates);
+	if (!PIOS_Servo_OutputRatesSupported(rates, NELEMENTS(rates)))
+		error_code = SYSTEMALARMS_CONFIGERROR_UNDEFINED;
+#endif
 
 	set_config_error(error_code);
 

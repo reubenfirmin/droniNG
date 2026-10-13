@@ -1781,6 +1781,9 @@ static void onScreenDisplayTask(__attribute__((unused)) void *parameters)
 
 	// intro
 	while (PIOS_Thread_Systime() <= BLANK_TIME + INTRO_TIME) {
+#if defined(PIOS_INCLUDE_IMPORTED)
+		PIOS_Video_RecoverSync();
+#endif
 		if (PIOS_Semaphore_Take(onScreenDisplaySemaphore, 300) == true) {
 			video_active = true;
 
@@ -1809,9 +1812,12 @@ static void onScreenDisplayTask(__attribute__((unused)) void *parameters)
 	}
 
 	// Create average altitude
-	home_baro_altitude /= frame_counter;
+	if (frame_counter) home_baro_altitude /= frame_counter;
 
 	while (1) {
+#if defined(PIOS_INCLUDE_IMPORTED)
+		PIOS_Video_RecoverSync();
+#endif
 		if (PIOS_Semaphore_Take(onScreenDisplaySemaphore, 400) == true) {
 			video_active = true;
 			now = PIOS_Thread_Systime();

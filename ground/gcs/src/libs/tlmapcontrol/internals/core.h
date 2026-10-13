@@ -143,6 +143,7 @@ namespace internals {
 
         int Zoom()const{return zoom;}
         void SetZoom(int const& value);
+        void SetViewScale(double value){viewScale=qMax(1.0, value);}
 
         int MaxZoom()const{return maxzoom;}
 
@@ -245,12 +246,14 @@ namespace internals {
         QQueue<LoadTask> tileLoadQueue;
 
         int zoom;
+        double viewScale = 1.0;
 
         PureProjection* projection;
 
         bool isDragging;
 
         QMutex MtileLoadQueue;
+        QList<LoadTask> tasksInProgress;
 
         QMutex Moverlays;
 

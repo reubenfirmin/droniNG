@@ -45,6 +45,7 @@
 #include "upgradeassistantdialog.h"
 
 class QNetworkAccessManager;
+class QGridLayout;
 class Ui_UploaderWidget;
 namespace Core { class FirmwarePage; }
 
@@ -67,6 +68,8 @@ public:
      * @return true if the uploader is currently doing something (e.g. upgrader)
      */
     bool active() const;
+protected:
+    bool eventFilter(QObject *object, QEvent *event) override;
 
 signals:
     void newBoardSeen(deviceInfo board, deviceDescriptorStruct device);
@@ -133,6 +136,8 @@ private:
     Ui_UploaderWidget *m_widget;
     Core::FirmwarePage *m_firmwarePage = nullptr;
     QWidget *m_advancedTools = nullptr;
+    QGridLayout *m_recoveryActions = nullptr;
+    QList<QWidget *> m_recoveryButtons;
 
     UpgradeAssistantDialog m_dialog;
 

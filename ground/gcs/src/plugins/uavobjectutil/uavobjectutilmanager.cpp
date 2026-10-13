@@ -47,6 +47,8 @@
 #include "actuatorsettings.h"
 
 #include <coreplugin/coreconstants.h>
+#include <coreplugin/firmwarecatalog.h>
+#include <coreplugin/firmwareinstallimage.h>
 
 #ifdef UAVOBJECTUTIL_DEBUG
 #define UAVOBJECTUTIL_QXTLOG_DEBUG(...) qDebug() << __VA_ARGS__
@@ -743,12 +745,16 @@ QString UAVObjectUtilManager::getGcsHash()
 }
 
 /**
- * @brief Check if firmware version hash matches GCS version hash
- * @return false if version doesn't match, true otherwise
+ * @brief Check build compatibility using protocol and firmware executable identity.
+ * GCS-only commits do not require a controller firmware update.
  */
 bool UAVObjectUtilManager::firmwareHashMatchesGcs()
 {
-    return getFirmwareHash().toLower() == getGcsHash().toLower();
+    deviceDescriptorStruct device;
+    if (!getBoardDescriptionStruct(device)
+        || device.uavoHash != Core::FirmwareInstallImage::gcsUavoHash()) return false;
+    return device.gitHash.toLower() == getGcsHash().toLower()
+        || !Core::FirmwareCatalog::matchingFirmwareDescriptor(device.description).isEmpty();
 }
 
 /**

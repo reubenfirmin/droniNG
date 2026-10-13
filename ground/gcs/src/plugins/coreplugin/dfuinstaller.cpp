@@ -119,6 +119,26 @@ bool DfuFlashDevice::supports(quint32 base, quint32 size) const
     return end <= address && address <= quint64(base) + 2 * 1024 * 1024;
 }
 
+static bool importedFlashGeometry(const QString &layout, int flashSize)
+{
+    const auto parts = layout.split('/');
+    if (parts.size() != 3) return false;
+    QList<quint64> sectors;
+    for (const auto &part : parts[2].split(',')) {
+        const auto match = QRegularExpression("^\\s*([0-9]+)\\*([0-9]+)([BKMbkm])g\\s*$").match(part);
+        if (!match.hasMatch()) return false;
+        const int count = match.captured(1).toInt();
+        if (count < 1 || count + sectors.size() > 12) return false;
+        const auto unit = match.captured(3).toUpper();
+        const quint64 size = match.captured(2).toULongLong() * (unit == "M" ? 1048576 : unit == "K" ? 1024 : 1);
+        for (int i = 0; i < count; ++i) sectors.append(size);
+    }
+    QList<quint64> expected{16384, 16384, 16384, 16384, 65536};
+    if (flashSize != 524288 && flashSize != 1048576) return false;
+    for (int i = 0; i < (flashSize - 131072) / 131072; ++i) expected.append(131072);
+    return sectors == expected;
+}
+
 QList<DfuFlashDevice> DfuInstaller::devices(const QString &listing)
 {
     QList<DfuFlashDevice> result;
@@ -199,11 +219,12 @@ bool DfuInstaller::transferring() const
 }
 
 void DfuInstaller::start(const FirmwareBoardProfile &board, const QString &imagePath,
-                         const QString &expectedUsbPath, const QString &helper)
+                         const QString &expectedUsbPath, const QString &helper, bool automaticBoot)
 {
     if (transferring() || m_stage == Stage::Waiting || m_stage == Stage::NeedsBoot || m_stage == Stage::Restarting) return;
     m_log.clear(); m_usbDescription.clear(); m_device = {}; m_helper = helper; m_expectedPath = expectedUsbPath;
     m_usbAccessDenied = false; m_accessCommand.clear();
+    m_automaticBoot = automaticBoot;
     m_startError.clear(); m_restarting = false; ++m_startGeneration;
     m_settings = board.settings; m_configured = false;
     m_image = FirmwareInstallImage::load(board, imagePath);
@@ -212,12 +233,16 @@ void DfuInstaller::start(const FirmwareBoardProfile &board, const QString &image
         fail(tr("The Linux firmware installer is missing from this build. Rebuild the firmware installation bundle.")); return;
     }
     if (!m_temporary.isValid()) { fail(tr("Cannot create a temporary directory for firmware verification.")); return; }
-    QFile file(m_temporary.filePath("install.bin"));
-    if (!file.open(QIODevice::WriteOnly) || file.write(m_image.bytes) != m_image.bytes.size()) {
-        fail(tr("Cannot prepare the validated installation image.")); return;
+    m_segment = 0;
+    for (int i = 0; i < m_image.segments.size(); ++i) {
+        const auto region = m_image.segments[i];
+        const auto bytes = m_image.bytes.mid(region.offset, region.size);
+        QFile file(m_temporary.filePath(QString("install-%1.bin").arg(i)));
+        if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size()) {
+            fail(tr("Cannot prepare the validated installation image.")); return;
+        }
+        QFile::remove(m_temporary.filePath(QString("readback-%1.bin").arg(i)));
     }
-    file.close();
-    QFile::remove(m_temporary.filePath("readback.bin"));
     QFile::remove(m_temporary.filePath("leave.bin"));
     m_wait.start();
     change(Stage::Waiting, tr("Waiting for STM32 DFU…"));
@@ -233,7 +258,7 @@ void DfuInstaller::checkDevice()
 }
 void DfuInstaller::startInstalledFirmware()
 {
-    if (m_stage != Stage::AwaitingTelemetry) return;
+    if (m_stage != Stage::AwaitingTelemetry && m_stage != Stage::StartupFailed) return;
     m_startError.clear(); m_restarting = true; ++m_startGeneration;
     m_usbAccessDenied = false; m_accessCommand.clear();
     change(Stage::Restarting, tr("Checking the installed controller's bootloader…"));
@@ -266,9 +291,12 @@ void DfuInstaller::leaveDfu()
 void DfuInstaller::cancel()
 {
     if (transferring()) return;
+    const bool written = m_stage == Stage::AwaitingTelemetry || m_stage == Stage::StartupFailed
+        || m_stage == Stage::Complete || m_stage == Stage::Restarting;
     m_usbAccessDenied = false; m_accessCommand.clear();
     m_startError.clear(); ++m_startGeneration;
-    change(Stage::Idle, tr("Installation cancelled."));
+    change(Stage::Idle, written ? tr("Installation view closed. Verified firmware remains on the controller.")
+                              : tr("Installation cancelled."));
     m_runner->cancel();
 }
 void DfuInstaller::transfer(const QStringList &arguments)
@@ -277,6 +305,15 @@ void DfuInstaller::transfer(const QStringList &arguments)
                          "-i", QString::number(m_device.interface), "-a", QString::number(m_device.alternate)};
     if (!m_device.serial.isEmpty()) selector << "-S" << (',' + m_device.serial);
     m_runner->run(m_helper, selector + arguments, 180000);
+}
+
+void DfuInstaller::writeSegment()
+{
+    const auto region = m_image.segments[m_segment];
+    change(Stage::Writing, tr("Writing firmware region %1 of %2… Keep USB connected.")
+        .arg(m_segment + 1).arg(m_image.segments.size()));
+    transfer({"-s", QString("0x%1").arg(m_image.base + region.offset, 0, 16), "-D",
+              m_temporary.filePath(QString("install-%1.bin").arg(m_segment))});
 }
 
 void DfuInstaller::commandFinished(int exitCode, const QString &output)
@@ -312,6 +349,13 @@ void DfuInstaller::commandFinished(int exitCode, const QString &output)
     if (m_stage == Stage::Restarting) {
         const auto found = devices(output);
         if (found.isEmpty()) {
+            if (m_image.romBoot) {
+                const auto connected = m_runner->connectedUsbDevice(m_device.path);
+                awaitTelemetry(connected.isEmpty()
+                    ? tr("The controller has left the USB bootloader but has not appeared on USB yet. Disconnect USB and the flight battery, then reconnect USB to the same port.")
+                    : tr("The controller has left the USB bootloader. Waiting for live data from %1…").arg(connected));
+                return;
+            }
             const quint64 generation = m_startGeneration;
             emit nativeFirmwareStartRequested(m_device.path, m_image.descriptor);
             QTimer::singleShot(20000, this, [this, generation] {
@@ -333,6 +377,8 @@ void DfuInstaller::commandFinished(int exitCode, const QString &output)
             if (connected != m_usbDescription) {
                 m_usbDescription = connected;
                 if (connected.isEmpty()) change(Stage::Waiting, tr("Waiting for STM32 DFU…"));
+                else if (m_automaticBoot && m_wait.elapsed() < 5000)
+                    change(Stage::Waiting, tr("Restarting %1 into the USB bootloader…").arg(connected));
                 else change(Stage::NeedsBoot, tr("Connected as %1. Bootloader mode is not active. Check your board's manual for its bootloader procedure.").arg(connected));
             }
             if (m_wait.elapsed() >= 120000) {
@@ -351,7 +397,8 @@ void DfuInstaller::commandFinished(int exitCode, const QString &output)
             || (m_stage == Stage::Checking && !(device == m_device))) {
             fail(tr("The DFU device does not match the selected controller. Use the same USB port and retry.")); return;
         }
-        if (!device.supports(m_image.base, m_image.bytes.size())) {
+        if (!device.supports(m_image.base, m_image.bytes.size())
+            || (m_image.romBoot && !importedFlashGeometry(device.layout, m_image.bytes.size()))) {
             fail(tr("The DFU flash layout cannot safely hold this installation image. No firmware was written.")); return;
         }
         if (discovering) {
@@ -360,34 +407,59 @@ void DfuInstaller::commandFinished(int exitCode, const QString &output)
             checkDevice();
             return;
         }
-        change(Stage::Writing, tr("Writing dRonin firmware… Keep USB connected."));
-        transfer({"-s", QString("0x%1").arg(m_image.base, 0, 16), "-D", m_temporary.filePath("install.bin")});
+        writeSegment();
     } else if (m_stage == Stage::Writing) {
         change(Stage::Reading, tr("Reading back the firmware to verify every byte… Keep USB connected."));
-        transfer({"-s", QString("0x%1:%2").arg(m_image.base, 0, 16).arg(m_image.bytes.size()), "-U", m_temporary.filePath("readback.bin")});
+        const auto region = m_image.segments[m_segment];
+        transfer({"-s", QString("0x%1:%2").arg(m_image.base + region.offset, 0, 16).arg(region.size), "-U",
+                  m_temporary.filePath(QString("readback-%1.bin").arg(m_segment))});
     } else if (m_stage == Stage::Reading) {
-        QFile readback(m_temporary.filePath("readback.bin"));
-        if (!readback.open(QIODevice::ReadOnly) || readback.size() != m_image.bytes.size() || readback.readAll() != m_image.bytes) {
+        const auto region = m_image.segments[m_segment];
+        QFile readback(m_temporary.filePath(QString("readback-%1.bin").arg(m_segment)));
+        if (!readback.open(QIODevice::ReadOnly) || readback.size() != region.size
+            || readback.readAll() != m_image.bytes.mid(region.offset, region.size)) {
             fail(tr("Firmware verification failed. The board will stay in DFU mode. Retry installation before using it.")); return;
         }
-        leaveDfu();
+        if (++m_segment < m_image.segments.size()) writeSegment();
+        else leaveDfu();
     } else if (m_stage == Stage::Leaving) {
         awaitTelemetry();
     }
 }
 
-void DfuInstaller::telemetryReceived(const QByteArray &descriptor)
+void DfuInstaller::telemetryReceived(const QByteArray &descriptor, int schema, const QString &profile,
+                                     const QString &layout, const QByteArray &profileHash)
 {
-    if (m_stage != Stage::AwaitingTelemetry) return;
+    if (m_stage != Stage::AwaitingTelemetry && m_stage != Stage::StartupFailed) return;
     if (descriptor != m_image.descriptor) {
         fail(tr("The connected controller's firmware identity differs from the image just installed.")); return;
+    }
+    if (m_image.romBoot) {
+        if (profileHash.isEmpty()) {
+            change(Stage::AwaitingTelemetry, tr("Live data received. Reading the controller's board profile…"));
+            return;
+        }
+        if (schema != 1 || profile != m_image.profileId || layout != m_image.layoutId
+            || profileHash != m_image.profileHash) {
+            fail(tr("The controller's board profile differs from the installed image. Reconnect in DFU mode and reinstall the matching firmware."));
+            return;
+        }
     }
     if (!m_settings.isEmpty() && !m_configured) {
         change(Stage::Configuring, tr("Configuring the board's hardware and sensor orientation…"));
         emit boardSettingsRequested(m_settings);
         return;
     }
-    change(Stage::Complete, tr("dRonin installed and verified. The controller is sending flight data."));
+    change(Stage::Complete, tr("DroniNG installed and verified. The controller is sending flight data."));
+}
+
+void DfuInstaller::startupTimedOut(const QString &message)
+{
+    if (m_stage != Stage::AwaitingTelemetry) return;
+    m_startError = message.isEmpty()
+        ? tr("Firmware was written and verified, but the controller has not started sending live data. Disconnect USB and the flight battery, reconnect USB to the same port, then click Start controller to retry.")
+        : message;
+    change(Stage::StartupFailed, m_startError);
 }
 
 void DfuInstaller::boardSettingsApplied(bool success, const QString &message)

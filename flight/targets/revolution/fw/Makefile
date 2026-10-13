@@ -85,7 +85,9 @@ DEBUG_CM3_DIR_INC = $(DEBUG_CM3_DIR)/inc
 OPUAVOBJINC = $(OPUAVOBJ)/inc
 MAVLINKINC = $(FLIGHTLIB)/mavlink/v1.0/common
 
+ifndef IMPORTED_PROFILE
 SRC =
+endif
 # optional component libraries
 include $(APPLIBDIR)/ChibiOS/library.mk
 
@@ -318,6 +320,6 @@ LDFLAGS += -Wl,--fatal-warnings
 LDFLAGS += -u _printf_float
 
 #Linker scripts
-LDFLAGS += -T memory.ld $(addprefix -T,$(LINKER_SCRIPTS_APP))
+LDFLAGS += -T $(or $(IMPORTED_MEMORY_SCRIPT),memory.ld) $(addprefix -T,$(or $(IMPORTED_LINKER_SCRIPT),$(LINKER_SCRIPTS_APP)))
 
 include $(MAKE_INC_DIR)/firmware-common.mk

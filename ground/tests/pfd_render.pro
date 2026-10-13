@@ -1,7 +1,7 @@
 TEMPLATE = app
 TARGET = pfd-render-tests
 CONFIG += console testcase c++17
-QT += widgets quick testlib
+QT += widgets quick quickwidgets testlib
 isEmpty(GCS_BUILD_TREE):error("Set GCS_BUILD_TREE to the selected build's ground/gcs directory")
 include(../gcs/gcs.pri)
 include(../gcs/src/plugins/coreplugin/coreplugin.pri)

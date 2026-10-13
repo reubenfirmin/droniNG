@@ -85,9 +85,7 @@ int SetupWizard::nextId() const
         UAVObjectUtilManager *utilMngr = pm->getObject<UAVObjectUtilManager>();
         Q_ASSERT(utilMngr);
 
-        const QString fwHash = utilMngr->getFirmwareHash();
-        const QString gcsHash = utilMngr->getGcsHash();
-        if (!fwHash.length() || fwHash != gcsHash) {
+        if (!utilMngr->firmwareHashMatchesGcs()) {
             qobject_cast<BoardtypeUnknown *>(page(PAGE_BOARDTYPE_UNKNOWN))
                 ->setFailureType(BoardtypeUnknown::UNKNOWN_FIRMWARE);
             return PAGE_BOARDTYPE_UNKNOWN;

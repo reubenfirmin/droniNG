@@ -33,6 +33,8 @@
 
 #include "opmapgadgetwidget.h"
 #include "ui_opmap_widget.h"
+#include "mapstartup.h"
+#include "coreplugin/icore.h"
 #include <QInputDialog>
 #include <QApplication>
 #include <QHBoxLayout>
@@ -43,6 +45,10 @@
 #include <QDir>
 #include <QFile>
 #include <QDateTime>
+#include <QLabel>
+#include <QToolButton>
+#include <QTimer>
+#include <QShowEvent>
 
 #include <math.h>
 
@@ -153,6 +159,30 @@ OPMapGadgetWidget::OPMapGadgetWidget(QWidget *parent)
     // create the central map widget
 
     m_map = new mapcontrol::TLMapWidget(); // create the map object
+    m_map->setObjectName("localMapView");
+    m_map->setAccessibleName(tr("Local map"));
+    m_map->viewport()->installEventFilter(this);
+    m_startup = new MapStartup(Core::ICore::instance()->settings(), this);
+    auto *locationBar = new QFrame(this);
+    locationBar->setObjectName("frameMapLocationBar");
+    auto *locationLayout = new QHBoxLayout(locationBar);
+    locationLayout->setContentsMargins(8, 6, 8, 6);
+    auto *locate = new QToolButton(locationBar);
+    locate->setText(tr("Current location"));
+    locate->setToolTip(tr("Show a 30 × 30 km region around your current location"));
+    m_locationStatus = new QLabel(locationBar);
+    m_locationStatus->setObjectName("mapLocationStatus");
+    m_locationStatus->setProperty("role", "support");
+    m_locationStatus->setWordWrap(true);
+    locationLayout->addWidget(locate); locationLayout->addWidget(m_locationStatus, 1);
+    m_widget->verticalLayout_5->insertWidget(0, locationBar);
+    connect(locate, &QToolButton::clicked, this, [this] {
+        updateStartupLocation(); m_startup->start(m_savedLocation);
+    });
+    connect(m_startup, &MapStartup::statusChanged, m_locationStatus, &QLabel::setText);
+    connect(m_startup, &MapStartup::centerRequested, this, [this](const QPointF &location) {
+        m_startupCenter = location; fitStartupRegion();
+    });
 
     m_map->setFrameStyle(QFrame::NoFrame); // no border frame
 
@@ -306,6 +336,8 @@ OPMapGadgetWidget::OPMapGadgetWidget(QWidget *parent)
             &OPMapGadgetWidget::updateWindspeed);
 
     m_map->setFocus();
+    connect(GPSPosition::GetInstance(uavo_mgr), &UAVObject::objectUpdated,
+            this, &OPMapGadgetWidget::updateStartupLocation);
 }
 
 // destructor
@@ -333,6 +365,50 @@ OPMapGadgetWidget::~OPMapGadgetWidget()
 void OPMapGadgetWidget::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
+}
+
+void OPMapGadgetWidget::initializeView(const QPointF &savedLocation)
+{
+    m_savedLocation = savedLocation;
+    m_startupCenter = savedLocation;
+    m_viewInitialized = false;
+}
+
+void OPMapGadgetWidget::showEvent(QShowEvent *event)
+{
+    QFrame::showEvent(event);
+    if (!m_viewInitialized) {
+        m_viewInitialized = true;
+        updateStartupLocation();
+        m_startup->start(m_savedLocation);
+    }
+}
+
+bool OPMapGadgetWidget::eventFilter(QObject *object, QEvent *event)
+{
+    if (object == m_map->viewport()) {
+        if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::Wheel
+            || event->type() == QEvent::KeyPress) m_startup->setUserInteracted();
+        else if (event->type() == QEvent::Resize)
+            QTimer::singleShot(0, this, &OPMapGadgetWidget::fitStartupRegion);
+    }
+    return QFrame::eventFilter(object, event);
+}
+
+void OPMapGadgetWidget::fitStartupRegion()
+{
+    if (!m_viewInitialized || !m_startup->automaticView()) return;
+    m_map->SetZoom(MapStartup::regionZoom(m_startupCenter.y(), m_map->viewport()->size()));
+    m_map->SetCurrentPosition(internals::PointLatLng(m_startupCenter.y(), m_startupCenter.x()));
+}
+
+void OPMapGadgetWidget::updateStartupLocation()
+{
+    if (!m_telemetry_connected) return;
+    const auto gps = GPSPosition::GetInstance(uavo_mgr)->getData();
+    if (gps.Status >= GPSPosition::STATUS_FIX2D) {
+        m_startup->setControllerLocation(QPointF(gps.Longitude / 1e7, gps.Latitude / 1e7));
+    }
 }
 
 void OPMapGadgetWidget::mouseMoveEvent(QMouseEvent *event)
@@ -604,8 +680,8 @@ void OPMapGadgetWidget::updatePosition()
 
     // get current GPS heading, latitude, longitude, and altitude
     gps_heading = gpsPositionData.Heading;
-    gps_latitude = gpsPositionData.Latitude;
-    gps_longitude = gpsPositionData.Longitude;
+    gps_latitude = gpsPositionData.Latitude / 1e7;
+    gps_longitude = gpsPositionData.Longitude / 1e7;
     gps_altitude = gpsPositionData.Altitude;
 
     gps_pos = internals::PointLatLng(gps_latitude, gps_longitude);
@@ -882,6 +958,7 @@ void OPMapGadgetWidget::on_toolButtonMoveToWP_clicked()
 void OPMapGadgetWidget::onTelemetryConnect()
 {
     m_telemetry_connected = true;
+    updateStartupLocation();
 
     if (!uavo_util_mgr)
         return;
@@ -907,6 +984,7 @@ void OPMapGadgetWidget::onTelemetryConnect()
 void OPMapGadgetWidget::onTelemetryDisconnect()
 {
     m_telemetry_connected = false;
+    m_startup->clearControllerLocation();
 }
 
 // Updates the Home position icon whenever the HomePosition object is updated
@@ -920,6 +998,7 @@ void OPMapGadgetWidget::homePositionUpdated(UAVObject *hp)
     if (uavo_util_mgr->getHomeLocation(set, LLA) < 0)
         return; // error
     setHome(internals::PointLatLng(LLA[0], LLA[1]), LLA[2]);
+    updateStartupLocation();
 }
 
 // *************************************************************************************
@@ -1009,6 +1088,7 @@ void OPMapGadgetWidget::goHome()
 
 void OPMapGadgetWidget::zoomIn()
 {
+    m_startup->setUserInteracted();
     if (!m_widget || !m_map)
         return;
 
@@ -1024,6 +1104,7 @@ void OPMapGadgetWidget::zoomIn()
 
 void OPMapGadgetWidget::zoomOut()
 {
+    m_startup->setUserInteracted();
     if (!m_widget || !m_map)
         return;
 
@@ -1062,6 +1143,7 @@ void OPMapGadgetWidget::setMaxUpdateRate(int update_rate)
 
 void OPMapGadgetWidget::setZoom(int zoom)
 {
+    m_startup->setUserInteracted();
     if (!m_widget || !m_map)
         return;
 

@@ -74,9 +74,12 @@ FirmwareCatalog FirmwareCatalog::fromJson(const QByteArray &data)
         board.systemBootloader = object.value("systemBootloader").toString();
         board.bootInstructions = object.value("bootInstructions").toString();
         board.manualUrl = object.value("manualUrl").toString();
+        board.layoutId = object.value("layoutId").toString();
+        board.supportLevel = object.value("supportLevel").toString();
         board.settings = object.value("settings").toArray();
         board.boardType = object.value("boardType").toInt(-1);
         board.boardRevision = object.value("boardRevision").toInt(-1);
+        const auto imported = FirmwareInstallImage::importedProfile(board.id);
         if (!identifier.match(board.id).hasMatch() || !identifier.match(board.target).hasMatch()
             || board.name.trimmed().isEmpty() || board.evidence.isEmpty()
             || board.boardType < 1 || board.boardType > 255 || board.boardRevision < 0 || board.boardRevision > 255
@@ -85,6 +88,8 @@ FirmwareCatalog FirmwareCatalog::fromJson(const QByteArray &data)
             || !strings(object.value("aliases"), &board.aliases)
             || !strings(object.value("mspTargets"), &board.mspTargets)
             || (object.contains("settings") && !object.value("settings").isArray())
+            || (object.contains("layoutId") && (imported.isEmpty() || board.layoutId != imported.value("layoutId").toString()
+                || board.boardType != imported.value("boardType").toInt() || board.boardRevision != 1 || board.supportLevel != "experimental"))
             || (object.contains("systemBootloader") && (!object.value("systemBootloader").isString()
                 || board.systemBootloader.trimmed().isEmpty()))
             || (object.contains("bootInstructions") && (!object.value("bootInstructions").isString()
@@ -163,6 +168,9 @@ QString FirmwareCatalog::imageName(const FirmwareBoardProfile &board, ImageKind 
 {
     if (!board.isValid() || !QRegularExpression("^[a-z0-9][a-z0-9-]*$").match(board.target).hasMatch())
         return {};
+    // Imported direct-boot images require segmented ROM DFU installation.
+    if (!board.layoutId.isEmpty() && kind != ImageKind::FullInstall)
+        return {};
     switch (kind) {
     case ImageKind::Application: return QString("fw_%1.tlfw").arg(board.target);
     case ImageKind::BootloaderUpdate: return QString("bu_%1.tlfw").arg(board.target);
@@ -194,6 +202,7 @@ QStringList FirmwareCatalog::defaultImageRoots()
     QDir ancestor = application;
     // Find build artifacts in nested Qt build trees as well as a portable package.
     for (int i = 0; i < 6; ++i) {
+        roots << ancestor.absoluteFilePath("ground/gcs/firmware");
         roots << ancestor.absolutePath() << ancestor.absoluteFilePath("build") << ancestor.absoluteFilePath("firmware");
         if (!ancestor.cdUp())
             break;
@@ -214,19 +223,24 @@ QString FirmwareCatalog::firmwareName(const QByteArray &descriptor, const QStrin
     const QString name = tag(descriptor);
     if (release.match(name).hasMatch()) return name;
 
-    // Earlier builds used a Git branch label. Recognize their product release
-    // only when the executable, protocol, board and commit exactly match the
-    // verified installation image shipped with this application.
+    // Earlier builds used a Git branch label. Identify the release by the
+    // executable and protocol, independently of GCS-only source commits.
+    const auto matched = matchingFirmwareDescriptor(descriptor, roots);
+    if (!matched.isEmpty() && release.match(tag(matched)).hasMatch()) return tag(matched);
+    const QString revision = QString::number(qFromLittleEndian<quint32>(
+        reinterpret_cast<const uchar *>(descriptor.constData() + 4)), 16).rightJustified(8, '0');
+    return QStringLiteral("dRonin %1").arg(name.isEmpty() ? revision : name);
+}
+
+QByteArray FirmwareCatalog::matchingFirmwareDescriptor(const QByteArray &descriptor, const QStringList &roots)
+{
+    if (descriptor.size() != 100 || descriptor.left(4) != "TlFw") return {};
     for (const auto &board : instance().boards()) {
         if (board.mapping != "native" || board.boardType != quint8(descriptor[12])
             || board.boardRevision != quint8(descriptor[13])) continue;
         const auto image = FirmwareInstallImage::load(board, imagePath(board, ImageKind::FullInstall, roots));
-        if (image.valid() && image.descriptor.mid(4, 4) == descriptor.mid(4, 4)
-            && image.descriptor.mid(40, 40) == descriptor.mid(40, 40)
-            && release.match(tag(image.descriptor)).hasMatch())
-            return tag(image.descriptor);
+        if (image.valid() && image.descriptor.mid(40, 40) == descriptor.mid(40, 40))
+            return image.descriptor;
     }
-    const QString revision = QString::number(qFromLittleEndian<quint32>(
-        reinterpret_cast<const uchar *>(descriptor.constData() + 4)), 16).rightJustified(8, '0');
-    return QStringLiteral("dRonin %1").arg(name.isEmpty() ? revision : name);
+    return {};
 }

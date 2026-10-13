@@ -87,6 +87,8 @@ enum opMapModeType { Normal_MapMode = 0, MagicWaypoint_MapMode = 1 };
 // ******************************************************
 
 class WindVelocityActual;
+class MapStartup;
+class QLabel;
 
 class OPMapGadgetWidget : public QFrame
 {
@@ -121,6 +123,7 @@ public:
     void setUserImageVerticalScale(double userImageVerticalScale);
     bool getGPSPosition(double &latitude, double &longitude, double &altitude);
     void setGeoCodingLanguage(QString language);
+    void initializeView(const QPointF &savedLocation);
 signals:
     void defaultLocationAndZoomChanged(double lng, double lat, double zoom);
     void overlayOpacityChanged(qreal);
@@ -131,6 +134,8 @@ public slots:
     void onTelemetryDisconnect();
 
 protected:
+    void showEvent(QShowEvent *event) override;
+    bool eventFilter(QObject *object, QEvent *event) override;
     void resizeEvent(QResizeEvent *event);
     void mouseMoveEvent(QMouseEvent *event);
     void contextMenuEvent(QContextMenuEvent *event);
@@ -138,6 +143,8 @@ protected:
 private slots:
     void wpDoubleClickEvent(WayPointItem *wp);
     void updatePosition();
+    void updateStartupLocation();
+    void fitStartupRegion();
 
     void updateMousePos();
 
@@ -223,6 +230,10 @@ private slots:
     void on_leFind_returnPressed();
 
 private:
+    MapStartup *m_startup;
+    QLabel *m_locationStatus;
+    QPointF m_savedLocation, m_startupCenter;
+    bool m_viewInitialized = false;
     int m_min_zoom;
     int m_max_zoom;
     double m_heading; // uav heading

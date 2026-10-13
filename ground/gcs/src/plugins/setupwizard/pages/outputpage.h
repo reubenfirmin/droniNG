@@ -42,6 +42,7 @@ public:
     explicit OutputPage(SetupWizard *wizard, QWidget *parent = nullptr);
     ~OutputPage();
     bool validatePage();
+    void initializePage() override;
 
 private:
     void setOutputRanges(quint16 minPulse, quint16 neutralPulse, quint16 maxPulse);

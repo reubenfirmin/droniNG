@@ -4,7 +4,7 @@ from pathlib import Path
 import unittest
 from unittest import mock
 
-ROOT = Path(__file__).resolve().parents[4]
+ROOT = Path(__file__).resolve().parents[3]
 spec = importlib.util.spec_from_file_location("audit", ROOT / "make/scripts/betaflight-desk-check.py")
 audit = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(audit)

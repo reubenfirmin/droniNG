@@ -31,6 +31,8 @@
 
 #include <QFileDialog>
 #include <QVBoxLayout>
+#include <QGridLayout>
+#include <QResizeEvent>
 #include <QToolButton>
 #include <coreplugin/firmwarepage.h>
 #include <QDesktopServices>
@@ -171,6 +173,15 @@ UploaderGadgetWidget::UploaderGadgetWidget(QWidget *parent)
         else if (auto *childLayout = item->layout()) { childLayout->setParent(nullptr); advancedLayout->addLayout(childLayout); }
         else advancedLayout->addItem(item);
     }
+    m_recoveryActions = new QGridLayout;
+    while (auto *item = m_widget->bootloaderButtons->takeAt(0)) {
+        if (auto *button = item->widget()) m_recoveryButtons.append(button);
+        delete item;
+    }
+    advancedLayout->removeItem(m_widget->bootloaderButtons);
+    delete m_widget->bootloaderButtons;
+    advancedLayout->insertLayout(0, m_recoveryActions);
+    advanced->installEventFilter(this);
     m_firmwarePage->setRecoveryTools(advanced);
     connect(conMngr, &Core::ConnectionManager::firmwareStateChanged, advanced, [this, advanced] {
         advanced->setEnabled(!conMngr->firmwareInstallationActive() && !m_promptActive);
@@ -185,6 +196,24 @@ UploaderGadgetWidget::UploaderGadgetWidget(QWidget *parent)
         setUploaderStatus(uploader::DISCONNECTED);
         setStatusInfo(tr("GCS ready for flight board connection..."), uploader::STATUSICON_OK);
     }
+}
+
+bool UploaderGadgetWidget::eventFilter(QObject *object, QEvent *event)
+{
+    if (object == m_advancedTools && event->type() == QEvent::Resize) {
+        const int available = static_cast<QResizeEvent *>(event)->size().width();
+        for (auto *button : m_recoveryButtons) m_recoveryActions->removeWidget(button);
+        int row = 0, column = 0, used = 0;
+        for (auto *button : m_recoveryButtons) {
+            const int required = qMax(button->minimumWidth(), button->sizeHint().width());
+            if (column > 0 && used + required + m_recoveryActions->horizontalSpacing() > available) {
+                ++row; column = 0; used = 0;
+            }
+            m_recoveryActions->addWidget(button, row, column++, Qt::AlignLeft);
+            used += required + m_recoveryActions->horizontalSpacing();
+        }
+    }
+    return QWidget::eventFilter(object, event);
 }
 
 /**
@@ -265,13 +294,15 @@ void UploaderGadgetWidget::DeviceInformationUpdate(deviceInfo board)
     m_widget->devName_lbl->setText(
         board.board->getBoardNameFromID(board.board->getBoardType() << 8));
     m_widget->hwRev_lbl->setText(board.hw_revision);
-    m_widget->blVer_lbl->setText(board.bl_version);
+    const bool imported = !Core::FirmwareCatalog::instance().board(board.board->shortName()).layoutId.isEmpty();
+    m_widget->blVer_lbl->setText(imported ? tr("STM32 ROM") : board.bl_version);
     bool bl_version_ok;
     int bl_version = board.bl_version.toInt(&bl_version_ok, 16);
     conMngr->setNativeFirmwareIdentity(board.board->shortName(), {},
-        bl_version_ok ? tr("dRonin %1").arg(board.bl_version) : QString());
+        imported ? tr("STM32 system bootloader")
+            : bl_version_ok ? tr("dRonin %1").arg(board.bl_version) : QString());
     m_widget->blVer_lbl->setStyleSheet(
-        bl_version_ok && bl_version < board.board->minBootLoaderVersion() ? "color: red;" : "");
+        !imported && bl_version_ok && bl_version < board.board->minBootLoaderVersion() ? "color: red;" : "");
     m_widget->maxCode_lbl->setText(board.max_code_size);
     m_widget->deviceInformationMainLayout->setVisible(true);
     m_widget->deviceInformationNoInfo->setVisible(false);
@@ -1973,6 +2004,8 @@ bool UploaderGadgetWidget::FirmwareLoadFromFile(QString filename, QByteArray *co
 
 bool UploaderGadgetWidget::FirmwareCheckForUpdate(deviceDescriptorStruct device)
 {
+    if (!Core::FirmwareCatalog::matchingFirmwareDescriptor(device.description).isEmpty())
+        return false;
     if (currentBoard.board) {
         bool canBeUpgraded =
             currentBoard.board->queryCapabilities(Core::IBoardType::BOARD_CAPABILITIES_UPGRADEABLE);

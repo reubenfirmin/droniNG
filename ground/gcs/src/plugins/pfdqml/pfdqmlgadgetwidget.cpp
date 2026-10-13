@@ -28,10 +28,12 @@
 #include <QQmlContext>
 #include "stabilizationdesired.h"
 
-PfdQmlGadgetWidget::PfdQmlGadgetWidget(QWindow *parent)
-    : QQuickView(parent)
+PfdQmlGadgetWidget::PfdQmlGadgetWidget(QWidget *parent)
+    : QQuickWidget(parent)
 {
     setResizeMode(SizeRootObjectToView);
+    setMinimumSize(64, 64);
+    setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
 
     objectsToExport << "VelocityActual"
                     << "PositionActual"
@@ -128,5 +130,5 @@ void PfdQmlGadgetWidget::mouseReleaseEvent(QMouseEvent *event)
         setQmlFile(m_qmlFileName);
     }
 
-    QQuickView::mouseReleaseEvent(event);
+    QQuickWidget::mouseReleaseEvent(event);
 }

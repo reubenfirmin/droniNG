@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "purpose": "OMNIBUSF4SD board and driver inputs from the connected controller's Betaflight release",
+  "repositories": {
+    "betaflight_3_4": {
+      "repository": "betaflight/betaflight",
+      "commit": "cce8a59be4b85f0ac327b75b11556b3e488805f1",
+      "files": [
+        "LICENSE",
+        "Makefile",
+        "src/main/target/OMNIBUSF4/target.h",
+        "src/main/target/OMNIBUSF4/target.c",
+        "src/main/target/OMNIBUSF4/target.mk",
+        "src/main/target/OMNIBUSF4/OMNIBUSF4SD.mk",
+        "src/main/target/OMNIBUSF4/config.c",
+        "src/main/drivers/accgyro/accgyro_spi_mpu6000.c",
+        "src/main/drivers/accgyro/accgyro_spi_mpu6500.c",
+        "src/main/drivers/accgyro/accgyro_mpu.c",
+        "src/main/drivers/barometer/barometer_bmp280.c",
+        "src/main/drivers/max7456.c",
+        "src/main/drivers/timer_stm32f4xx.c",
+        "src/main/drivers/system_stm32f4xx.c",
+        "src/main/target/system_stm32f4xx.c",
+        "src/main/sensors/boardalignment.c",
+        "src/main/pg/adc.c",
+        "src/main/sensors/battery.c",
+        "src/main/sensors/voltage.c",
+        "src/main/sensors/current.c",
+        "src/main/interface/msp.c",
+        "src/main/interface/msp_protocol.h",
+        "src/main/interface/cli.c",
+        "src/main/drivers/system.h",
+        "src/main/target/link/stm32_flash_f405.ld"
+      ]
+    }
+  }
+}

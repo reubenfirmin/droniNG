@@ -150,6 +150,10 @@ static int32_t PIOS_BMP280_Validate(struct bmp280_dev *dev)
 
 static int32_t PIOS_BMP280_Common_Init(const struct pios_bmp280_cfg *cfg)
 {
+	/* ctrl_meas must enable both temperature and pressure acquisition. Mode
+	 * bits alone start the device but leave both ADC outputs disabled. */
+	if (!(cfg->oversampling & 0xe0) || !(cfg->oversampling & 0x1c))
+		return -12;
 	dev->oversampling = cfg->oversampling;
 	dev->cfg = cfg;
 
@@ -287,19 +291,19 @@ static int32_t PIOS_BMP280_ReadADC()
 
 	varP1 = ((int64_t)T / 5) - 128000;
 	varP2 = varP1 * varP1 * (int64_t)dev->digP6;
-	varP2 = varP2 + ((varP1 * (int64_t)dev->digP5) << 17);
-	varP2 = varP2 + (((int64_t)dev->digP4) << 35);
-	varP1= ((varP1 * varP1 * (int64_t)dev->digP3) >> 8) + ((varP1 * (int64_t)dev->digP2) << 12);
+	varP2 = varP2 + (varP1 * (int64_t)dev->digP5) * 131072;
+	varP2 = varP2 + (int64_t)dev->digP4 * 34359738368LL;
+	varP1= ((varP1 * varP1 * (int64_t)dev->digP3) >> 8) + (varP1 * (int64_t)dev->digP2) * 4096;
 	varP1 = (((((int64_t)1) << 47) + varP1)) * ((int64_t)dev->digP1) >> 33;
 	if (varP1 == 0)
 	{
 		return -1; // avoid exception caused by division by zero
 	}
 	P = 1048576 - raw_pressure;
-	P = (((P << 31) - varP2) * 3125) / varP1;
+	P = ((P * 2147483648LL - varP2) * 3125) / varP1;
 	varP1 = (((int64_t)dev->digP9) * (P >> 13) * (P >> 13)) >> 25;
 	varP2 = (((int64_t)dev->digP8) * P) >> 19;
-	dev->compensatedPressure = (uint32_t)((P + varP1 + varP2) >> 8) + (((int64_t)dev->digP7) << 4);
+	dev->compensatedPressure = (uint32_t)((P + varP1 + varP2) >> 8) + (int64_t)dev->digP7 * 16;
 	return 0;
 }
 
@@ -403,12 +407,14 @@ static int32_t PIOS_BMP280_ClaimBus(pios_spi_t spi_id, uint32_t spi_slave)
 {
 	if (PIOS_SPI_ClaimBus(spi_id) != 0)
 		return -2;
+	if (PIOS_SPI_SetClockSpeed(spi_id, PIOS_BMP_SPI_SPEED) <= 0) {
+		PIOS_SPI_ReleaseBus(spi_id);
+		return -3;
+	}
 
 	PIOS_DELAY_WaituS(1);
 	PIOS_SPI_RC_PinSet(spi_id, spi_slave, false);
 	PIOS_DELAY_WaituS(1);
-
-	PIOS_SPI_SetClockSpeed(spi_id, PIOS_BMP_SPI_SPEED);
 
 	return 0;
 }
@@ -425,9 +431,9 @@ static int32_t PIOS_BMP280_SPI_Read(pios_spi_t spi_id, uint32_t spi_slave,
 	if (PIOS_BMP280_ClaimBus(spi_id, spi_slave) != 0)
 		return -1;
 
-	PIOS_SPI_TransferByte(spi_id, 0x80 | address);
-
-	int ret = PIOS_SPI_TransferBlock(spi_id, NULL, buffer, len);
+	uint8_t command = 0x80 | address;
+	int ret = PIOS_SPI_TransferBlock(spi_id, &command, NULL, 1);
+	if (!ret) ret = PIOS_SPI_TransferBlock(spi_id, NULL, buffer, len);
 
 	PIOS_BMP280_ReleaseBus(spi_id, spi_slave);
 
@@ -556,7 +562,7 @@ int32_t PIOS_BMP280_Test()
 
 	// TODO: Is there a better way to test this than just checking that pressure/temperature has changed?
 	int32_t currentTemperature = 0;
-	int32_t currentPressure    = 0;
+	uint32_t currentPressure   = 0;
 
 	PIOS_BMP280_ClaimDevice();
 
@@ -590,9 +596,8 @@ static bool PIOS_BMP280_callback(void *ctx, void *output,
 
 	int32_t read_adc_result = 0;
 
-	PIOS_BMP280_StartADC();
-
-	PIOS_BMP280_ClaimDevice();
+	if (PIOS_BMP280_StartADC() != 0 || PIOS_BMP280_ClaimDevice() != 0)
+		return false;
 	read_adc_result = PIOS_BMP280_ReadADC();
 	PIOS_BMP280_ReleaseDevice();
 

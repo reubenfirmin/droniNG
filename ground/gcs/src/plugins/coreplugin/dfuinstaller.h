@@ -31,7 +31,7 @@ class CORE_EXPORT DfuInstaller : public QObject {
     Q_OBJECT
 public:
     enum class Stage { Idle, Waiting, NeedsBoot, Ready, Checking, Writing, Reading, Leaving, Restarting,
-                       AwaitingTelemetry, Configuring, Complete, Failed };
+                       AwaitingTelemetry, StartupFailed, Configuring, Complete, Failed };
     explicit DfuInstaller(QObject *parent = nullptr, DfuCommandRunner *runner = nullptr);
     static QString bundledHelper();
     static QString bundledUsbAccessRules();
@@ -39,11 +39,13 @@ public:
     static QList<DfuFlashDevice> devices(const QString &listing);
     // Starts a requested installation and continues automatically when DFU appears.
     void start(const FirmwareBoardProfile &board, const QString &imagePath,
-               const QString &expectedUsbPath = {}, const QString &helper = bundledHelper());
+               const QString &expectedUsbPath = {}, const QString &helper = bundledHelper(), bool automaticBoot = false);
     void cancel();
     void startInstalledFirmware();
     void nativeFirmwareStarted(bool success, const QString &message);
-    void telemetryReceived(const QByteArray &descriptor);
+    void startupTimedOut(const QString &message = {});
+    void telemetryReceived(const QByteArray &descriptor, int schema = 0, const QString &profile = {},
+                           const QString &layout = {}, const QByteArray &profileHash = {});
     void boardSettingsApplied(bool success, const QString &message);
     Stage stage() const { return m_stage; }
     QString log() const { return m_log; }
@@ -52,6 +54,7 @@ public:
     bool usbAccessDenied() const { return m_usbAccessDenied; }
     QString accessCommand() const { return m_accessCommand; }
     QString startError() const { return m_startError; }
+    QByteArray installedDescriptor() const { return m_image.descriptor; }
 signals:
     void changed(Core::DfuInstaller::Stage stage, const QString &message);
     void progress(int percent);
@@ -65,6 +68,8 @@ private:
     void listDevices();
     void transfer(const QStringList &arguments);
     void leaveDfu();
+    void writeSegment();
+    int m_segment = 0;
     void awaitTelemetry(const QString &startError = {});
     void change(Stage stage, const QString &message);
     void fail(const QString &message);
@@ -81,6 +86,7 @@ private:
     QJsonArray m_settings;
     bool m_configured = false;
     bool m_usbAccessDenied = false;
+    bool m_automaticBoot = false;
 };
 }
 Q_DECLARE_METATYPE(Core::DfuInstaller::Stage)

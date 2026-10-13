@@ -45,6 +45,8 @@
 #include <QComboBox>
 #include <QPointer>
 #include <QSet>
+#include <QHash>
+#include <QStringList>
 #include <QMessageBox>
 
 #include "core_global.h"
@@ -57,6 +59,14 @@ QT_END_NAMESPACE
 
 namespace Core {
 struct FirmwareBoardProfile;
+struct VerifiedInstallation {
+    QString boardId, usbPath, log;
+    QByteArray descriptor;
+};
+struct ControllerRecovery {
+    QString deviceName, usbPath, boardId;
+    ConnectionError problem;
+};
 
 class IConnection;
 class IDevice;
@@ -120,6 +130,12 @@ public:
     bool controllerSetupRequired() const { return m_controllerSetupRequired; }
 
     bool connectDevice(DevListItem device);
+    bool autoConnectDevice(DevListItem device);
+    bool automaticConnectionBlocked(const QString &usbPath) const;
+    void resetAutomaticConnectionFailures(const QString &usbPath);
+    ControllerRecovery controllerRecovery() const { return m_controllerRecovery; }
+    void clearControllerRecovery();
+    void reportControllerProblem(const ConnectionError &error);
     bool disconnectDevice();
     void suspendPolling();
     void resumePolling();
@@ -131,8 +147,10 @@ public:
     QString firmwareVersion() const { return m_firmwareVersion; }
     QString detectedBoard() const { return m_detectedBoard; }
     QString detectedFirmware() const { return m_detectedFirmware; }
+    QByteArray firmwareDescription() const { return m_receivedDescriptor; }
     QString detectedBootloader() const { return m_detectedBootloader; }
     QString firmwareStatus() const { return m_firmwareStatus; }
+    QString connectionLog() const { return m_connectionLog.join('\n'); }
     ConnectionError firmwareError() const { return m_firmwareError; }
     void setFirmwareIdentity(const QString &variant, const QString &boardTarget,
                              bool mspDetected = false, const QString &version = {});
@@ -142,7 +160,12 @@ public:
     void setFirmwareDetectionActive(bool active);
     void beginFirmwareInstallation();
     void endFirmwareInstallation();
+    VerifiedInstallation verifiedInstallation() const;
+    void recordVerifiedInstallation(const QString &boardId, const QString &usbPath,
+                                    const QByteArray &descriptor, const QString &log = {});
+    void clearVerifiedInstallation();
     void reportFirmwareDescription(const QByteArray &description);
+    void reportFirmwareProfile(int schema, const QString &profile, const QString &layout, const QByteArray &hash);
     void reportFlightDataReceived();
     void setControllerSetupRequired(bool required);
     void requestControllerSetup();
@@ -158,6 +181,7 @@ signals:
     void deviceDisconnected();
     void availableDevicesChanged(const QList<Core::DevListItem> devices);
     void firmwareDescriptionReceived(const QByteArray &description);
+    void firmwareProfileReceived(int schema, const QString &profile, const QString &layout, const QByteArray &hash);
     void flightDataReady();
     void boardSettingsRequested(const QJsonArray &settings);
     void boardSettingsFinished(bool success, const QString &message);
@@ -166,6 +190,7 @@ signals:
     void firmwareBootFinished(bool success, const QString &message);
     void firmwareBootCancelled();
     void firmwareStateChanged();
+    void connectionLogChanged();
     void firmwarePageRequested();
     void setupWizardRequested();
 
@@ -207,6 +232,9 @@ protected:
     QIODevice *m_ioDev;
 
 private:
+    void confirmVerifiedInstallation();
+    QByteArray m_receivedDescriptor;
+    bool m_receivedMatchingProfile = false;
     bool connectDevice();
     bool polling;
     bool m_firmwareInstalling = false;
@@ -220,14 +248,24 @@ private:
     QTimer *reconnectCheck;
     ConnectionError m_connectionError;
     QMetaObject::Connection m_connectionDestroyed;
+    QMetaObject::Connection m_transportDisconnected, m_deviceClosed;
     quint64 m_connectionGeneration = 0;
+    QSet<QString> m_blockedUsbPaths;
+    QHash<QString, int> m_installationOpenFailures;
+    QString m_startupFailurePath;
+    ControllerRecovery m_controllerRecovery;
+    void rememberController(DevListItem device);
     QString m_firmwareVariant, m_firmwareBoardTarget;
     QString m_firmwareVersion, m_detectedBoard, m_detectedFirmware, m_detectedBootloader;
     QString m_firmwareStatus;
     ConnectionError m_firmwareError;
+    QStringList m_connectionLog;
     bool m_mspFirmwareDetected = false;
 
     void connectDeviceFailed(DevListItem &device);
+    bool connectDeviceInternal(DevListItem device, bool automatic);
+    void transportLost();
+    void appendConnectionLog(const QString &message);
 };
 
 } // namespace Core

@@ -60,7 +60,8 @@ public:
     ~UAVGadgetInstanceManager();
     void readSettings(QSettings *qs);
     void saveSettings(QSettings *qs);
-    IUAVGadget *createGadget(QString classId, QWidget *parent, bool forceLoadConfiguration = false);
+    IUAVGadget *createGadget(QString classId, QWidget *parent, bool forceLoadConfiguration = false,
+                            const QString &configuration = {});
     void removeGadget(IUAVGadget *gadget);
     void removeAllGadgets();
     bool canDeleteConfiguration(IUAVGadgetConfiguration *config);

@@ -23,13 +23,12 @@ PfdQmlGadget::PfdQmlGadget(QString classId, PfdQmlGadgetWidget *widget, QWidget 
     : IUAVGadget(classId, parent)
     , m_widget(widget)
 {
-    m_container = NULL;
-    m_parent = parent;
+    m_widget->setParent(parent);
 }
 
 PfdQmlGadget::~PfdQmlGadget()
 {
-    m_widget->deleteLater();
+    delete m_widget;
 }
 
 /*

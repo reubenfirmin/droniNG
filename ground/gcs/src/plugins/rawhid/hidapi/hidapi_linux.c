@@ -669,7 +669,7 @@ HID_API_EXPORT hid_device * hid_open_path(const char *path)
 	dev->device_handle = open(path, O_RDWR);
 
 	/* If we have a good handle, return it. */
-	if (dev->device_handle > 0) {
+	if (dev->device_handle >= 0) {
 
 		/* Get the report descriptor */
 		int res, desc_size = 0;
@@ -699,7 +699,9 @@ HID_API_EXPORT hid_device * hid_open_path(const char *path)
 	}
 	else {
 		/* Unable to open any devices. */
+		int open_error = errno;
 		free(dev);
+		errno = open_error;
 		return NULL;
 	}
 }
@@ -740,8 +742,10 @@ int HID_API_EXPORT hid_read_timeout(hid_device *dev, unsigned char *data, size_t
 		else {
 			/* Check for errors on the file descriptor. This will
 			   indicate a device disconnection. */
-			if (fds.revents & (POLLERR | POLLHUP | POLLNVAL))
+			if (fds.revents & (POLLERR | POLLHUP | POLLNVAL)) {
+				errno = (fds.revents & POLLNVAL) ? EBADF : ENODEV;
 				return -1;
+			}
 		}
 	}
 

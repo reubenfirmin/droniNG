@@ -107,6 +107,23 @@ static enum pios_video_system video_system_act = PIOS_VIDEO_SYSTEM_NONE;
 static enum pios_video_system video_system_tmp = PIOS_VIDEO_SYSTEM_PAL;
 static const struct pios_video_type_cfg *pios_video_type_cfg_act = &pios_video_type_cfg_pal;
 
+#if defined(PIOS_INCLUDE_IMPORTED)
+#include "pios_video_sync_guard.h"
+static struct pios_video_sync_guard sync_guard;
+
+void PIOS_Video_RecoverSync(void)
+{
+	PIOS_IRQ_Disable();
+	if (dev_cfg && PIOS_Video_SyncRecover(&sync_guard, PIOS_DELAY_GetuS())) {
+		uint32_t lines = dev_cfg->vsync->line | dev_cfg->hsync->line;
+		active_line = 0;
+		EXTI->PR = lines;
+		EXTI->IMR |= lines;
+	}
+	PIOS_IRQ_Enable();
+}
+#endif
+
 // Private functions
 static void swap_buffers();
 
@@ -117,6 +134,13 @@ bool PIOS_Vsync_ISR()
 {
 	static bool woken = false;
 	static uint16_t Vsync_update = 0;
+
+#if defined(PIOS_INCLUDE_IMPORTED)
+	if (!PIOS_Video_SyncAccept(&sync_guard, PIOS_DELAY_GetuS())) {
+		if (sync_guard.masked) EXTI->IMR &= ~(dev_cfg->vsync->line | dev_cfg->hsync->line);
+		return false;
+	}
+#endif
 
 	// discard spurious vsync pulses (due to improper grounding), so we don't overload the CPU
 	if (active_line < pios_video_type_cfg_ntsc.graphics_height_real - 10) {
@@ -167,7 +191,7 @@ bool PIOS_Hsync_ISR()
 {
 	static bool woken = false;
 
-	active_line++;
+	if (active_line < INT16_MAX) active_line++;
 
 	if ((active_line >= 0) && (active_line < pios_video_type_cfg_act->graphics_height_real)) {
 		// Check if QUADSPI is busy

@@ -10,9 +10,8 @@
 #include <QQmlEngine>
 #include <QQmlError>
 #include <QQuickItem>
-#include <QSGRendererInterface>
 #include <QTest>
-#include <memory>
+#include <type_traits>
 
 // The fixture exposes the actual generated objects through the normal pool.
 struct ObjectPoolFixture
@@ -42,32 +41,18 @@ class PfdRenderTests : public QObject
         return changed;
     }
 
-private slots:
-    void displayAndAttitude_data()
+    template<typename View>
+    void verifyDisplay(View &view, ObjectPoolFixture &pool)
     {
-        QTest::addColumn<bool>("generalViewer");
-        QTest::newRow("PFD") << false;
-        QTest::newRow("QML-viewer") << true;
-    }
-
-    void displayAndAttitude()
-    {
-        QFETCH(bool, generalViewer);
-        ObjectPoolFixture pool;
-        QVERIFY(pool.objects);
-        std::unique_ptr<QQuickView> holder;
-        if (generalViewer)
-            holder = std::make_unique<QmlViewGadgetWidget>();
-        else
-            holder = std::make_unique<PfdQmlGadgetWidget>();
-        QQuickView &view = *holder;
+        constexpr bool generalViewer = std::is_same_v<View, QmlViewGadgetWidget>;
+        const auto grab = [&] {
+            if constexpr (generalViewer) return view.grabWindow();
+            else return view.grabFramebuffer();
+        };
         const auto reload = [&] {
             const QString file = qEnvironmentVariable("GCS_PFD_QML_FILE",
                                                       QString::fromUtf8(PFD_QML_FILE));
-            if (generalViewer)
-                static_cast<QmlViewGadgetWidget &>(view).setQmlFile(file);
-            else
-                static_cast<PfdQmlGadgetWidget &>(view).setQmlFile(file);
+            view.setQmlFile(file);
         };
         QStringList warnings;
         connect(view.engine(), &QQmlEngine::warnings, this,
@@ -75,19 +60,17 @@ private slots:
             for (const auto &error : errors)
                 warnings.append(error.toString());
         });
-        if (!generalViewer)
-            static_cast<PfdQmlGadgetWidget &>(view).setSettingsMap({});
+        if constexpr (!generalViewer) view.setSettingsMap({});
         view.resize(640, 480);
         reload();
-        QTRY_COMPARE(view.status(), QQuickView::Ready);
+        QTRY_COMPARE(view.status(), View::Ready);
         QVERIFY(view.rootObject());
         view.show();
         QVERIFY(QTest::qWaitForWindowExposed(&view));
         QTest::qWait(100);
-        const QImage level = view.grabWindow();
+        const QImage level = grab();
         QVERIFY(!level.isNull());
         qInfo() << "PFD graphics" << QGuiApplication::platformName()
-                << "graphicsApi" << view.rendererInterface()->graphicsApi()
                 << "devicePixelRatio" << view.devicePixelRatio()
                 << "logicalSize" << view.size() << "framebufferSize" << level.size();
         int sky = 0, earth = 0;
@@ -108,21 +91,43 @@ private slots:
         data.Pitch = 15;
         data.Yaw = 35;
         attitude->setData(data);
-        QTRY_VERIFY(changedPixels(level, view.grabWindow()) > level.width() * level.height() / 20);
+        QTRY_VERIFY(changedPixels(level, grab()) > level.width() * level.height() / 20);
 
         view.resize(800, 600);
-        QTRY_VERIFY(view.grabWindow().width() >= 800);
+        QTRY_VERIFY(grab().width() >= 800);
         reload();
-        QTRY_COMPARE(view.status(), QQuickView::Ready);
+        QTRY_COMPARE(view.status(), View::Ready);
         QTest::qWait(100);
-        QVERIFY(!view.grabWindow().isNull());
+        QVERIFY(!grab().isNull());
         QVERIFY2(warnings.isEmpty(), qPrintable(warnings.join('\n')));
         const QString artifacts = qEnvironmentVariable("GCS_PFD_ARTIFACT_DIR");
         if (!artifacts.isEmpty()) {
             QVERIFY(QDir().mkpath(artifacts));
             const QString prefix = generalViewer ? "/qml-" : "/pfd-";
             QVERIFY(level.save(artifacts + prefix + "level.png"));
-            QVERIFY(view.grabWindow().save(artifacts + prefix + "attitude.png"));
+            QVERIFY(grab().save(artifacts + prefix + "attitude.png"));
+        }
+    }
+
+private slots:
+    void displayAndAttitude_data()
+    {
+        QTest::addColumn<bool>("generalViewer");
+        QTest::newRow("PFD") << false;
+        QTest::newRow("QML-viewer") << true;
+    }
+
+    void displayAndAttitude()
+    {
+        QFETCH(bool, generalViewer);
+        ObjectPoolFixture pool;
+        QVERIFY(pool.objects);
+        if (generalViewer) {
+            QmlViewGadgetWidget view;
+            verifyDisplay(view, pool);
+        } else {
+            PfdQmlGadgetWidget view;
+            verifyDisplay(view, pool);
         }
     }
 };

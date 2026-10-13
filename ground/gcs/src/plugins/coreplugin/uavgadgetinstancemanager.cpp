@@ -254,7 +254,7 @@ void UAVGadgetInstanceManager::createOptionsPages()
 }
 
 IUAVGadget *UAVGadgetInstanceManager::createGadget(QString classId, QWidget *parent,
-                                                   bool forceLoadConfiguration)
+                                                   bool forceLoadConfiguration, const QString &configuration)
 {
     IUAVGadgetFactory *f = factory(classId);
     if (f) {
@@ -266,6 +266,8 @@ IUAVGadget *UAVGadgetInstanceManager::createGadget(QString classId, QWidget *par
         QList<IUAVGadgetConfiguration *> *configs = configurations(classId);
         IUAVGadget *g = f->createGadget(parent);
         IUAVGadget *gadget = new UAVGadgetDecorator(g, configs, forceLoadConfiguration);
+        for (auto *config : *configs)
+            if (!configuration.isEmpty() && config->name() == configuration) gadget->loadConfiguration(config);
         m_gadgetInstances.append(gadget);
         connect(this, SIGNAL(configurationAdded(IUAVGadgetConfiguration *)), gadget,
                 SLOT(configurationAdded(IUAVGadgetConfiguration *)));

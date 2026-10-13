@@ -34,6 +34,7 @@
 #include "playuavosd.h"
 #include "seppuku.h"
 #include "sprf3e.h"
+#include "importedboard.h"
 #include <QtPlugin>
 
 DroningPlugin::DroningPlugin()
@@ -53,6 +54,10 @@ bool DroningPlugin::initialize(const QStringList &arguments, QString *errorStrin
 
 void DroningPlugin::extensionsInitialized()
 {
+    for (const auto &id : {"radix", "omnibusf4sd"}) {
+        const auto profile = Core::FirmwareCatalog::instance().board(id);
+        if (profile.isValid()) addAutoReleasedObject(new ImportedBoard(profile));
+    }
     // Init boards
     Simulation *sim = new Simulation();
     addAutoReleasedObject(sim);

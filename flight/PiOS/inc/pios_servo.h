@@ -31,19 +31,13 @@
 #define PIOS_SERVO_H
 
 #include <pios_dio.h>
+#include <pios_servo_rate.h>
 
 #define PIOS_SERVO_MAX_BANKS 8
 
 /* Used in out_rate.  If 65535, we really mean 65535Hz.  Values close to that
  * are reserved/abused for dshot support.  0 is used for sync pwm per legacy
  */
-enum pios_servo_shot_type {
-	SHOT_ONESHOT = 0,
-	SHOT_DSHOT300 = 65532,
-	SHOT_DSHOT600 = 65533,
-	SHOT_DSHOT1200 = 65534
-};
-
 struct pios_servo_callbacks {
 	int (*set_mode)(const uint16_t *out_rate, const int banks,
 		const uint16_t *channel_max, const uint16_t *channel_min);

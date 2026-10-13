@@ -100,14 +100,14 @@ Rectangle {
                     rowSpacing: 12
 
                     WelcomeAction {
-                        text: qsTr("Flight data")
-                        description: qsTr("Monitor instruments and live telemetry.")
+                        text: qsTr("Map")
+                        description: qsTr("View your aircraft position and GPS map.")
                         foreground: page.foreground; muted: page.muted
                         accent: page.accent; surface: page.surface; outline: page.outline
                         Layout.fillWidth: true
-                        visible: modeButtons.modeNames.indexOf("Flight data") >= 0
+                        visible: modeButtons.modeNames.indexOf("Map") >= 0
                         Layout.fillHeight: true
-                        onClicked: welcomePlugin.openPage("Flight data")
+                        onClicked: welcomePlugin.openPage("Map")
                     }
                     WelcomeAction {
                         text: qsTr("Configuration")

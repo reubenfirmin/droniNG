@@ -69,6 +69,7 @@ def run(arguments):
         environment[variable] = str(path)
         os.environ[variable] = str(path)
     import pyatspi
+    from gi.repository import GLib
     from PIL import Image
     from Xlib import X, display as xdisplay, error as xerror
 
@@ -104,6 +105,25 @@ def run(arguments):
             accessible = wait_for("application accessibility tree",
                                   lambda: next((app for app in desktop
                                                 if app.get_process_id() == process.pid), None), process)
+            popup_roots = []
+            popup_events = []
+            def observe_popup(event):
+                try:
+                    node = event.source
+                    if "menu" not in node.getRoleName() or node.get_process_id() != process.pid:
+                        return
+                    popup_events.append((event.type, node.getRoleName(), node.name))
+                    for _ in range(20):
+                        if not node or node.getRoleName() == "application":
+                            break
+                        if node.getRoleName() == "popup menu" and node not in popup_roots:
+                            popup_roots.append(node)
+                        node = node.parent
+                except GLib.GError:
+                    pass # Popup events can arrive after their temporary Qt objects have been deleted.
+            pyatspi.Registry.registerEventListener(observe_popup,
+                "object:state-changed:focused", "object:state-changed:showing",
+                "object:active-descendant-changed")
 
             def visible_nodes(node=accessible, depth=0):
                 showing = node.getState().contains(pyatspi.STATE_SHOWING)
@@ -113,6 +133,12 @@ def run(arguments):
                 for child in node:
                     if child:
                         yield from visible_nodes(child, depth + 1)
+                if depth == 0:
+                    for popup in tuple(popup_roots):
+                        try:
+                            yield from visible_nodes(popup, 1)
+                        except GLib.GError:
+                            popup_roots.remove(popup)
 
             def record(label, target=window):
                 from gi.repository import GLib
@@ -121,6 +147,7 @@ def run(arguments):
                     context.iteration(False)
                 nodes = [{"role": node.getRoleName(), "name": node.name,
                           "selected": node.getState().contains(pyatspi.STATE_SELECTED),
+                          "checked": node.getState().contains(pyatspi.STATE_CHECKED),
                           "enabled": node.getState().contains(pyatspi.STATE_ENABLED)}
                          for node in visible_nodes()]
                 (output / f"{label}.json").write_text(json.dumps(nodes, indent=2) + "\n")
@@ -154,6 +181,47 @@ def run(arguments):
                     assert display.test.XTestFakeButtonEvent(display.display, 1, pressed, 0)
                 display.x.XSync(display.display, False)
 
+            def navigation_item(title):
+                navigation = next((node for node in visible_nodes()
+                    if node.name == "Main navigation"), None)
+                if not navigation:
+                    return None
+                return next((node for node in visible_nodes(navigation)
+                    if node.name == title and node.getRoleName() in
+                    ("button", "push button", "toggle button", "radio button")), None)
+
+            def navigation_selected(title):
+                item = navigation_item(title)
+                return item and item.getState().contains(pyatspi.STATE_CHECKED)
+
+            def leave_sidebar():
+                toggle = navigation_item("Collapse sidebar")
+                if toggle:
+                    click(toggle)
+                left, top, width, height = display.geometry(window)
+                assert display.test.XTestFakeMotionEvent(display.display, -1,
+                    left + width - 30, top + height // 2, 0)
+                display.x.XSync(display.display, False)
+                wait_for("collapsed sidebar", lambda: navigation_item("Welcome")
+                    .queryComponent().getExtents(pyatspi.DESKTOP_COORDS).width == 48, process)
+
+            def open_application_menu(title):
+                click(navigation_item("Advanced"))
+                def menu_item():
+                    accessible.clearCache() # Qt popup windows can appear after the application tree was cached.
+                    return next((node for node in visible_nodes()
+                        if node.name.replace("&", "") == title
+                        and node.getRoleName() in ("menu", "menu item")), None)
+                try:
+                    menu = wait_for(title + " in Advanced", menu_item, process)
+                except AssertionError:
+                    record("advanced-menu-failure")
+                    print("Popup events:", popup_events[-30:], flush=True)
+                    raise
+                # Popups extend outside the main window when opened near its bottom.
+                assert menu.queryAction().doAction(0), title + " submenu did not open"
+                time.sleep(0.2)
+
             def named_window(title):
                 for child in capture.screen().root.query_tree().children:
                     try:
@@ -168,9 +236,7 @@ def run(arguments):
 
             # Keyboard navigation exercises the actual application mode shortcuts.
             try:
-                wait_for("startup Welcome selection", lambda: any(node.name == "Welcome" and node.getRoleName() == "page tab"
-                           and node.getState().contains(pyatspi.STATE_SELECTED)
-                           for node in visible_nodes()), process)
+                wait_for("startup Welcome selection", lambda: navigation_selected("Welcome"), process)
             except AssertionError:
                 record("startup-selection-failure")
                 raise
@@ -181,6 +247,47 @@ def run(arguments):
                 record("welcome-render-failure")
                 raise
             record("initial")
+            primary_titles = ("Welcome", "Map", "Configuration", "System", "Firmware")
+            navigation = [navigation_item(title) for title in primary_titles]
+            assert all(navigation), "The sidebar must include all five main sections"
+            bounds = [item.queryComponent().getExtents(pyatspi.DESKTOP_COORDS) for item in navigation]
+            assert len({rect.x for rect in bounds}) == 1, "Main sections must align in the sidebar"
+            assert all(first.y + first.height <= second.y for first, second in zip(bounds, bounds[1:])), \
+                "The main sections must follow the requested vertical order"
+            assert not any(node.name in primary_titles and node.getRoleName() == "page tab"
+                for node in visible_nodes()), "The old workspace tabs must be hidden"
+            report["main_navigation"] = {"placement": "left sidebar", "sections": primary_titles}
+            leave_sidebar()
+            assert not any(node.getRoleName() == "menu bar" for node in visible_nodes()), \
+                "Application menus belong in Advanced"
+            assert navigation_item("Advanced") and navigation_item("Exit")
+            exit_bounds = navigation_item("Exit").queryComponent().getExtents(pyatspi.DESKTOP_COORDS)
+            left, top, width, height = display.geometry(window)
+            assert exit_bounds.y + exit_bounds.height >= top + height - 20, "Exit belongs at bottom left"
+            click(navigation_item("Welcome"))
+            time.sleep(0.2)
+            assert navigation_item("Welcome").queryComponent().getExtents(pyatspi.DESKTOP_COORDS).width == 48, \
+                "Hovering or selecting a section must not expand the sidebar"
+            click(navigation_item("Expand sidebar"))
+            wait_for("expanded sidebar by button", lambda: navigation_item("Welcome")
+                .queryComponent().getExtents(pyatspi.DESKTOP_COORDS).width == 188, process)
+            record("sidebar-expanded")
+            left, top, width, height = display.geometry(window)
+            assert display.test.XTestFakeMotionEvent(display.display, -1, left + width - 30, top + height // 2, 0)
+            display.x.XSync(display.display, False)
+            time.sleep(0.2)
+            assert navigation_item("Welcome").queryComponent().getExtents(pyatspi.DESKTOP_COORDS).width == 188, \
+                "An expanded sidebar stays open when the pointer leaves"
+            leave_sidebar()
+            record("sidebar-collapsed")
+            open_application_menu("Tools")
+            record("advanced-menu")
+            send("Escape")
+            time.sleep(0.2)
+            send("Escape")
+            wait_for("Advanced menu dismissed", lambda: not any(node.getRoleName() == "popup menu"
+                for node in visible_nodes()), process)
+            leave_sidebar()
             assert not any(node.name == "Connections:" for node in visible_nodes()), \
                 "Welcome must use the controller CTA without the legacy connection footer"
             assert not any(node.getRoleName() == "combo box" for node in visible_nodes()), \
@@ -199,8 +306,7 @@ def run(arguments):
                 click(copy)
                 wait_for("setup command copied", lambda: any(node.name == "Command copied"
                     and node.getRoleName() in ("button", "push button") for node in visible_nodes()), process)
-                assert any(node.name == "Welcome" and node.getRoleName() == "page tab"
-                    and node.getState().contains(pyatspi.STATE_SELECTED) for node in visible_nodes())
+                assert navigation_selected("Welcome")
                 record("startup-usb-access")
                 view = next(node for node in visible_nodes() if node.name == "View command"
                             and node.getRoleName() in ("button", "push button"))
@@ -257,7 +363,7 @@ def run(arguments):
                     " ".join(node.name.replace("&", "").split()) == "Hide community updates"
                     for node in visible_nodes()), process)
                 left, top, width, height = display.geometry(window)
-                assert display.test.XTestFakeMotionEvent(display.display, -1, left + 15, top + height // 2, 0)
+                assert display.test.XTestFakeMotionEvent(display.display, -1, left + width - 40, top + height // 2, 0)
                 for direction in (5, 4):
                     for _ in range(12):
                         for pressed in (True, False):
@@ -265,8 +371,12 @@ def run(arguments):
                     display.x.XSync(display.display, False)
                     time.sleep(0.4)
                     if direction == 5:
-                        wait_for("visible community section", lambda: any(node.name == "Community updates"
-                            for node in visible_nodes()), process)
+                        try:
+                            wait_for("visible community section", lambda: any(node.name == "Community updates"
+                                for node in visible_nodes()), process)
+                        except AssertionError:
+                            record("welcome-community-failure")
+                            raise
                         record("welcome-community")
                 community = next(node for node in visible_nodes()
                     if " ".join(node.name.replace("&", "").split()) == "Hide community updates"
@@ -274,26 +384,72 @@ def run(arguments):
                 click(community)
                 wait_for("collapsed community section", lambda: not any(node.name == "Community updates"
                     for node in visible_nodes()), process)
-                firmware = next(node for node in visible_nodes() if node.name == "Firmware"
-                                and node.getRoleName() in ("button", "push button"))
-                click(firmware)
-                wait_for("Firmware from Welcome action", lambda: any(node.name == "Firmware"
-                    and node.getRoleName() == "page tab" and node.getState().contains(pyatspi.STATE_SELECTED)
-                    for node in visible_nodes()), process)
+                click(navigation_item("Firmware"))
+                wait_for("Firmware from Welcome action", lambda: navigation_selected("Firmware"), process)
                 assert not any(node.name == "Enable USB connections" for node in visible_nodes()), \
                     "Welcome setup must not occupy other workspaces"
                 print("PASS: Welcome setup card, copy, disclosure, automatic completion and responsive workspace actions", flush=True)
-            for shortcut, label, title in ((1, "welcome", "Welcome"), (2, "flight", "Flight data"),
+            for shortcut, label, title in ((1, "welcome", "Welcome"), (2, "map", "Map"),
                                            (3, "configuration", "Configuration"),
-                                           (4, "system", "System"), (5, "scopes", "Scopes"),
-                                           (6, "advanced", "Advanced")):
+                                           (4, "system", "System"), (5, "firmware", "Firmware")):
+                tab_started = time.monotonic()
+                click(navigation_item(title))
+                wait_for(title + " sidebar selection", lambda: navigation_selected(title), process)
                 display.keys(window, "Control_L", str(shortcut))
-                wait_for(title + " selection", lambda: any(node.name == title
-                         and (node.getRoleName() == "page tab list"
-                              or (node.getRoleName() == "page tab"
-                                  and node.getState().contains(pyatspi.STATE_SELECTED)))
-                         for node in visible_nodes()), process)
+                wait_for(title + " keyboard selection", lambda: navigation_selected(title), process)
+                leave_sidebar()
                 time.sleep(0.5)
+                if title == "Map":
+                    map_started = tab_started
+                    wait_for("current map location resolved", lambda: any("30 × 30 km" in node.name
+                        or "Location unavailable." in node.name for node in visible_nodes()), process, seconds=6)
+                    def map_tiles_rendered():
+                        node = next(node for node in visible_nodes() if node.name == "Local map")
+                        rect = node.queryComponent().getExtents(pyatspi.DESKTOP_COORDS)
+                        raw = capture.screen().root.get_image(rect.x + rect.width // 2 - 100,
+                            rect.y + rect.height // 2 - 100, 200, 200, X.ZPixmap, 0xffffffff)
+                        sample = Image.frombytes("RGB", (200, 200), raw.data, "raw", "BGRX")
+                        return len(sample.getcolors(40000) or []) > 500
+                    def map_view_filled():
+                        node = next(node for node in visible_nodes() if node.name == "Local map")
+                        rect = node.queryComponent().getExtents(pyatspi.DESKTOP_COORDS)
+                        # Check the whole view, including its edges. First imagery
+                        # alone misses serialized downloads and partly empty maps.
+                        raw = capture.screen().root.get_image(rect.x + 4, rect.y + 4,
+                            rect.width - 8, rect.height - 8, X.ZPixmap, 0xffffffff)
+                        sample = Image.frombytes("RGB", (rect.width - 8, rect.height - 8), raw.data, "raw", "BGRX")
+                        colors = dict((color, count) for count, color in sample.getcolors(sample.width * sample.height))
+                        empty = colors.get((20, 22, 24), 0) + colors.get((69, 75, 82), 0)
+                        return empty / (sample.width * sample.height) < 0.01
+                    try:
+                        wait_for("map imagery rendered", map_tiles_rendered, process, seconds=8)
+                    except AssertionError:
+                        record("map-render-failure")
+                        raise
+                    report["map_startup_seconds"] = round(time.monotonic() - map_started, 2)
+                    try:
+                        wait_for("entire map view rendered", map_view_filled, process, seconds=12)
+                    except AssertionError:
+                        record("map-full-view-failure")
+                        raise
+                    report["map_full_view_seconds"] = round(time.monotonic() - map_started, 2)
+                for status in ("Flight time", "Arm status", "Flight mode and failsafe", "Telemetry TX/RX and alerts"):
+                    node = next((node for node in visible_nodes() if node.name == status), None)
+                    assert node, status + " must be visible on " + title
+                    bounds = node.queryComponent().getExtents(pyatspi.DESKTOP_COORDS)
+                    assert bounds.y >= display.geometry(window)[1] + display.geometry(window)[3] - 65, \
+                        status + " belongs in the global footer"
+                if title == "Firmware" and arguments.check_firmware_installation:
+                    cards = {name: next(node for node in visible_nodes()
+                        if node.name == name and node.getRoleName() == "panel")
+                        .queryComponent().getExtents(pyatspi.DESKTOP_COORDS)
+                        for name in ("Attitude", "Aircraft", "System health")}
+                    assert cards["Attitude"].x == cards["System health"].x
+                    assert cards["Aircraft"].y == cards["System health"].y
+                    assert cards["Aircraft"].x < cards["Attitude"].x
+                    assert cards["Attitude"].y < cards["Aircraft"].y
+                    assert cards["Attitude"].width > 320, "Dashboard columns must fill the available width"
+                assert not navigation_item("Flight Data"), "Map replaces Flight Data"
                 assert not any(node.name == "Connections:" for node in visible_nodes()), \
                     "Workspaces must not restore the legacy connection footer"
                 if arguments.check_usb_access_startup and title != "Welcome":
@@ -301,17 +457,33 @@ def run(arguments):
                         "Setup belongs to the Welcome page"
                 record(label)
 
+            click(navigation_item("System"))
+            for shortcut, title in ((6, "Scopes"), (7, "Advanced")):
+                tab = wait_for(title + " System tool", lambda: next((node for node in visible_nodes()
+                    if node.name == title and node.getRoleName() == "page tab"), None), process)
+                click(tab)
+                wait_for(title + " selection", lambda: tab.getState().contains(pyatspi.STATE_SELECTED), process)
+                assert navigation_selected("System"), "System tools must keep System active in the sidebar"
+                display.keys(window, "Control_L", str(shortcut))
+                wait_for(title + " keyboard selection", lambda: tab.getState().contains(pyatspi.STATE_SELECTED), process)
+                time.sleep(0.5)
+                record(title.lower())
+
             if arguments.check_firmware_installation:
-                tab = wait_for("Firmware workspace", lambda: next((node for node in visible_nodes()
-                    if node.name == "Firmware" and node.getRoleName() == "page tab"), None), process)
+                tab = wait_for("Firmware workspace", lambda: navigation_item("Firmware"), process)
                 click(tab)
                 assert not named_window("Find dRonin firmware")
                 wait_for("controller connection page", lambda: any(node.name == "Connect your controller"
                     for node in visible_nodes()), process)
                 assert not any(node.name == "Connections:" for node in visible_nodes()), \
                     "Firmware owns its connection controls"
-                assert not any(node.name == "FlightTime" for node in visible_nodes()), \
-                    "The firmware journey should occupy the entire workspace"
+                for title in ("Attitude", "Aircraft", "System health"):
+                    card = next((node for node in visible_nodes()
+                        if node.name == title and node.getRoleName() in ("panel", "filler")), None)
+                    assert card and not card.getState().contains(pyatspi.STATE_ENABLED), \
+                        title + " stays unavailable until live firmware is detected"
+                assert any(node.name == "Flight time" for node in visible_nodes()), \
+                    "Firmware must retain the global flight status footer"
                 controller_list = next(node for node in visible_nodes()
                     if node.name in ("Controller", "Waiting for a controller…") and node.getRoleName() == "combo box")
                 connect_action = next(node for node in visible_nodes()
@@ -325,15 +497,89 @@ def run(arguments):
                 assert not any(node.name == "Detected firmware:" for node in visible_nodes()), \
                     "Disconnected state should guide connection rather than show empty identity fields"
                 record("firmware-connect")
+                def card_bounds(name):
+                    return next(node for node in visible_nodes() if node.name == name
+                        and node.getRoleName() in ("panel", "filler")) \
+                        .queryComponent().getExtents(pyatspi.DESKTOP_COORDS)
+
+                previous_width = card_bounds("Attitude").width
+                display.x.XMoveResizeWindow(display.display, window, 80, 40, 1300, 900)
+                display.x.XSync(display.display, False)
+                wait_for("dashboard expands with window", lambda: card_bounds("Attitude").width > previous_width + 70, process)
+                large = card_bounds("Controller setup")
+                heading = next(node for node in visible_nodes() if node.name == "Connect your controller") \
+                    .queryComponent().getExtents(pyatspi.DESKTOP_COORDS)
+                assert large.x <= heading.x and large.y <= heading.y \
+                    and heading.x + heading.width <= large.x + large.width, "Controller heading belongs inside its card"
+                record("firmware-wide")
+                display.x.XMoveResizeWindow(display.display, window, 80, 40, 800, 740)
+                display.x.XSync(display.display, False)
+                wait_for("dashboard becomes one column", lambda: card_bounds("Attitude").x == card_bounds("Controller setup").x, process)
+                narrow = card_bounds("Attitude")
+                assert narrow.width > previous_width, "A narrow window uses one full-width card per row"
+                assert narrow.y >= card_bounds("Controller setup").y + card_bounds("Controller setup").height
+                record("firmware-narrow")
+                display.resize(window)
+                wait_for("dashboard returns to two columns", lambda: card_bounds("Attitude").x > card_bounds("Controller setup").x, process)
+                def dashboard_scroll(bottom):
+                    pane = next(node for node in visible_nodes() if node.name == "Firmware dashboard")
+                    pane_bounds = pane.queryComponent().getExtents(pyatspi.DESKTOP_COORDS)
+                    bars = [node for node in visible_nodes(pane) if node.getRoleName() == "scroll bar"
+                        and node.queryComponent().getExtents(pyatspi.DESKTOP_COORDS).height >
+                            node.queryComponent().getExtents(pyatspi.DESKTOP_COORDS).width
+                        and node.queryComponent().getExtents(pyatspi.DESKTOP_COORDS).x >=
+                            pane_bounds.x + pane_bounds.width - 30]
+                    if bars:
+                        value = bars[0].queryValue()
+                        value.currentValue = value.maximumValue if bottom else value.minimumValue
+                    time.sleep(0.3)
+
+                dashboard_scroll(True)
+                recovery_card = card_bounds("Maintenance and recovery")
+                log_card = card_bounds("Connection history")
+                assert recovery_card.x < log_card.x and recovery_card.y == log_card.y, \
+                    "Collapsed maintenance and log cards belong in the bottom grid row"
+                maintenance = next(node for node in visible_nodes()
+                    if node.name.replace("&", "").replace("  ", " ") == "Maintenance recovery")
+                click(maintenance)
+                wait_for("maintenance opens as a full-width grid card", lambda:
+                    card_bounds("Maintenance and recovery").width > recovery_card.width * 1.8, process)
+                record("firmware-maintenance-card")
+                display.x.XMoveResizeWindow(display.display, window, 80, 40, 800, 740)
+                display.x.XSync(display.display, False)
+                wait_for("expanded maintenance follows the narrow grid", lambda:
+                    card_bounds("Maintenance and recovery").width < 720, process)
+                maintenance_bounds = card_bounds("Maintenance and recovery")
+                maintenance_panel = next(node for node in visible_nodes()
+                    if node.name == "Maintenance and recovery" and node.getRoleName() in ("panel", "filler"))
+                for node in visible_nodes(maintenance_panel):
+                    if node.getRoleName() in ("button", "push button", "combo box"):
+                        bounds = node.queryComponent().getExtents(pyatspi.DESKTOP_COORDS)
+                        assert maintenance_bounds.x <= bounds.x and bounds.x + bounds.width <= \
+                            maintenance_bounds.x + maintenance_bounds.width, node.name + " overflows the maintenance card"
+                record("firmware-maintenance-narrow")
+                display.resize(window)
+                wait_for("expanded maintenance restores its width", lambda:
+                    card_bounds("Maintenance and recovery").width > 900, process)
+                dashboard_scroll(True)
+                log_toggle = next(node for node in visible_nodes() if node.name == "Connection log"
+                    and node.getRoleName() in ("button", "push button", "toggle button", "check box"))
+                click(log_toggle)
+                dashboard_scroll(True)
+                assert any(node.getRoleName() == "text" and node.name == "Connection log"
+                    for node in visible_nodes()), "Connection log expands inside its own card"
+                record("firmware-log-card")
+                assert log_toggle.queryAction().doAction(0)
+                assert maintenance.queryAction().doAction(0)
+                dashboard_scroll(False)
                 if arguments.check_controller_setup:
                     assert not named_window("droniNG Setup Wizard"), "Connecting must not launch setup"
                     assert not any(node.name == "Firmware maintenance" for node in visible_nodes()), \
                         "Maintenance stays collapsed until requested"
-                    click(next(node for node in visible_nodes()
-                        if node.name == "Tools" and node.getRoleName() in ("menu", "menu item")))
+                    open_application_menu("Tools")
                     wizard_action = wait_for("setup wizard menu action", lambda: next((node for node in visible_nodes()
                         if node.name == "Vehicle Setup Wizard" and node.getRoleName() == "menu item"), None), process)
-                    click(wizard_action)
+                    assert wizard_action.queryAction().doAction(0), "Setup wizard menu action did not run"
                     wait_for("explicitly launched setup wizard", lambda: named_window("droniNG Setup Wizard"), process)
                     record("controller-setup-wizard")
                     cancel = next(node for node in visible_nodes()
@@ -341,10 +587,11 @@ def run(arguments):
                     click(cancel)
                     wait_for("setup wizard closed", lambda: not named_window("droniNG Setup Wizard"), process)
                     assert not named_window("Setup Wizard Cancelled"), "Cancellation must not prompt again"
-                    assert tab.getState().contains(pyatspi.STATE_SELECTED), "Wizard preserves the Firmware workspace"
+                    assert navigation_selected("Firmware"), "Wizard preserves the Firmware workspace"
                     record("controller-setup-cancelled")
                 maintenance = next(node for node in visible_nodes()
                     if node.name.replace("&", "").replace("  ", " ") == "Maintenance recovery")
+                dashboard_scroll(True)
                 click(maintenance)
                 install_entry = wait_for("explicit installation choice", lambda: next((node for node in visible_nodes()
                     if node.name == "Install DroniNG…" and node.getRoleName() in ("button", "push button")), None), process)
@@ -456,9 +703,7 @@ def run(arguments):
 
             if arguments.check_replay_seek:
                 display.keys(window, "Control_L", "4")
-                wait_for("System workspace before replay input", lambda: any(node.name == "System"
-                    and node.getRoleName() == "page tab" and node.getState().contains(pyatspi.STATE_SELECTED)
-                    for node in visible_nodes()), process)
+                wait_for("System workspace before replay input", lambda: navigation_selected("System"), process)
                 nodes = list(visible_nodes())
                 label_index = next(index for index, node in enumerate(nodes)
                                    if node.name == "Jump to:")
@@ -513,8 +758,7 @@ def run(arguments):
                                            ("h", "p", "Installed Plugins"),
                                            ("h", "g", "About droniNG GCS"),
                                            ("h", "a", "About GCS Authors")):
-                display.keys(window, "Alt_L", menu)
-                time.sleep(0.2)
+                open_application_menu("Tools" if menu == "t" else "Help")
                 # A menu owns the keyboard grab; use events without refocusing the main window.
                 send(mnemonic)
 
@@ -567,8 +811,9 @@ def run(arguments):
                    "Canceled options changed saved general settings"
             print("PASS: typed options text and Cancel leave saved general settings unchanged", flush=True)
 
-            display.keys(window, "Control_L", "q")
-            assert process.wait(timeout=15) == 0, "Application did not close normally"
+            click(navigation_item("Exit"))
+            exit_code = process.wait(timeout=15)
+            assert exit_code == 0, f"Application did not close normally (exit {exit_code})"
             assert digest(source) == original_hash, "Original profile changed"
         finally:
             if process.poll() is None:
