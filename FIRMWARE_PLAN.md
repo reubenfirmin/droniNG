@@ -451,8 +451,9 @@ automatically during a user's installation.
 
 **Initial implementation (2026-10-10):**
 [`shared/firmware/board-catalog.json`](shared/firmware/board-catalog.json) is the
-versioned catalog embedded in the GCS. It contains all **17** direct mappings
-from this repository's `ALL_BOARDS` targets and one explicit retail-board
+versioned catalog embedded in the GCS. It now contains all **19** direct mappings
+from this repository's `ALL_BOARDS` targets, including RADIX and Omnibus F4 SD,
+and one explicit retail-board
 mapping, **HGLRC F4 V6PRO → Revolution**. The direct records include the
 FlyingPIO, PipXtreme/TauLink and PlayUAVOSD peripherals; the POSIX simulator is
 excluded. Board type/revision values refer to the firmware descriptor, not an
@@ -498,6 +499,64 @@ bootloader discovery opens those tools automatically. The STM32 BOOT installer i
 primary first-installation and ROM recovery flow.
 An installed dRonin controller answering on an MSP port receives inline guidance
 to select its UAVTalk interface until flight data connects.
+
+Firmware update availability appears in the Firmware dashboard's top-left
+controller card, alongside **Update firmware…**. Legacy dRonin detection compares
+the compatible bundled application with the installed code and UAVObject hashes;
+a desktop-only revision change does not trigger an update. Detection leaves the
+connection and configuration actions available. Legacy upgrade prompts and the
+upgrade assistant's progress stay in the same card, and disconnecting clears the
+offer before another controller connects.
+
+An idle dRonin bootloader also exposes its actions in the top-left card without
+requiring telemetry: **Update firmware…** uses the compatible bundled application,
+and **Start controller** boots valid installed firmware and resumes discovery.
+Matching firmware offers Start controller; a blank controller offers installation
+when a compatible image exists. Active upgrades disable these actions, and USB
+removal clears the bootloader state. Native regression checks cover the old-release,
+matching-image, missing-image and blank-controller states. The old-release card is
+also rendered and checked at narrow and wide widths.
+Hardware acceptance remains to exercise legacy upgrade and reconnect on a reference
+controller, including the inherited cloud settings-conversion dependency.
+
+The controller card separates **Board model** from **Firmware target**. A legacy
+Revolution board ID or USB product identifies the firmware target; it cannot
+distinguish an original Revolution from an HGLRC F4 V6PRO or another clone.
+Until a model is selected, the card says **Not identified** and offers an inline
+model selector. Selections are remembered using the STM32 CPU serial, normalizing
+the USB `+BL`/`+FW` suffixes, and survive firmware refreshes and mode changes.
+USB port location, shared firmware targets and missing or placeholder serials
+never serve as saved hardware identities. Selecting a model leaves settings
+alone; a completed installation records the explicitly selected board profile.
+If the selected model requires a different firmware target, the card offers
+the compatible installation journey instead of an update for the wrong target.
+Native checks cover ambiguous identity, saved selections, another controller on
+the same port, missing serials, target mismatch and both card widths. Hardware
+acceptance remains to confirm the serial across telemetry, bootloader and a
+legacy upgrade on each reference controller.
+
+Both installation and hardware-model selectors include the complete catalog in
+alphabetical order by display name, without compatibility groups or separators.
+Firmware detection does not rearrange their entries.
+
+A read-only status/capabilities probe on 2026-10-13 reached the connected
+controller at USB `3-1.4.3.4`, CPU serial `260053000951363438333337`.
+Its USB descriptors say OpenPilot/Revolution, and its bootloader reports
+version `0x88`, board ID `0x0903` and revision 3. The returned log partition
+is 15 MiB; the Revolution partition table starts that partition at 1 MiB,
+indicating a 16 MiB external flash. The original Revolution configuration uses
+2 MiB, so this is evidence of modified/clone hardware rather than the original
+flash configuration. It does not distinguish HGLRC from other compatible clones.
+The board ID comes from the bootloader's compiled board-info blob, and the
+capabilities protocol has no manufacturer/model field. No reboot, settings
+write or firmware write was performed. Raw replies and partition sizes are in
+`build/qt612-release/ui-checks/connected-board-probe.json`.
+
+Remaining detection work: expose measured MCU, flash JEDEC/capacity and sensor
+identities through a read-only firmware hardware report and show those findings
+in the controller card. Use verified fingerprints to narrow model candidates;
+retain explicit model selection when several PCBs have the same observable
+hardware. Never infer a manufacturer's model from a shared firmware board ID.
 
 Detection activity appears immediately,
 and a bounded read-only MSP probe starts after a short native-handshake grace
@@ -1031,77 +1090,10 @@ post-flash firmware identity, before real hardware installation.
 F4 V6PRO to its original **Betaflight 3.2.3 / OMNIBUSF4** firmware so connection,
 foreign-firmware detection and DroniNG installation can be tested repeatedly.
 The original version, API and target come from the saved read-only MSP probe.
-The utility restores the official release with clean settings. The factory
-STM32 ROM bootloader remains available throughout; replacing flash at
-`0x08000000` removes the dRonin bootloader.
-
-Run from the repository root:
-
-```bash
-# Download/cache and validate the pinned official image; no board operations.
-python3 make/scripts/restore-board.py
-
-# Close DroniNG, then start the reset and follow its BOOT instructions.
-python3 make/scripts/restore-board.py --flash
-
-# Confirm firmware identity after an ordinary USB reconnect; no flashing.
-python3 make/scripts/restore-board.py --check
-```
-
-The BOOT procedure is: disconnect USB and the flight battery, hold the BOOT
-button beside the USB socket, reconnect USB to the same port, then release BOOT.
-After successful reset, open DroniNG and exercise the connection/installation
-workflow again.
-
-The utility uses Python's standard library and the bundled dfu-util 0.11.
-`make firmware_installer_runtime` builds that helper if absent. It selects the
-controller's USB topology before the BOOT transition and waits for its ROM DFU
-interface. Multiple controllers require an explicit `--usb-path`, such as
-`--usb-path 3-1.4.3.4`; every transfer also selects DFU configuration, interface,
-alternate and serial number. An unknown or incompatible flash layout stops the
-reset before any erase.
-
-[`shared/firmware/test-restores.json`](shared/firmware/test-restores.json) pins
-the official release URL, asset ID, HEX length/hash, decoded full-flash hash,
-MCU flash geometry and expected MSP identity. Intel HEX checksums, bounds,
-overlaps, stack and executable reset vectors are checked before opening DFU.
-The image fills the entire 1 MiB internal flash, with unused space set to
-`0xff`; dfu-util erases all declared sectors and writes the clean image.
-This resets Betaflight configuration as well as firmware. ROM, option bytes
-and external SPI flash are outside the reset. No unprotect command is sent.
-
-Each run gets a dated directory under `build/firmware-restore/`, containing:
-
-- `before.bin`: a complete internal-flash backup, checked and saved before erase.
-- `restore.bin` and `readback.bin`: the expected image and complete verification readback.
-- `restore.log` and `result.json`: command output, stages, USB selection, hashes and post-boot identity.
-
-The controller is rechecked after backup. It leaves DFU only after every
-readback byte matches, then the script checks `BTFL`, version `3.2.3`, board
-`OBF4` and API `1.36` on the same USB port using read-only MSP requests. If BOOT
-exit needs a manual reconnect, release BOOT, unplug/reconnect USB and use
-`--check`; the verified flash does not need another write. Access failures
-provide the package's copyable USB-rule installation command.
-
-The cached HEX is reused on subsequent runs. `--image /path/to/betaflight_3.2.3_OMNIBUSF4.hex`
-accepts an offline copy with the same checksum; `--dfu-util /path/to/package/bin/dfu-util`
-selects another packaged helper, and `--output /path/to/results` changes the
-cache/backup location. Additional reference boards can be added to the test
-restore catalog with their recorded original firmware, official image pins,
-geometry, BOOT procedure and post-boot identity.
-
-Regression checks run without real USB or flash access:
-
-```bash
-python3 ground/tests/restore_board.py
-```
-
-They exercise the real subprocess interface with a simulated DFU helper and
-the serial protocol through a pseudo-terminal: complete reset/backup/readback,
-checksum/vector/bounds failures, ambiguous or changed devices, wrong flash
-geometry, incomplete backup, permission errors, disconnect/write failure,
-readback mismatch, timeouts and mismatched post-boot identities. The default
-preparation command is also checked to perform no DFU operations.
+The shared utility also supports catalogued reference boards, including
+Omnibus F4 SD. Commands, board-specific BOOT procedures, offline use, backups,
+troubleshooting and regression checks are documented beside the scripts in the
+[controller restore guide](make/scripts/restore-board.md).
 
 #### Installer implementation
 
@@ -1112,8 +1104,9 @@ The initial Linux installation workflow is implemented (2026-10-10):
   Linux `make gcs` includes `firmware_install_bundle` by default; set
   `WITH_FIRMWARE_INSTALLER=NO` for a desktop-only developer build. Install the
   pinned ARM SDK once with `make arm_sdk_install` when building flight images.
-  `FIRMWARE_INSTALL_TARGETS` defaults to `revolution`; additional reviewed native
-  targets can use the same generator/backend. Missing images stay unavailable.
+  `FIRMWARE_INSTALL_TARGETS` defaults to `revolution radix omnibusf4sd`;
+  additional reviewed native targets can use the same generator/backend.
+  Missing images stay unavailable.
 - `make/scripts/firmware-install-bundle.py` checks full-image/application hashes,
   the duplicate 100-byte descriptors, bootloader board-info and the current
   UAVObject definitions. It bundles binary/HEX/update artifacts and a manifest

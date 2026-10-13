@@ -5,6 +5,7 @@ No arguments: download and validate the pinned image without touching the board.
 --flash: back up internal flash, restore clean firmware, read back, boot and check MSP.
 --invalid: use the board's pinned startup-failure fixture for recovery testing.
 Requires Python 3 and dfu-util 0.11; no Python packages or root privileges.
+Usage, board procedures and troubleshooting: make/scripts/restore-board.md
 """
 
 import argparse

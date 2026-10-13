@@ -21,6 +21,7 @@
 #include <uavtalk/telemetrymonitor.h>
 #include <uavtalk/telemetrymanager.h>
 #include <uavobjectutil/uavobjectutilmanager.h>
+#include <uploader/uploadergadgetwidget.h>
 #include <uavtalk/boardsettingsinstaller.h>
 #include <uavobjects/uavobjectfield.h>
 #include <uavobjects/uavdataobject.h>
@@ -1733,7 +1734,8 @@ private slots:
         auto *board = page->findChild<QComboBox *>("firmwareBoardModel");
         QVERIFY(board);
         QCOMPARE(board->currentIndex(), 0);
-        QCOMPARE(page->findChild<QLabel *>("firmwareDetectedBoard")->text(), QString("UNKNOWN"));
+        QCOMPARE(page->findChild<QLabel *>("firmwareDetectedBoard")->text(), QString("Not identified"));
+        QCOMPARE(page->findChild<QLabel *>("firmwareDetectedTarget")->text(), QString("UNKNOWN"));
         QCOMPARE(page->findChild<QLabel *>("firmwareDetectedFirmware")->text(), QString("Betaflight 3.2.3"));
         QCOMPARE(page->findChild<QLabel *>("firmwareDetectedBootloader")->text(), QString("Not reported"));
         board->setCurrentIndex(board->findData("hglrc-f4-v6pro"));
@@ -2618,6 +2620,333 @@ private slots:
         QSignalSpy setupRequests(manager, &Core::ConnectionManager::setupWizardRequested);
         QTest::mouseClick(dashboard.findChild<QPushButton *>("firmwareConfigureAction"), Qt::LeftButton);
         QCOMPARE(setupRequests.size(), 1);
+    }
+    void legacyFirmwareUpdateIsInlineAndNonblocking_data()
+    {
+        QTest::addColumn<QString>("change");
+        QTest::addColumn<bool>("offerExpected");
+        QTest::newRow("different-firmware") << QString("firmware") << true;
+        QTest::newRow("matching-firmware") << QString("none") << false;
+        QTest::newRow("metadata-only") << QString("metadata") << false;
+        QTest::newRow("different-board-revision") << QString("board") << false;
+    }
+    void legacyFirmwareUpdateIsInlineAndNonblocking()
+    {
+        QFETCH(QString, change); QFETCH(bool, offerExpected);
+        const auto board = Core::FirmwareCatalog::instance().board("revolution");
+        QFile firmware(Core::FirmwareCatalog::imagePath(board, Core::FirmwareCatalog::ImageKind::Application));
+        QVERIFY(firmware.open(QIODevice::ReadOnly));
+        auto descriptor = firmware.readAll().right(100);
+        QCOMPARE(descriptor.size(), 100);
+        if (change == "firmware" || change == "metadata") descriptor[4] ^= 1;
+        if (change == "firmware") descriptor[40] ^= 1;
+        if (change == "board") { descriptor[13] ^= 1; descriptor[40] ^= 1; }
+
+        USBMonitor monitor;
+        TelemetryManager telemetry; UAVObjectUtilManager util;
+        plugins.addObject(&telemetry); plugins.addObject(&util);
+        const auto remove = qScopeGuard([&] { plugins.removeObject(&util); plugins.removeObject(&telemetry); });
+        QPluginLoader boards(QDir(GCS_BUILD_TREE_PATH).filePath("lib/droning/plugins/droniNG/libOpenPilot.so"));
+        auto *plugin = qobject_cast<ExtensionSystem::IPlugin *>(boards.instance());
+        QVERIFY2(plugin, qPrintable(boards.errorString()));
+        QString error; QVERIFY2(plugin->initialize({}, &error), qPrintable(error));
+        plugin->extensionsInitialized();
+        const auto unload = qScopeGuard([&] { boards.unload(); });
+        auto *iap = FirmwareIAPObj::GetInstance(objects);
+        const auto previous = iap->getData();
+        const auto restore = qScopeGuard([&] { iap->setData(previous); });
+        auto data = previous;
+        data.BoardType = board.boardType; data.BoardRevision = board.boardRevision;
+        std::memcpy(data.Description, descriptor.constData(), 100);
+        iap->setData(data);
+        QVERIFY(util.getBoardType());
+        TestConnection controller("Revolution", "2-9");
+        QVERIFY(manager->connectDevice({&controller, controller.device}));
+        manager->reportFlightDataReceived();
+        manager->setControllerSetupRequired(false);
+
+        uploader::UploaderGadgetWidget uploader;
+        plugins.addObject(&uploader);
+        uploader.resize(1280, 900); uploader.show();
+        // A nested prompt loop would run this timer before detection returns.
+        // Dismiss it to make the regression fail promptly instead of hanging.
+        bool timerRan = false;
+        QTimer::singleShot(0, &uploader, [&] {
+            timerRan = true;
+            if (auto *prompt = uploader.findChild<QWidget *>("firmwarePrompt"))
+                if (auto *buttons = prompt->findChild<QDialogButtonBox *>())
+                    if (auto *ignore = buttons->button(QDialogButtonBox::Ignore)) ignore->click();
+        });
+        QVERIFY(QMetaObject::invokeMethod(&uploader, "onAutopilotReady", Qt::DirectConnection));
+        QVERIFY(!timerRan);
+        QVERIFY(!uploader.findChild<QWidget *>("firmwarePrompt"));
+        QVERIFY(manager->isConnected());
+        QCOMPARE(iap->getData().Command, data.Command);
+        QCoreApplication::processEvents();
+        auto *dashboard = uploader.findChild<Core::FirmwarePage *>();
+        QVERIFY(dashboard);
+        auto *overview = dashboard->findChild<QWidget *>("firmwareOverview");
+        auto *notice = dashboard->findChild<QWidget *>("firmwareUpdateNotice");
+        auto *update = dashboard->findChild<QPushButton *>("firmwareInstallAction");
+        QVERIFY(overview->isAncestorOf(notice));
+        QCOMPARE(notice->isVisible(), offerExpected);
+        QCOMPARE(update->isVisible(), offerExpected);
+        QVERIFY(dashboard->findChild<QPushButton *>("firmwareConfigureAction")->isVisible());
+        QVERIFY(!uploader.findChild<QDialog *>());
+        if (offerExpected) {
+            QVERIFY(update->isEnabled()); QVERIFY(!update->property("primary").toBool());
+            QCOMPARE(update->text(), QString("Update firmware…"));
+            QVERIFY(dashboard->findChild<QLabel *>("firmwareUpdateDetails")->text().contains("compatible firmware"));
+            const auto captures = qEnvironmentVariable("CONNECTION_DIALOG_CAPTURE_DIR");
+            for (const int width : {640, 1280}) {
+                uploader.resize(width, 900); QCoreApplication::processEvents();
+                QVERIFY(dashboard->findChild<QScrollArea *>("firmwareScrollArea")->horizontalScrollBar()->maximum() == 0);
+                if (!captures.isEmpty()) QVERIFY(uploader.grab().save(captures + QString("/inline-legacy-update-%1.png").arg(width)));
+            }
+        }
+        auto *assistant = uploader.findChild<QWidget *>("UpgradeAssistant");
+        QVERIFY(assistant); QVERIFY(overview->isAncestorOf(assistant));
+        if (offerExpected) {
+            assistant->show();
+            QTRY_VERIFY(!dashboard->findChild<QWidget *>("firmwareControllerCard")->isVisible());
+            QVERIFY(!update->isVisible());
+            QCOMPARE(dashboard->findChild<QLabel *>("firmwarePageTitle")->text(), QString("Firmware maintenance"));
+            const auto captures = qEnvironmentVariable("CONNECTION_DIALOG_CAPTURE_DIR");
+            if (!captures.isEmpty()) QVERIFY(uploader.grab().save(captures + "/inline-upgrade-progress.png"));
+            assistant->hide(); QCoreApplication::processEvents();
+        }
+        manager->disconnectDevice(); QCoreApplication::processEvents();
+        QVERIFY(!notice->isVisible()); QVERIFY(!update->isVisible());
+    }
+    void legacyUpdateActionAndOperationStayInControllerCard()
+    {
+        TestConnection controller("Revolution", "2-9");
+        QVERIFY(manager->connectDevice({&controller, controller.device}));
+        manager->setNativeFirmwareIdentity("Revolution", "dRonin old");
+        manager->reportFlightDataReceived();
+        manager->setControllerSetupRequired(false);
+        page->setLegacyFirmwareUpdate("old", "new");
+        auto *update = page->findChild<QPushButton *>("firmwareInstallAction");
+        QSignalSpy requested(page, &Core::FirmwarePage::legacyFirmwareUpdateRequested);
+        QVERIFY(update->isVisible()); QTest::mouseClick(update, Qt::LeftButton);
+        QCOMPARE(requested.size(), 1);
+        QVERIFY(manager->isConnected());
+        auto *operation = new QLabel("Updating firmware", page);
+        page->addOperationWidget(operation); page->setOperationActive(true); operation->show();
+        QTRY_VERIFY(!page->findChild<QWidget *>("firmwareControllerCard")->isVisible());
+        QVERIFY(page->findChild<QWidget *>("firmwareOverview")->isAncestorOf(operation));
+        QVERIFY(!update->isVisible());
+        QVERIFY(!page->findChild<QPushButton *>("firmwareConfigureAction")->isVisible());
+        operation->hide(); page->setOperationActive(false);
+        QCoreApplication::processEvents(); delete operation;
+        QVERIFY(update->isVisible());
+        manager->disconnectDevice();
+        QVERIFY(!update->isVisible());
+        TestConnection other("Another controller", "2-10");
+        QVERIFY(manager->connectDevice({&other, other.device}));
+        manager->setNativeFirmwareIdentity("Revolution", "DroniNG"); manager->reportFlightDataReceived();
+        QVERIFY(!update->isVisible());
+    }
+    void legacyBootloaderOffersActionsWithoutTelemetry_data()
+    {
+        QTest::addColumn<bool>("canBoot");
+        QTest::addColumn<bool>("updateAvailable");
+        QTest::newRow("old-release-in-bootloader") << true << true;
+        QTest::newRow("matching-firmware-in-bootloader") << true << false;
+        QTest::newRow("missing-image-in-build") << true << false;
+        QTest::newRow("blank-controller") << false << true;
+    }
+    void boardSelectorsShowEveryModelAlphabetically()
+    {
+        const auto boards = Core::FirmwareCatalog::instance().boards();
+        for (const auto *name : {"firmwareBoardModel", "firmwareHardwareModel"}) {
+            auto *models = page->findChild<QComboBox *>(name);
+            QVERIFY(models); QCOMPARE(models->count(), boards.size() + 1);
+            QVERIFY(models->itemData(0).toString().isEmpty());
+            for (int row = 1; row < models->count(); ++row) {
+                // Every row is a selectable board: no separators or target-based groups.
+                const auto board = Core::FirmwareCatalog::instance().board(models->itemData(row).toString());
+                QVERIFY(board.isValid()); QCOMPARE(models->itemText(row), board.name);
+                QVERIFY(models->model()->flags(models->model()->index(row, 0)) & Qt::ItemIsSelectable);
+                if (row > 1) QVERIFY(models->itemText(row - 1).compare(models->itemText(row), Qt::CaseInsensitive) < 0);
+            }
+            for (const auto &board : boards) QVERIFY(models->findData(board.id) > 0);
+        }
+        auto *models = page->findChild<QComboBox *>("firmwareHardwareModel");
+        const QPersistentModelIndex row(models->model()->index(models->findData("hglrc-f4-v6pro"), 0));
+        manager->setNativeFirmwareIdentity("Revolution", "dRonin old");
+        manager->setNativeFirmwareIdentity("Omnibus F4 SD", "DroniNG 1.0");
+        QVERIFY(row.isValid()); QCOMPARE(row.data().toString(), QString("HGLRC F4 V6PRO"));
+    }
+    void hardwareModelIsSeparateFromFirmwareTarget_data()
+    {
+        QTest::addColumn<bool>("bootloader");
+        QTest::newRow("telemetry") << false;
+        QTest::newRow("bootloader") << true;
+    }
+    void hardwareModelIsSeparateFromFirmwareTarget()
+    {
+        QFETCH(bool, bootloader);
+        TestConnection controller("Revolution", "2-9");
+        const auto restore = qScopeGuard([&] {
+            page->setLegacyBootloaderState(false); page->setLegacyFirmwareUpdate();
+            Core::ICore::instance()->settings()->remove("ControllerHardware");
+        });
+        if (!bootloader) QVERIFY(manager->connectDevice({&controller, controller.device}));
+        manager->setControllerSerial("00112233445566778899AABB+BL");
+        manager->setNativeFirmwareIdentity("Revolution", "dRonin Release-20180729", "dRonin 88");
+        page->setLegacyFirmwareUpdate("2018", "bundled");
+        if (bootloader) page->setLegacyBootloaderState(true, true);
+        else manager->reportFlightDataReceived();
+        auto *models = page->findChild<QComboBox *>("firmwareHardwareModel");
+        auto *target = page->findChild<QLabel *>("firmwareDetectedTarget");
+        auto *model = page->findChild<QLabel *>("firmwareDetectedBoard");
+        auto *update = page->findChild<QPushButton *>("firmwareInstallAction");
+        QVERIFY(models->isVisible()); QCOMPARE(models->currentIndex(), 0);
+        QCOMPARE(model->text(), QString("Not identified")); QCOMPARE(target->text(), QString("Revolution"));
+        QVERIFY(page->findChild<QLabel *>("firmwareHardwareHint")->text().contains("physical board model"));
+        QVERIFY(models->findData("revolution") > 0); QVERIFY(models->findData("hglrc-f4-v6pro") > 0);
+        const QPersistentModelIndex row(models->model()->index(models->findData("hglrc-f4-v6pro"), 0));
+        manager->setFirmwareStatus("Ready to flash firmware");
+        QVERIFY(row.isValid()); QCOMPARE(row.data().toString(), QString("HGLRC F4 V6PRO"));
+        QVERIFY(update->isVisible()); QVERIFY(update->isEnabled());
+        captureFirmwarePage(bootloader ? "hardware-unidentified-bootloader" : "hardware-unidentified-telemetry");
+        QSignalSpy settingsWrites(manager, &Core::ConnectionManager::boardSettingsRequested);
+        models->setCurrentIndex(models->findData("hglrc-f4-v6pro"));
+        QCOMPARE(manager->hardwareBoardId(), QString("hglrc-f4-v6pro"));
+        QCOMPARE(model->text(), QString("HGLRC F4 V6PRO"));
+        QCOMPARE(target->text(), QString("Revolution"));
+        QCOMPARE(Core::ICore::instance()->settings()->value("ControllerHardware/00112233445566778899aabb/board").toString(),
+                 QString("hglrc-f4-v6pro"));
+        manager->setNativeFirmwareIdentity("Revolution", "DroniNG 1.0", "dRonin 88");
+        QCOMPARE(models->currentData().toString(), QString("hglrc-f4-v6pro"));
+        QCOMPARE(model->text(), QString("HGLRC F4 V6PRO")); QCOMPARE(target->text(), QString("Revolution"));
+        QCOMPARE(settingsWrites.size(), 0); QVERIFY(update->isEnabled());
+        const auto captures = qEnvironmentVariable("CONNECTION_DIALOG_CAPTURE_DIR");
+        const auto previousSize = page->size();
+        for (const int width : {640, 1280}) {
+            page->resize(width, 900); QCoreApplication::processEvents();
+            QVERIFY(page->findChild<QScrollArea *>("firmwareScrollArea")->horizontalScrollBar()->maximum() == 0);
+            if (!captures.isEmpty()) QVERIFY(page->grab().save(captures
+                + QString("/hardware-confirmed-%1-%2.png").arg(bootloader ? "bootloader" : "telemetry").arg(width)));
+        }
+        page->resize(previousSize);
+        // USB mode changes and app reconnection retain a model by CPU ID, never by port or firmware target.
+        page->setLegacyBootloaderState(false); manager->disconnectDevice();
+        QVERIFY(manager->hardwareBoardId().isEmpty());
+        manager->setControllerSerial("00112233445566778899aabb+FW");
+        manager->setNativeFirmwareIdentity("Revolution", "DroniNG 1.0");
+        QCOMPARE(manager->hardwareBoardId(), QString("hglrc-f4-v6pro"));
+        manager->disconnectDevice();
+        QVERIFY(manager->connectDevice({&controller, controller.device}));
+        manager->setControllerSerial("ffeeddccbbaa998877665544");
+        manager->setNativeFirmwareIdentity("Revolution", "dRonin Release-20180729"); manager->reportFlightDataReceived();
+        QVERIFY(manager->hardwareBoardId().isEmpty()); QCOMPARE(models->currentIndex(), 0);
+        QCOMPARE(model->text(), QString("Not identified"));
+        // Choosing the unknown entry explicitly forgets a saved model for this device.
+        manager->disconnectDevice();
+        manager->setControllerSerial("00112233445566778899aabb+FW");
+        manager->setNativeFirmwareIdentity("Revolution", "DroniNG 1.0");
+        QCOMPARE(manager->hardwareBoardId(), QString("hglrc-f4-v6pro"));
+        models->setCurrentIndex(0);
+        QVERIFY(manager->hardwareBoardId().isEmpty());
+        QVERIFY(!Core::ICore::instance()->settings()->contains("ControllerHardware/00112233445566778899aabb/board"));
+        manager->disconnectDevice();
+        manager->setControllerSerial("00112233445566778899aabb+BL");
+        manager->setNativeFirmwareIdentity("Revolution", "DroniNG 1.0");
+        QVERIFY(manager->hardwareBoardId().isEmpty());
+    }
+    void hardwareSelectionHandlesWrongFirmwareAndUnknownSerial()
+    {
+        TestConnection controller("Revolution", "2-9");
+        QVERIFY(manager->connectDevice({&controller, controller.device}));
+        manager->setNativeFirmwareIdentity("Revolution", "dRonin old"); manager->reportFlightDataReceived();
+        page->setLegacyFirmwareUpdate("old", "new");
+        const auto restore = qScopeGuard([&] { page->setLegacyFirmwareUpdate(); });
+        auto *models = page->findChild<QComboBox *>("firmwareHardwareModel");
+        auto *update = page->findChild<QPushButton *>("firmwareInstallAction");
+        models->setCurrentIndex(models->findData("omnibusf4sd"));
+        QCOMPARE(manager->hardwareBoardId(), QString("omnibusf4sd"));
+        QCOMPARE(page->findChild<QLabel *>("firmwareDetectedBoard")->text(), QString("Omnibus F4 SD"));
+        QCOMPARE(page->findChild<QLabel *>("firmwareDetectedTarget")->text(), QString("Revolution"));
+        QVERIFY(!page->findChild<QWidget *>("firmwareUpdateNotice")->isVisible());
+        QCOMPARE(update->text(), QString("Install compatible firmware…"));
+        QCOMPARE(update->isEnabled(), !Core::DfuInstaller::bundledHelper().isEmpty());
+        QVERIFY(page->findChild<QLabel *>("firmwareHardwareHint")->text().contains("Install compatible firmware"));
+        // Firmware reports must never overwrite a selected physical model, even when targets disagree.
+        manager->setNativeFirmwareIdentity("Revolution", "DroniNG 1.0");
+        QCOMPARE(manager->hardwareBoardId(), QString("omnibusf4sd"));
+        QVERIFY(!manager->confirmHardwareBoard("not-a-board"));
+        if (update->isEnabled()) {
+            QSignalSpy legacyUpdates(page, &Core::FirmwarePage::legacyFirmwareUpdateRequested);
+            QTest::mouseClick(update, Qt::LeftButton);
+            QCOMPARE(legacyUpdates.size(), 0);
+            auto *installation = page->findChild<Core::FirmwareInstallWidget *>();
+            QVERIFY(installation);
+            QCOMPARE(installation->findChild<QLabel *>("firmwareInstallBootStep1")->text(),
+                Core::FirmwareCatalog::instance().board("omnibusf4sd").bootInstructions.section('\n', 0, 0));
+            installation->cancelInstallation();
+            QVERIFY(!page->findChild<Core::FirmwareInstallWidget *>());
+            if (!manager->isConnected()) QVERIFY(manager->connectDevice({&controller, controller.device}));
+            manager->setNativeFirmwareIdentity("Revolution", "DroniNG 1.0"); manager->reportFlightDataReceived();
+            page->setLegacyFirmwareUpdate("old", "new");
+        }
+        models->setCurrentIndex(models->findData("hglrc-f4-v6pro"));
+        QCOMPARE(update->text(), QString("Update firmware…"));
+        QVERIFY(page->findChild<QLabel *>("firmwareHardwareHint")->text().contains("for this connection"));
+        manager->disconnectDevice();
+        for (const auto &serial : {QString(), QString("Not Available"), QString("ttyACM0"), QString(24, '0'), QString(24, 'f')}) {
+            manager->setControllerSerial(serial); QVERIFY(manager->controllerSerial().isEmpty());
+            QVERIFY(manager->hardwareBoardId().isEmpty());
+        }
+    }
+    void legacyBootloaderOffersActionsWithoutTelemetry()
+    {
+        QFETCH(bool, canBoot); QFETCH(bool, updateAvailable);
+        QVERIFY(!manager->isConnected()); QVERIFY(!manager->flightDataAvailable());
+        const QString board = QString::fromLatin1(QTest::currentDataTag()) == "missing-image-in-build" ? "AeroQuad32" : "Revolution";
+        manager->setNativeFirmwareIdentity(board, canBoot ? "dRonin Release-20180729" : QString(), "dRonin 88");
+        manager->setFirmwareStatus("Ready to flash firmware");
+        page->setOperationActive(true);
+        if (updateAvailable) page->setLegacyFirmwareUpdate(canBoot ? "old-release" : "not installed", "bundled");
+        page->setLegacyBootloaderState(true, canBoot);
+        const auto restore = qScopeGuard([&] {
+            page->setLegacyBootloaderState(false); page->setLegacyFirmwareUpdate();
+            page->setOperationActive(false); manager->setFirmwareIdentity({}, {});
+        });
+        auto *overview = page->findChild<QWidget *>("firmwareOverview");
+        auto *update = page->findChild<QPushButton *>("firmwareInstallAction");
+        auto *boot = page->findChild<QPushButton *>("firmwareBootAction");
+        QCOMPARE(page->findChild<QLabel *>("firmwarePageTitle")->text(), QString("Controller in bootloader mode"));
+        QCOMPARE(update->isVisible(), updateAvailable); QCOMPARE(boot->isVisible(), canBoot);
+        QVERIFY(!page->findChild<QPushButton *>("firmwareConfigureAction")->isVisible());
+        QVERIFY(overview->isAncestorOf(update)); QVERIFY(overview->isAncestorOf(boot));
+        QSignalSpy updates(page, &Core::FirmwarePage::legacyFirmwareUpdateRequested);
+        QSignalSpy starts(page, &Core::FirmwarePage::legacyFirmwareBootRequested);
+        if (updateAvailable) {
+            QVERIFY(update->isEnabled()); QVERIFY(update->property("primary").toBool());
+            QCOMPARE(update->text(), canBoot ? QString("Update firmware…") : QString("Install DroniNG"));
+            QTest::mouseClick(update, Qt::LeftButton); QCOMPARE(updates.size(), 1);
+        }
+        if (canBoot) {
+            QVERIFY(boot->isEnabled()); QCOMPARE(boot->property("primary").toBool(), !updateAvailable);
+            QTest::mouseClick(boot, Qt::LeftButton); QCOMPARE(starts.size(), 1);
+        }
+        if (updateAvailable && canBoot) {
+            const auto captures = qEnvironmentVariable("CONNECTION_DIALOG_CAPTURE_DIR");
+            const auto previousSize = page->size();
+            for (const int width : {640, 1280}) {
+                page->resize(width, 900); QCoreApplication::processEvents();
+                QVERIFY(page->findChild<QScrollArea *>("firmwareScrollArea")->horizontalScrollBar()->maximum() == 0);
+                QVERIFY(update->isVisible()); QVERIFY(boot->isVisible());
+                if (!captures.isEmpty()) QVERIFY(page->grab().save(captures + QString("/legacy-bootloader-actions-%1.png").arg(width)));
+            }
+            page->resize(previousSize);
+        }
+        page->setOperationActive(true);
+        QVERIFY(!update->isVisible()); QVERIFY(!boot->isEnabled());
+        page->setLegacyBootloaderState(false); page->setLegacyFirmwareUpdate(); page->setOperationActive(false);
+        QVERIFY(!update->isVisible()); QVERIFY(!boot->isVisible());
     }
     void controllerRecoveryRetainsTimeoutAndRequiresUnknownBoardSelection()
     {

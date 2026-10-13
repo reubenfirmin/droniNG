@@ -6,6 +6,7 @@ clean firmware, verify all flash and confirm the running version/board target.
 --prepare validates the recovery image without flashing; --check checks startup.
 --invalid restores the saved DroniNG two-blink IMU startup failure instead,
 then confirms its USB reset loop. Open DroniNG to test recovery and reinstall.
+Usage, board procedures and troubleshooting: make/scripts/restore-board.md
 """
 
 import argparse

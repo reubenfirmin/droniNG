@@ -146,6 +146,8 @@ public:
     bool hasMspFirmware() const { return m_mspFirmwareDetected; }
     QString firmwareVersion() const { return m_firmwareVersion; }
     QString detectedBoard() const { return m_detectedBoard; }
+    QString hardwareBoardId() const { return m_hardwareBoardId; }
+    QString controllerSerial() const { return m_controllerSerial; }
     QString detectedFirmware() const { return m_detectedFirmware; }
     QByteArray firmwareDescription() const { return m_receivedDescriptor; }
     QString detectedBootloader() const { return m_detectedBootloader; }
@@ -156,6 +158,8 @@ public:
                              bool mspDetected = false, const QString &version = {});
     void setNativeFirmwareIdentity(const QString &board, const QString &firmware,
                                    const QString &bootloader = {});
+    void setControllerSerial(const QString &serial);
+    bool confirmHardwareBoard(const QString &boardId);
     void setFirmwareStatus(const QString &message);
     void setFirmwareDetectionActive(bool active);
     void beginFirmwareInstallation();
@@ -257,6 +261,7 @@ private:
     void rememberController(DevListItem device);
     QString m_firmwareVariant, m_firmwareBoardTarget;
     QString m_firmwareVersion, m_detectedBoard, m_detectedFirmware, m_detectedBootloader;
+    QString m_controllerSerial, m_hardwareBoardId;
     QString m_firmwareStatus;
     ConnectionError m_firmwareError;
     QStringList m_connectionLog;

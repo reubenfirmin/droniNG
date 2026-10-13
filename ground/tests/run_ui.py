@@ -88,7 +88,7 @@ def check_application(root, application, output, log):
                 link.unlink()
             link.symlink_to(application / directory, target_is_directory=True)
         command = [bwrap, "--ro-bind", "/", "/", "--dev", "/dev",
-                   "--tmpfs", "/tmp", "--tmpfs", "/sys/bus/usb",
+                   "--tmpfs", "/tmp", "--tmpfs", "/sys", "--tmpfs", "/run/udev",
                    "--bind", str(output), str(output), str(runtime / "bin" / native.name)]
         native_log_path = output / "native-tests.log"
         report("Running controller and connection checks…", log)

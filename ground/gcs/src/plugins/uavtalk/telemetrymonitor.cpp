@@ -336,6 +336,8 @@ void TelemetryMonitor::transactionCompleted(UAVObject *obj, bool success, bool n
         auto *cm = Core::ICore::instance()->connectionManager();
         if (cm->getCurrentConnection() == transport) {
             const auto fields = FirmwareIAPObj::GetInstance(objMngr)->getData();
+            cm->setControllerSerial(QByteArray(reinterpret_cast<const char *>(fields.CPUSerial),
+                                              FirmwareIAPObj::CPUSERIAL_NUMELEM).toHex());
             cm->reportFirmwareDescription(QByteArray(reinterpret_cast<const char *>(fields.Description),
                                                     FirmwareIAPObj::DESCRIPTION_NUMELEM));
         }

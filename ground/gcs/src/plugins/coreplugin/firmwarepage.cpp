@@ -28,6 +28,7 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
+#include <algorithm>
 
 using namespace Core;
 
@@ -228,15 +229,31 @@ FirmwarePage::FirmwarePage(ConnectionManager *manager, QWidget *parent, DfuComma
     m_boardIdentity = new QWidget(m_deviceCard);
     auto *boardIdentity = new QVBoxLayout(m_boardIdentity);
     boardIdentity->setContentsMargins(0, 0, 0, 0); boardIdentity->setSpacing(8);
-    auto *model = FirmwareUi::label(tr("Board model"), "muted", m_boardIdentity);
+    auto *model = m_modelCaption = FirmwareUi::label(tr("Board model"), "muted", m_boardIdentity);
     boardIdentity->addWidget(model); boardIdentity->addWidget(m_board);
     m_boards = new QComboBox(m_boardIdentity);
     m_boards->setView(new QListView(m_boards)); m_boards->setMaxVisibleItems(7);
     m_boards->setMaximumWidth(360); m_boards->setMinimumWidth(220);
     m_boards->setObjectName("firmwareBoardModel"); m_boards->setAccessibleName(tr("Board model")); model->setBuddy(m_boards);
     m_boards->addItem(tr("Select board…"), QString());
-    for (const auto &board : FirmwareCatalog::instance().boards()) m_boards->addItem(board.name, board.id);
-    boardIdentity->addWidget(m_boards); boardIdentity->addStretch();
+    auto boards = FirmwareCatalog::instance().boards();
+    std::sort(boards.begin(), boards.end(), [](const auto &left, const auto &right) {
+        return left.name.compare(right.name, Qt::CaseInsensitive) < 0;
+    });
+    for (const auto &board : boards) m_boards->addItem(board.name, board.id);
+    boardIdentity->addWidget(m_boards);
+    m_hardwareBoards = new QComboBox(m_boardIdentity);
+    m_hardwareBoards->setObjectName("firmwareHardwareModel");
+    m_hardwareBoards->setAccessibleName(tr("Hardware model"));
+    m_hardwareBoards->setView(new QListView(m_hardwareBoards));
+    m_hardwareBoards->setMaxVisibleItems(7);
+    m_hardwareBoards->setMaximumWidth(360);
+    m_hardwareBoards->addItem(tr("Not identified — select model…"), QString());
+    for (const auto &board : boards) m_hardwareBoards->addItem(board.name, board.id);
+    m_hardwareHint = FirmwareUi::label({}, "muted", m_boardIdentity);
+    m_hardwareHint->setObjectName("firmwareHardwareHint");
+    boardIdentity->addWidget(m_hardwareBoards); boardIdentity->addWidget(m_hardwareHint);
+    boardIdentity->addStretch();
     m_identity->addWidget(m_boardIdentity, 0, 0);
     m_firmwareIdentity = new QWidget(m_deviceCard);
     auto *firmwareIdentity = new QVBoxLayout(m_firmwareIdentity);
@@ -244,6 +261,9 @@ FirmwarePage::FirmwarePage(ConnectionManager *manager, QWidget *parent, DfuComma
     m_currentHeading = FirmwareUi::label(tr("Firmware"), "section", m_firmwareIdentity);
     m_currentHeading->setObjectName("firmwareCurrentHeading");
     firmwareIdentity->addWidget(m_currentHeading); firmwareIdentity->addWidget(m_firmware);
+    m_targetCaption = FirmwareUi::label(tr("Firmware target"), "muted", m_firmwareIdentity);
+    m_firmwareTarget = value("firmwareDetectedTarget");
+    firmwareIdentity->addWidget(m_targetCaption); firmwareIdentity->addWidget(m_firmwareTarget);
     m_bootloaderCaption = FirmwareUi::label(tr("Bootloader"), "muted", m_firmwareIdentity);
     firmwareIdentity->addWidget(m_bootloaderCaption);
     firmwareIdentity->addWidget(m_bootloader); firmwareIdentity->addStretch();
@@ -267,6 +287,15 @@ FirmwarePage::FirmwarePage(ConnectionManager *manager, QWidget *parent, DfuComma
     m_detectionProgress->setAccessibleName(tr("Detecting controller"));
     m_detectionProgress->setRange(0, 0); m_detectionProgress->setTextVisible(false);
     device->addWidget(m_detectionProgress);
+    m_updateNotice = new QWidget(m_deviceCard);
+    m_updateNotice->setObjectName("firmwareUpdateNotice");
+    auto *updateNotice = new QVBoxLayout(m_updateNotice);
+    updateNotice->setContentsMargins(0, 0, 0, 0); updateNotice->setSpacing(8);
+    updateNotice->addWidget(FirmwareUi::label(tr("Firmware update available"), "section", m_updateNotice));
+    m_updateDetails = FirmwareUi::label({}, "muted", m_updateNotice);
+    m_updateDetails->setObjectName("firmwareUpdateDetails");
+    updateNotice->addWidget(m_updateDetails);
+    device->addWidget(m_updateNotice);
     m_setupIntro = FirmwareUi::label(tr("The setup wizard guides you through your aircraft, receiver and motor output settings."), "muted", m_deviceCard);
     m_setupIntro->setObjectName("firmwareSetupIntro");
     device->addWidget(m_setupIntro);
@@ -297,6 +326,9 @@ FirmwarePage::FirmwarePage(ConnectionManager *manager, QWidget *parent, DfuComma
     m_scopes->setObjectName("firmwareScopesAction");
     m_disconnect = new QPushButton(tr("Disconnect"), m_deviceCard);
     m_disconnect->setObjectName("firmwareDisconnectAction");
+    m_bootController = new QPushButton(tr("Start controller"), m_deviceCard);
+    m_bootController->setObjectName("firmwareBootAction");
+    connect(m_bootController, &QPushButton::clicked, this, &FirmwarePage::legacyFirmwareBootRequested);
     actions->addWidget(m_back, 0, 0); actions->addWidget(m_install, 0, 1);
     actions->addWidget(m_configure, 1, 0); actions->addWidget(m_scopes, 1, 1);
     actions->addWidget(m_disconnect, 2, 0);
@@ -399,14 +431,27 @@ FirmwarePage::FirmwarePage(ConnectionManager *manager, QWidget *parent, DfuComma
     scroll->viewport()->installEventFilter(this);
     updateDashboardLayout();
     connect(m_boards, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this] { refresh(); });
+    connect(m_hardwareBoards, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this] {
+        if (!m_externalBusy) m_manager->confirmHardwareBoard(m_hardwareBoards->currentData().toString());
+    });
     connect(manager, &ConnectionManager::firmwareStateChanged, this, [this] { refresh(); });
     connect(manager, &ConnectionManager::firmwarePageRequested, this, [this] { refresh(); });
     connect(manager, &ConnectionManager::availableDevicesChanged, this, [this] {
         refreshDevices(); retryRecoveryConnection(); refresh();
     });
-    connect(manager, &ConnectionManager::deviceConnected, this, [this] { m_manualBoot = false; m_romPath.clear(); refresh(); });
-    connect(manager, &ConnectionManager::deviceDisconnected, this, [this] { refreshDevices(); refresh(); });
+    connect(manager, &ConnectionManager::deviceConnected, this, [this] {
+        m_manualBoot = false; m_romPath.clear(); setLegacyBootloaderState(false); refresh();
+    });
+    connect(manager, &ConnectionManager::deviceDisconnected, this, [this] {
+        setLegacyFirmwareUpdate(); refreshDevices(); refresh();
+    });
     connect(m_install, &QPushButton::clicked, this, [this] {
+        const auto hardware = FirmwareCatalog::instance().board(m_manager->hardwareBoardId());
+        const bool mismatch = hardware.isValid() && hardware.target != m_manager->firmwareBoardTarget();
+        if (!mismatch && !m_legacyAvailableRevision.isEmpty() && (m_manager->isConnected() || m_legacyBootloader) && !m_externalBusy) {
+            emit legacyFirmwareUpdateRequested();
+            return;
+        }
         const auto board = FirmwareCatalog::instance().board(m_boards->currentData().toString());
         startInstallation(board);
     });
@@ -436,6 +481,29 @@ FirmwarePage::FirmwarePage(ConnectionManager *manager, QWidget *parent, DfuComma
     refreshDevices(); refresh();
 }
 
+void FirmwarePage::setLegacyFirmwareUpdate(const QString &installedRevision, const QString &availableRevision)
+{
+    m_legacyInstalledRevision = installedRevision;
+    m_legacyAvailableRevision = availableRevision;
+    refresh();
+}
+
+void FirmwarePage::setLegacyBootloaderState(bool connected, bool canBoot)
+{
+    m_legacyBootloader = connected;
+    m_legacyBootable = connected && canBoot;
+    if (connected) m_externalBusy = false;
+    refresh();
+}
+
+void FirmwarePage::addOperationWidget(QWidget *widget)
+{
+    widget->setParent(m_overview);
+    m_contentLayout->insertWidget(m_contentLayout->indexOf(m_deviceCard), widget);
+    m_operationWidgets.append(widget);
+    widget->installEventFilter(this);
+}
+
 void FirmwarePage::startInstallation(const FirmwareBoardProfile &board)
 {
     if (m_installation || m_externalBusy || !board.isValid()) return;
@@ -443,12 +511,14 @@ void FirmwarePage::startInstallation(const FirmwareBoardProfile &board)
     if (!FirmwareInstallImage::load(board, path).valid() || DfuInstaller::bundledHelper().isEmpty()) return;
     m_pendingDismissed = false;
     m_probe->kill();
-    if (!board.layoutId.isEmpty() && m_manager->flightDataAvailable()) m_manager->disconnectDevice();
+    if (m_manager->flightDataAvailable() && (!board.layoutId.isEmpty()
+        || board.target != m_manager->firmwareBoardTarget())) m_manager->disconnectDevice();
     m_installation = new FirmwareInstallWidget(m_manager, board, path, m_overview, m_installRunner, true);
     m_contentLayout->insertWidget(m_contentLayout->indexOf(m_deviceCard), m_installation, 1);
-    connect(m_installation, &FirmwareInstallWidget::workflowChanged, this, [this] {
+    connect(m_installation, &FirmwareInstallWidget::workflowChanged, this, [this, board] {
         if (m_installation->complete()) {
             m_manualBoot = false;
+            m_manager->confirmHardwareBoard(board.id);
             m_manager->endFirmwareInstallation();
             // Finish the signal delivery before destroying the backend that emitted it.
             const QPointer<FirmwareInstallWidget> finished = m_installation;
@@ -510,6 +580,9 @@ bool FirmwarePage::eventFilter(QObject *object, QEvent *event)
 {
     if (object == m_scroll->viewport() && event->type() == QEvent::Resize)
         updateDashboardLayout();
+    if (event->type() == QEvent::Show || event->type() == QEvent::Hide)
+        for (const auto &widget : m_operationWidgets)
+            if (widget == object) { QTimer::singleShot(0, this, [this] { refresh(); }); break; }
     return QWidget::eventFilter(object, event);
 }
 
@@ -538,12 +611,12 @@ void FirmwarePage::updateControllerLayout()
 {
     const int columns = m_content->width() < 720 ? 1 : 2;
     const bool compact = (m_content->width() - (columns - 1) * 16) / columns < 540;
-    const bool choosingBoard = !m_boards->isHidden();
+    const bool choosingBoard = !m_boards->isHidden() || !m_hardwareBoards->isHidden();
     m_identity->removeWidget(m_boardIdentity); m_identity->removeWidget(m_firmwareIdentity); m_identity->removeWidget(m_installIdentity);
     m_identity->addWidget(m_boardIdentity, 0, 0, 1, choosingBoard && !compact ? 2 : 1);
     m_identity->addWidget(m_firmwareIdentity, compact || choosingBoard ? 1 : 0, compact || choosingBoard ? 0 : 1);
     m_identity->addWidget(m_installIdentity, compact ? 2 : 1, compact ? 0 : 1);
-    const QList<QWidget *> buttons{m_connect, m_back, m_install, m_configure, m_scopes,
+    const QList<QWidget *> buttons{m_connect, m_back, m_install, m_bootController, m_configure, m_scopes,
         m_retryConnection, m_recoverInstallation, m_otherController, m_disconnect};
     for (auto *button : buttons) m_deviceActions->removeWidget(button);
     int widest = 1, count = 0;
@@ -612,7 +685,7 @@ void FirmwarePage::setOperationActive(bool active) { m_externalBusy = active; re
 
 void FirmwarePage::detectBootloader()
 {
-    if (m_installation || m_externalBusy || m_manager->isConnected() || m_manager->firmwareDetectionActive()
+    if (m_installation || m_externalBusy || m_legacyBootloader || m_manager->isConnected() || m_manager->firmwareDetectionActive()
         || m_probe->state() != QProcess::NotRunning) return;
     const auto helper = DfuInstaller::bundledHelper();
     if (helper.isEmpty()) return;
@@ -624,6 +697,9 @@ void FirmwarePage::refresh()
 {
     const auto &catalog = FirmwareCatalog::instance();
     const bool installing = m_installation && !m_installation->complete();
+    bool maintenance = false;
+    for (const auto &widget : m_operationWidgets)
+        if (widget && !widget->isHidden()) maintenance = true;
     if (m_installation) m_installation->setVisible(installing);
     for (int index = 0; index < m_contentLayout->count(); ++index)
         if (m_contentLayout->itemAt(index)->spacerItem()) m_contentLayout->setStretch(index, installing ? 0 : 1);
@@ -639,6 +715,13 @@ void FirmwarePage::refresh()
         && catalog.candidatesForMspTarget(target).isEmpty() && !m_manualBoot && m_romPath.isEmpty();
     const QString detectedBoard = target == "RADIX" || (target == "RADI" && originalRadix)
         ? tr("BrainFPV RADIX") : m_manager->detectedBoard();
+    const auto hardware = catalog.board(m_manager->hardwareBoardId());
+    const bool nativeIdentity = !m_manager->hasMspFirmware() && !target.isEmpty();
+    const bool hardwareMismatch = nativeIdentity && hardware.isValid() && hardware.target != target;
+    {
+        QSignalBlocker blocker(m_hardwareBoards);
+        m_hardwareBoards->setCurrentIndex(qMax(0, m_hardwareBoards->findData(hardware.id)));
+    }
     const bool livePanels = ready && !m_manager->detectedFirmware().isEmpty()
         && !m_manager->firmwareInstallationActive();
     for (int index = 0; index < m_flightCards.size(); ++index) {
@@ -665,10 +748,10 @@ void FirmwarePage::refresh()
     m_pendingMessage->setText(tr("%1 firmware was written and verified, but the controller has not sent live data. Disconnect USB and the flight battery, then reconnect USB to the same port. Retry the connection; if startup still fails, reinstall the firmware.")
         .arg(catalog.board(pending.boardId).name));
     const bool identified = !m_manager->detectedFirmware().isEmpty() || !m_manager->detectedBootloader().isEmpty();
-    const bool journey = recoveryNeeded || installing || m_manualBoot || m_manager->isConnected() || detecting || identified || m_externalBusy;
-    const bool nativeLoader = !m_manager->detectedBootloader().isEmpty() && !m_manager->hasMspFirmware()
+    const bool journey = recoveryNeeded || installing || maintenance || m_legacyBootloader || m_manualBoot || m_manager->isConnected() || detecting || identified || m_externalBusy;
+    const bool nativeLoader = m_legacyBootloader || (!m_manager->detectedBootloader().isEmpty() && !m_manager->hasMspFirmware()
         && m_manager->detectedFirmware().isEmpty()
-        && !m_manager->detectedBootloader().contains("STM32", Qt::CaseInsensitive);
+        && !m_manager->detectedBootloader().contains("STM32", Qt::CaseInsensitive));
     if (detecting && !m_detecting) { QSignalBlocker blocker(m_boards); m_boards->setCurrentIndex(0); }
     m_detecting = detecting;
     if (!installing && target != m_target) {
@@ -679,9 +762,11 @@ void FirmwarePage::refresh()
         m_boards->setCurrentIndex(candidates.size() == 1 && (target != "RADI" || originalRadix)
             ? m_boards->findData(candidates.first().id) : 0);
     }
-    if (ready && !installing) {
-        const auto native = catalog.board(m_manager->detectedBoard());
-        if (!native.layoutId.isEmpty()) {
+    if ((ready || m_legacyBootloader) && !installing) {
+        // The installation profile follows a selected hardware model when known.
+        // Firmware identity alone describes its target, not the physical board.
+        const auto native = hardware.isValid() ? hardware : catalog.board(m_manager->detectedBoard());
+        if (native.isValid()) {
             QSignalBlocker blocker(m_boards); m_boards->setCurrentIndex(m_boards->findData(native.id));
         }
     }
@@ -697,24 +782,61 @@ void FirmwarePage::refresh()
         m_imageAvailable = image.valid(); m_imageError = image.error;
         m_imageDescriptor = image.descriptor;
     }
-    const bool importedController = ready && !board.layoutId.isEmpty();
+    const bool importedController = ready && !board.layoutId.isEmpty() && !hardwareMismatch;
     const bool importedUpdate = importedController && m_imageAvailable
         && m_manager->firmwareDescription().size() == 100
         && m_manager->firmwareDescription() != m_imageDescriptor;
+    const bool legacyUpdate = (ready || m_legacyBootloader) && !m_legacyAvailableRevision.isEmpty() && !hardwareMismatch;
+    const bool updateOffered = (importedUpdate || legacyUpdate) && !installing && !recoveryNeeded && !m_externalBusy;
+    m_updateNotice->setVisible(updateOffered);
+    m_updateDetails->setText(legacyUpdate
+        ? m_legacyBootloader && !m_legacyBootable
+            ? tr("No valid firmware is installed. Install the compatible firmware included in this build (%1).")
+                .arg(m_legacyAvailableRevision)
+            : tr("The installed firmware (%1) differs from the compatible firmware in this build (%2). You can update it below.")
+            .arg(m_legacyInstalledRevision, m_legacyAvailableRevision)
+        : tr("A different firmware image is included in this build. Updating preserves controller settings and autotune storage."));
     const bool installOffered = m_manualBoot || !m_romPath.isEmpty() || (m_manager->hasMspFirmware() && !mspTelemetryPort);
     const bool choosingBoard = installOffered && !recoveryNeeded && !unsupported && !installing && !detecting && !ready && !nativeLoader && !m_externalBusy;
+    const bool choosingHardware = nativeIdentity && !choosingBoard && !recoveryNeeded && !installing && !detecting
+        && m_hardwareBoards->count() > 1;
+    const bool repairOffered = hardwareMismatch && !installing && !recoveryNeeded && !m_externalBusy;
     m_title->setText(recoveryNeeded ? hasProblem ? tr("Controller needs attention") : tr("Finish controller startup") : !journey
         ? m_manager->firmwareError().message.isEmpty() ? tr("Connect your controller") : m_manager->firmwareStatus()
-        : installing ? m_installation->title()
+        : installing ? m_installation->title() : maintenance ? tr("Firmware maintenance")
+        : hardwareMismatch ? tr("Install compatible firmware")
+        : m_legacyBootloader ? tr("Controller in bootloader mode")
         : needsSetup ? tr("Set up controller?") : ready ? tr("Your controller is ready")
         : unsupported ? tr("Firmware unavailable") : installOffered ? tr("Install DroniNG")
         : detecting ? tr("Connecting to your controller") : tr("Your controller"));
     m_connectionCard->setVisible(!journey);
     m_connect->setVisible(!journey);
-    m_deviceCard->setVisible(journey && !installing);
+    m_deviceCard->setVisible(journey && !installing && !maintenance);
     m_board->setText(recoveryNeeded ? recoveryBoard.isValid() ? recoveryBoard.name : recovery.deviceName
-        : board.isValid() ? board.name : !detectedBoard.isEmpty() ? detectedBoard
+        : nativeIdentity ? hardware.isValid() ? hardware.name : tr("Not identified")
+        : board.isValid() ? board.name : !detectedBoard.isEmpty() ? tr("Not identified")
         : !recovery.deviceName.isEmpty() && detecting ? recovery.deviceName : detecting ? tr("Detecting…") : tr("Not detected"));
+    m_modelCaption->setText(recoveryNeeded ? tr("Recovery profile")
+        : choosingBoard ? tr("Board to install on") : tr("Board model"));
+    m_modelCaption->setBuddy(choosingHardware ? m_hardwareBoards : m_boards);
+    const auto firmwareTarget = catalog.board(target);
+    m_firmwareTarget->setText(firmwareTarget.isValid()
+        ? firmwareTarget.aliases.value(0, firmwareTarget.name) : target);
+    m_targetCaption->setVisible(!target.isEmpty()); m_firmwareTarget->setVisible(!target.isEmpty());
+    m_hardwareBoards->setVisible(choosingHardware);
+    m_hardwareBoards->setEnabled(!m_externalBusy);
+    m_hardwareHint->setVisible(nativeIdentity && !recoveryNeeded && !detecting);
+    m_hardwareHint->setText(hardwareMismatch
+        ? m_imageAvailable
+            ? tr("The installed firmware targets %1. Install compatible firmware for %2 to continue.")
+                .arg(m_firmwareTarget->text(), hardware.name)
+            : tr("The installed firmware targets %1. Firmware for %2 is not included in this build.")
+                .arg(m_firmwareTarget->text(), hardware.name)
+        : !hardware.isValid()
+        ? tr("The firmware does not report the physical board model. Select the model printed on your board.")
+        : m_manager->controllerSerial().isEmpty()
+            ? tr("Model selected for this connection. A controller serial is needed to remember it.")
+            : tr("Model saved for this controller."));
     m_firmware->setText(m_manager->detectedFirmware().isEmpty()
         ? detecting ? tr("Detecting…") : !m_romPath.isEmpty() ? tr("Not read in BOOT mode")
             : choosingBoard ? tr("Not connected") : tr("Not detected") : m_manager->detectedFirmware());
@@ -746,17 +868,23 @@ void FirmwarePage::refresh()
         : tr("Remove propellers before installing. Updates preserve DroniNG settings and autotune storage. First installation needs a new controller setup."));
     m_installSettings->setVisible(board.isValid() && !board.settings.isEmpty());
     m_detectionProgress->setVisible(detecting && !installing);
-    m_disconnect->setVisible(m_manager->isConnected() && !installing && !recoveryNeeded);
+    m_disconnect->setVisible(m_manager->isConnected() && !installing && !recoveryNeeded && !maintenance);
     m_back->setVisible(m_manualBoot && !m_manager->isConnected() && m_romPath.isEmpty() && !installing);
     m_back->setText(hasProblem || pendingStartup ? tr("Back to recovery") : tr("Back to connection"));
     m_disconnect->setEnabled(!m_externalBusy);
-    m_configure->setVisible(ready && !installing);
+    m_configure->setVisible(ready && !installing && !maintenance && !hardwareMismatch);
+    m_bootController->setVisible(m_legacyBootloader && m_legacyBootable && !installing && !maintenance && !hardwareMismatch);
+    m_bootController->setEnabled(!m_externalBusy);
+    if (m_bootController->property("primary").toBool() != !updateOffered) {
+        m_bootController->setProperty("primary", !updateOffered);
+        m_bootController->style()->unpolish(m_bootController); m_bootController->style()->polish(m_bootController);
+    }
     m_configure->setText(needsSetup ? tr("Launch setup wizard") : tr("Tune && configure"));
     m_setupIntro->setVisible(needsSetup && !installing);
     bool hasScopes = false;
     if (auto *modes = ModeManager::instance())
         for (auto *mode : modes->modes()) if (mode->name() == "Scopes") hasScopes = true;
-    m_scopes->setVisible(ready && !installing && hasScopes);
+    m_scopes->setVisible(ready && !installing && !maintenance && hasScopes);
     const auto error = m_manager->firmwareError();
     // Foreign firmware is a supported installation path; avoid duplicating that explanation as an error.
     const bool explainError = !installing && (!m_manager->hasMspFirmware() || mspTelemetryPort || !error.command.isEmpty());
@@ -776,15 +904,18 @@ void FirmwarePage::refresh()
     }
     m_diagnostics->setVisible(m_toggle->isChecked());
     m_selection->setVisible(installOffered && !recoveryNeeded && !unsupported && !installing && !detecting && !ready && !nativeLoader && !m_externalBusy);
-    m_boards->setVisible(choosingBoard); m_board->setVisible(!choosingBoard);
-    m_install->setVisible(!installing && !recoveryNeeded && (choosingBoard || importedUpdate));
-    m_install->setText(importedUpdate ? tr("Update firmware…") : tr("Install DroniNG"));
-    if (m_install->property("primary").toBool() == importedUpdate) {
-        m_install->setProperty("primary", !importedUpdate);
+    m_boards->setVisible(choosingBoard); m_board->setVisible(!choosingBoard && !choosingHardware);
+    m_install->setVisible(!maintenance && !installing && !recoveryNeeded && (choosingBoard || updateOffered || repairOffered));
+    m_install->setText(repairOffered ? tr("Install compatible firmware…")
+        : updateOffered && !(m_legacyBootloader && !m_legacyBootable) ? tr("Update firmware…") : tr("Install DroniNG"));
+    const bool installPrimary = !updateOffered || m_legacyBootloader;
+    if (m_install->property("primary").toBool() != installPrimary) {
+        m_install->setProperty("primary", installPrimary);
         m_install->style()->unpolish(m_install); m_install->style()->polish(m_install);
     }
     m_boards->setEnabled(!m_externalBusy && !detecting);
-    m_install->setEnabled(board.isValid() && m_imageAvailable && !DfuInstaller::bundledHelper().isEmpty() && !m_externalBusy && !detecting);
+    m_install->setEnabled(!m_externalBusy && !detecting && (legacyUpdate
+        || (board.isValid() && m_imageAvailable && !DfuInstaller::bundledHelper().isEmpty())));
     m_notes->setText(!catalog.error().isEmpty() ? tr("The firmware catalog could not be loaded: %1").arg(catalog.error())
         : !board.isValid() ? tr("Select the model printed on your board. Unlisted boards have no compatible firmware candidate.")
         : !m_imageAvailable ? m_imageError : DfuInstaller::bundledHelper().isEmpty() ? tr("The Linux firmware installer is missing from this build.") : board.notes);

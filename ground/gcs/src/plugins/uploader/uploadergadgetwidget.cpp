@@ -160,15 +160,18 @@ UploaderGadgetWidget::UploaderGadgetWidget(QWidget *parent)
     conMngr = Core::ICore::instance()->connectionManager();
     m_firmwarePage = new Core::FirmwarePage(conMngr, this);
     m_widget->verticalLayout->insertWidget(0, m_firmwarePage, 1);
-    m_dialog.setParent(this);
-    m_widget->verticalLayout->insertWidget(1, &m_dialog);
     m_dialog.hide();
+    m_firmwarePage->addOperationWidget(&m_dialog);
+    connect(m_firmwarePage, &Core::FirmwarePage::legacyFirmwareUpdateRequested,
+            this, &UploaderGadgetWidget::onFirmwareUpdateRequested);
+    connect(m_firmwarePage, &Core::FirmwarePage::legacyFirmwareBootRequested,
+            this, &UploaderGadgetWidget::onFirmwareBootRequested);
     auto *advanced = new QWidget(this);
     m_advancedTools = advanced;
     auto *advancedLayout = new QVBoxLayout(advanced);
     advancedLayout->setContentsMargins(0, 0, 0, 0);
-    while (m_widget->verticalLayout->count() > 2) {
-        auto *item = m_widget->verticalLayout->takeAt(2);
+    while (m_widget->verticalLayout->count() > 1) {
+        auto *item = m_widget->verticalLayout->takeAt(1);
         if (auto *widget = item->widget()) { advancedLayout->addWidget(widget); delete item; }
         else if (auto *childLayout = item->layout()) { childLayout->setParent(nullptr); advancedLayout->addLayout(childLayout); }
         else advancedLayout->addItem(item);
@@ -289,6 +292,7 @@ void UploaderGadgetWidget::DeviceInformationUpdate(deviceInfo board)
 {
     if (!board.board)
         return;
+    conMngr->setControllerSerial(board.cpu_serial);
     currentBoard = board;
     m_widget->boardName_lbl->setText(board.board->boardDescription());
     m_widget->devName_lbl->setText(
@@ -441,16 +445,38 @@ void UploaderGadgetWidget::onAutopilotReady()
     deviceDescriptorStruct device;
     if (utilMngr->getBoardDescriptionStruct(device)) {
         FirmwareOnDeviceUpdate(device, QString::number(utilMngr->getFirmwareCRC()));
-        if (!conMngr->firmwareInstallationActive() && FirmwareCheckForUpdate(device)) {
-            onRescueButtonClick();
-
-            Core::ModeManager::instance()->activateModeByWorkspaceName("Firmware");
-            // Set the status, so when we enter the loader we cue the
-            // upgrade state machine/actions.
-            setUploaderStatus(uploader::UPGRADING);
-        }
+        if (!conMngr->firmwareInstallationActive()) FirmwareCheckForUpdate(device);
     }
     emit newBoardSeen(board, device);
+}
+
+void UploaderGadgetWidget::onFirmwareUpdateRequested()
+{
+    if (uploaderStatus == uploader::BL_SITTING && !upgraderActive && !m_promptActive) {
+        if (!FirmwareCheckForUpdate(m_bootloaderDescription, !m_bootloaderFirmwareValid)) return;
+        m_firmwarePage->setOperationActive(true);
+        setStatusInfo(tr("Checking the bootloader before updating…"), uploader::STATUSICON_RUNNING);
+        auto device = dfu.findCapabilities();
+        if (device.ID != m_bootloaderDescription.boardID() || device.SizeOfCode <= 0) {
+            setUploaderStatus(uploader::BL_SITTING);
+            setStatusInfo(tr("The bootloader is not responding. Reconnect USB, then retry the update."), uploader::STATUSICON_FAIL);
+            return;
+        }
+        doUpgradeOperation(!m_bootloaderFirmwareValid, device);
+        return;
+    }
+    if (active() || !conMngr->isConnected() || conMngr->firmwareInstallationActive()) return;
+    deviceDescriptorStruct device;
+    if (!utilMngr->getBoardDescriptionStruct(device) || !FirmwareCheckForUpdate(device)) return;
+    onRescueButtonClick();
+    conMngr->showFirmwarePage();
+    setUploaderStatus(uploader::UPGRADING);
+}
+
+void UploaderGadgetWidget::onFirmwareBootRequested()
+{
+    if (uploaderStatus == uploader::BL_SITTING && m_bootloaderFirmwareValid && !upgraderActive && !m_promptActive)
+        m_widget->bootButton->click();
 }
 
 /**
@@ -723,7 +749,7 @@ int UploaderGadgetWidget::promptFirmware(const QString &text, const QString &det
     auto *body = new QLabel(details, prompt); body->setWordWrap(true); body->setTextFormat(Qt::PlainText);
     layout->addWidget(heading); layout->addWidget(body);
     auto *actions = new QDialogButtonBox(buttons, prompt); layout->addWidget(actions);
-    m_widget->verticalLayout->insertWidget(1, prompt);
+    m_firmwarePage->addOperationWidget(prompt);
     prompt->show();
     QEventLoop loop;
     int result = QDialogButtonBox::Cancel;
@@ -736,7 +762,7 @@ int UploaderGadgetWidget::promptFirmware(const QString &text, const QString &det
     delete prompt;
     m_promptActive = false;
     m_advancedTools->setEnabled(!conMngr->firmwareInstallationActive());
-    m_firmwarePage->setOperationActive(active());
+    setUploaderStatus(uploaderStatus);
     return result;
 }
 
@@ -909,7 +935,7 @@ void UploaderGadgetWidget::upgradeError(QString why)
 
     qDebug() << "Upgrade assistant failed: " + why;
 
-    setUploaderStatus(uploader::DISCONNECTED);
+    setUploaderStatus(uploaderStatus == uploader::BL_SITTING ? uploader::BL_SITTING : uploader::DISCONNECTED);
 
     setStatusInfo(tr("Automatic upgrade failed. %1").arg(why), uploader::STATUSICON_FAIL);
 }
@@ -932,6 +958,7 @@ void UploaderGadgetWidget::stepChangeAndDelay(QEventLoop &loop, int delayMs,
 void UploaderGadgetWidget::doUpgradeOperation(bool blankFC, tl_dfu::device &dev)
 {
     upgraderActive = true;
+    m_firmwarePage->setOperationActive(true);
 
     Core::ModeManager::instance()->activateModeByWorkspaceName("Firmware");
 
@@ -1198,11 +1225,6 @@ void UploaderGadgetWidget::doUpgradeOperation(bool blankFC, tl_dfu::device &dev)
         return;
     }
 
-    /* Set ignoredrev to what we just programmed, so if we programmed
-     * an outdated rev in a developer environment we don't immediately bop
-     * up the message */
-    ignoredRev = m_widget->gitHashOD_lbl->text();
-
     stepChangeAndDelay(loop, 400, UpgradeAssistantDialog::STEP_BOOT);
 
     if (aborted) {
@@ -1290,7 +1312,7 @@ void UploaderGadgetWidget::doUpgradeOperation(bool blankFC, tl_dfu::device &dev)
     }
 
     upgraderActive = false;
-    m_firmwarePage->setOperationActive(active());
+    setUploaderStatus(uploaderStatus);
 }
 
 /**
@@ -1385,17 +1407,17 @@ void UploaderGadgetWidget::onBootloaderDetected()
     bool triggerUpgrading = false;
     bool inUpgrader = false;
     bool validDescription = false;
-    bool blankFC = false;
 
     if (device.getRunState() == USBMonitor::Upgrader) {
         inUpgrader = true;
     }
 
     if (dfu.OpenBootloaderComs(device)) {
+        conMngr->setControllerSerial(device.serialNumber);
         tl_dfu::device dev = dfu.findCapabilities();
 
         QByteArray description = dfu.DownloadDescriptionAsByteArray(dev.SizeOfDesc);
-        deviceDescriptorStruct descStructure;
+        deviceDescriptorStruct descStructure{};
         if (!UAVObjectUtilManager::descriptionToStructure(description, descStructure))
             setStatusInfo(tr("Could not parse firmware metadata"), uploader::STATUSICON_INFO);
         else {
@@ -1415,21 +1437,7 @@ void UploaderGadgetWidget::onBootloaderDetected()
                 if (QString(description.left(4)) == "Tl")
                     break;
 
-                if (validDescription) {
-                    if (FirmwareCheckForUpdate(descStructure)) {
-                        triggerUpgrading = true;
-                        break;
-                    }
-                } else {
-                    int val = promptFirmware(tr("No valid firmware is installed."),
-                        tr("Install DroniNG firmware on this controller?"), QDialogButtonBox::Yes | QDialogButtonBox::No);
-                    if (val == QDialogButtonBox::Yes) {
-                        triggerUpgrading = true;
-                        blankFC = true;
-                    }
-
-                    break; /* Don't boot in any case */
-                }
+                if (!validDescription) break; /* Offer installation in the controller card. */
             }
                 Q_FALLTHROUGH();
             default:
@@ -1512,16 +1520,25 @@ void UploaderGadgetWidget::onBootloaderDetected()
             return;
         }
         info.bl_version = QString::number(dev.BL_Version, 16);
-        info.cpu_serial = "Not Available";
+        info.cpu_serial = device.serialNumber;
         info.hw_revision = QString::number(dev.HW_Rev);
         info.max_code_size = QString::number(dev.SizeOfCode);
         DeviceInformationUpdate(info);
+        m_bootloaderFirmwareValid = validDescription;
+        m_bootloaderDescription = descStructure;
+        if (!validDescription) {
+            m_bootloaderDescription.boardType = dev.ID >> 8;
+            m_bootloaderDescription.boardRevision = dev.ID & 0xff;
+        }
+        const bool updateAvailable = !inUpgrader && !triggerUpgrading
+            && FirmwareCheckForUpdate(m_bootloaderDescription, !validDescription);
 
         iapUpdated = false;
 
         if (!inUpgrader) {
             setStatusInfo(tr("Connection to bootloader successful"), uploader::STATUSICON_OK);
 
+            loadedFile.clear();
             if (FirmwareLoadFromFile(getImagePath(info.board->shortName()), &loadedFile)) {
                 FirmwareLoadedClear(true);
                 FirmwareLoadedUpdate(loadedFile);
@@ -1531,6 +1548,13 @@ void UploaderGadgetWidget::onBootloaderDetected()
             }
 
             setUploaderStatus(uploader::BL_SITTING);
+            if (!triggerUpgrading) {
+                setStatusInfo(validDescription
+                    ? updateAvailable ? tr("Update firmware, or choose Start controller to connect to the installed firmware.")
+                        : tr("Choose Start controller to connect to the installed firmware.")
+                    : updateAvailable ? tr("Install DroniNG firmware to start this controller.")
+                        : tr("No compatible firmware image is included in this build. Open Maintenance & recovery to load a firmware file."), uploader::STATUSICON_INFO);
+            }
         } else {
             setStatusInfo(tr("Connected to upgrader-loader"), uploader::STATUSICON_OK);
             setUploaderStatus(uploader::BL_SITTING);
@@ -1542,7 +1566,7 @@ void UploaderGadgetWidget::onBootloaderDetected()
                     Core::IBoardType::BOARD_CAPABILITIES_UPGRADEABLE);
 
                 if (canBeUpgraded) {
-                    doUpgradeOperation(blankFC, dev);
+                    doUpgradeOperation(!validDescription, dev);
                     return;
                 }
             }
@@ -1562,6 +1586,11 @@ void UploaderGadgetWidget::onBootloaderDetected()
  */
 void UploaderGadgetWidget::onBootloaderRemoved()
 {
+    m_bootloaderFirmwareValid = false;
+    m_bootloaderDescription = {};
+    m_firmwarePage->setLegacyBootloaderState(false);
+    m_firmwarePage->setLegacyFirmwareUpdate();
+    if (!conMngr->isConnected() && !upgraderActive) conMngr->setFirmwareIdentity({}, {});
     conMngr->resumePolling();
     setStatusInfo(tr("Bootloader disconnection detected"), uploader::STATUSICON_INFO);
     DeviceInformationClear();
@@ -1784,8 +1813,14 @@ void UploaderGadgetWidget::onBootButtonClick()
     if (!CheckInBootloaderState())
         return;
 
-    dfu.JumpToApp(safeboot);
+    if (dfu.JumpToApp(safeboot) < 1) {
+        setStatusInfo(tr("The controller could not start. Reconnect USB, then choose Start controller again."), uploader::STATUSICON_FAIL);
+        return;
+    }
     dfu.CloseBootloaderComs();
+    conMngr->resumePolling();
+    setUploaderStatus(uploader::DISCONNECTED);
+    setStatusInfo(tr("Starting controller. Waiting for its USB connection…"), uploader::STATUSICON_INFO);
 }
 
 /**
@@ -1886,7 +1921,11 @@ bool UploaderGadgetWidget::haveSettingsPart() const
 void UploaderGadgetWidget::setUploaderStatus(const uploader::UploaderStatus &value)
 {
     uploaderStatus = value;
-    if (m_firmwarePage) m_firmwarePage->setOperationActive(m_promptActive || active());
+    if (m_firmwarePage) {
+        const bool idleBootloader = value == uploader::BL_SITTING && !upgraderActive && !m_promptActive;
+        m_firmwarePage->setOperationActive(m_promptActive || (active() && !idleBootloader));
+        m_firmwarePage->setLegacyBootloaderState(idleBootloader, m_bootloaderFirmwareValid);
+    }
     switch (uploaderStatus) {
     case uploader::DISCONNECTED:
         m_widget->progressBar->setVisible(false);
@@ -2002,33 +2041,21 @@ bool UploaderGadgetWidget::FirmwareLoadFromFile(QString filename, QByteArray *co
     return true;
 }
 
-bool UploaderGadgetWidget::FirmwareCheckForUpdate(deviceDescriptorStruct device)
+bool UploaderGadgetWidget::FirmwareCheckForUpdate(deviceDescriptorStruct device, bool blank)
 {
-    if (!Core::FirmwareCatalog::matchingFirmwareDescriptor(device.description).isEmpty())
+    m_firmwarePage->setLegacyFirmwareUpdate();
+    if (!currentBoard.board || !Core::FirmwareCatalog::instance().board(currentBoard.board->shortName()).layoutId.isEmpty()
+        || !currentBoard.board->queryCapabilities(Core::IBoardType::BOARD_CAPABILITIES_UPGRADEABLE))
         return false;
-    if (currentBoard.board) {
-        bool canBeUpgraded =
-            currentBoard.board->queryCapabilities(Core::IBoardType::BOARD_CAPABILITIES_UPGRADEABLE);
-
-        if (!canBeUpgraded) {
-            return false;
-        }
-    }
-
-    const QString gcsRev(GCS_REVISION);
-    if (gcsRev.contains(':')) {
-        QString gcsShort = gcsRev.mid(gcsRev.indexOf(':') + 1, 8);
-        if ((gcsShort != device.gitHash) && (ignoredRev != device.gitHash)) {
-            int val = promptFirmware(tr("Firmware update available"),
-                tr("The installed firmware (%1) differs from this build (%2). Upgrade to the compatible firmware?").arg(device.gitHash, gcsShort),
-                QDialogButtonBox::Yes | QDialogButtonBox::Ignore);
-            if (val == QDialogButtonBox::Yes)
-                return true;
-            else if (val == QDialogButtonBox::Ignore)
-                ignoredRev = device.gitHash;
-        }
-    }
-    return false;
+    QByteArray candidate;
+    deviceDescriptorStruct available;
+    if (!FirmwareLoadFromFile(getImagePath(currentBoard.board->shortName()), &candidate)
+        || !utilMngr->descriptionToStructure(candidate.right(100), available)
+        || available.boardID() != device.boardID()
+        || (!blank && available.description.mid(40, 40) == device.description.mid(40, 40)))
+        return false;
+    m_firmwarePage->setLegacyFirmwareUpdate(blank ? tr("not installed") : device.gitHash, available.gitHash);
+    return true;
 }
 
 bool UploaderGadgetWidget::active() const

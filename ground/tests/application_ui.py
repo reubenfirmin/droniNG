@@ -596,14 +596,14 @@ def run(arguments):
                 install_entry = wait_for("explicit installation choice", lambda: next((node for node in visible_nodes()
                     if node.name == "Install DroniNG…" and node.getRoleName() in ("button", "push button")), None), process)
                 click(install_entry)
-                wait_for("BOOT-mode board selection", lambda: any(node.name == "Board model"
+                wait_for("BOOT-mode board selection", lambda: any(node.name == "Board to install on"
                     for node in visible_nodes()), process)
                 assert not any(node.name in ("Firmware", "Bootloader", "Not detected")
                     and node.getRoleName() == "label"
                     for node in visible_nodes()), "Manual installation should not show empty identity fields"
                 record("firmware-detection")
                 board = wait_for("board selector", lambda: next((node for node in visible_nodes()
-                    if node.name in ("Board model", "Select board…")
+                    if node.name in ("Board to install on", "Select board…")
                     and node.getRoleName() == "combo box"), None), process)
                 assert board.queryComponent().getExtents(pyatspi.DESKTOP_COORDS)[2] <= 360, \
                     "Board selector must stay compact in a wide workspace"
@@ -612,10 +612,11 @@ def run(arguments):
                          and node.name == "Select board…" for node in visible_nodes()), process)
                 record("firmware-board-popup")
                 send("Home")
-                # The catalog order is deterministic; use the shipped catalog's board index.
+                # Both board selectors show every model alphabetically by its display name.
                 catalog_data = json.loads((Path(__file__).resolve().parents[2]
                     / "shared/firmware/board-catalog.json").read_text())
-                index = next(i for i, item in enumerate(catalog_data["boards"])
+                ordered_boards = sorted(catalog_data["boards"], key=lambda item: item["name"].casefold())
+                index = next(i for i, item in enumerate(ordered_boards)
                              if item["id"] == "hglrc-f4-v6pro") + 1
                 for _ in range(index):
                     send("Down")
@@ -691,7 +692,7 @@ def run(arguments):
                 wait_for("firmware installation cancellation", lambda: not any("BOOT button" in node.name
                     for node in visible_nodes()), process)
                 assert not named_window("Find dRonin firmware")
-                assert any(node.name == "Board model" for node in visible_nodes())
+                assert any(node.name == "Board to install on" for node in visible_nodes())
                 record("firmware-install-cancelled")
                 report["firmware_installation_checked"] = {
                     "board": "hglrc-f4-v6pro", "target": "revolution",

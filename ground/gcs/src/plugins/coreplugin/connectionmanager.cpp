@@ -55,6 +55,7 @@
 #include <QMainWindow>
 #include <QDateTime>
 #include <QSettings>
+#include <QRegularExpression>
 #include <alarmsmonitorwidget.h>
 
 namespace Core {
@@ -222,6 +223,10 @@ void ConnectionManager::setFirmwareIdentity(const QString &variant, const QStrin
     m_detectedFirmware = family + (version.isEmpty() ? QString() : " " + version);
     m_detectedBoard = boardTarget;
     m_detectedBootloader.clear();
+    if (variant.isEmpty() && boardTarget.isEmpty()) {
+        m_controllerSerial.clear();
+        m_hardwareBoardId.clear();
+    }
     const auto candidates = FirmwareCatalog::instance().candidatesForMspTarget(boardTarget);
     if (mspDetected && candidates.size() == 1
         && (boardTarget != "RADI" || m_controllerRecovery.boardId == candidates.first().id))
@@ -236,16 +241,56 @@ void ConnectionManager::setNativeFirmwareIdentity(const QString &board, const QS
                                                   const QString &bootloader)
 {
     QStringList detected;
-    if (!board.isEmpty() && board != m_detectedBoard) detected << tr("Board: %1").arg(board);
+    if (!board.isEmpty() && board != m_detectedBoard) detected << tr("Firmware target: %1").arg(board);
     if (!firmware.isEmpty() && firmware != m_detectedFirmware) detected << tr("Firmware: %1").arg(firmware);
     if (!bootloader.isEmpty() && bootloader != m_detectedBootloader) detected << tr("Bootloader: %1").arg(bootloader);
     if (!board.isEmpty()) m_detectedBoard = board;
     const auto profile = FirmwareCatalog::instance().board(board);
-    if (profile.isValid()) m_controllerRecovery.boardId = profile.id;
+    if (!board.isEmpty()) m_firmwareBoardTarget = profile.isValid() ? profile.target : board;
+    if (profile.isValid()) m_controllerRecovery.boardId = m_hardwareBoardId.isEmpty() ? profile.id : m_hardwareBoardId;
     if (!firmware.isEmpty()) m_detectedFirmware = firmware;
     if (!bootloader.isEmpty()) m_detectedBootloader = bootloader;
     if (!detected.isEmpty()) appendConnectionLog(detected.join("; "));
     emit firmwareStateChanged();
+}
+
+void ConnectionManager::setControllerSerial(const QString &serial)
+{
+    // STM32's 96-bit unique ID is shared by the USB and UAVTalk serials.
+    // USB adds +BL / +FW; neither the firmware target nor the USB port identifies hardware.
+    QString key = serial.trimmed().toLower();
+    key.remove(QRegularExpression("\\+(bl|fw)$"));
+    if (!QRegularExpression("^[0-9a-f]{24}$").match(key).hasMatch()
+        || key == QString(24, '0') || key == QString(24, 'f')) key.clear();
+    if (key == m_controllerSerial) return;
+    m_controllerSerial = key;
+    m_hardwareBoardId.clear();
+    if (!key.isEmpty()) {
+        const auto board = FirmwareCatalog::instance().board(
+            ICore::instance()->settings()->value("ControllerHardware/" + key + "/board").toString());
+        if (board.isValid()) m_hardwareBoardId = board.id;
+    }
+    emit firmwareStateChanged();
+}
+
+bool ConnectionManager::confirmHardwareBoard(const QString &boardId)
+{
+    const auto board = FirmwareCatalog::instance().board(boardId);
+    if (!boardId.isEmpty() && !board.isValid()) return false;
+    m_hardwareBoardId = board.id;
+    if (!m_controllerSerial.isEmpty()) {
+        auto *settings = ICore::instance()->settings();
+        const QString key = "ControllerHardware/" + m_controllerSerial + "/board";
+        if (board.isValid()) settings->setValue(key, board.id);
+        else settings->remove(key);
+        settings->sync();
+    }
+    if (board.isValid()) {
+        m_controllerRecovery.boardId = board.id;
+        appendConnectionLog(tr("Selected hardware model: %1").arg(board.name));
+    } else m_controllerRecovery.boardId = FirmwareCatalog::instance().board(m_firmwareBoardTarget).id;
+    emit firmwareStateChanged();
+    return true;
 }
 
 void ConnectionManager::setFirmwareStatus(const QString &message)

@@ -78,6 +78,8 @@ private slots:
     void onAutopilotConnect();
     void onAutopilotDisconnect();
     void onAutopilotReady();
+    void onFirmwareUpdateRequested();
+    void onFirmwareBootRequested();
     void onIAPUpdated();
     void onLoadFirmwareButtonClick();
     void onFlashButtonClick();
@@ -111,7 +113,7 @@ private:
     void setStatusInfo(QString str, uploader::StatusIcon ic);
     QString getImagePath(QString boardName, QString imageType = QString("fw"));
     bool FirmwareLoadFromFile(QString filename, QByteArray *contents);
-    bool FirmwareCheckForUpdate(deviceDescriptorStruct device);
+    bool FirmwareCheckForUpdate(deviceDescriptorStruct device, bool blank = false);
     void triggerPartitionDownload(int index);
     void haltOrReset(bool halting);
     void startRescue();
@@ -159,7 +161,8 @@ private:
 
     FirmwareIAPObj *firmwareIap;
     deviceInfo currentBoard;
-    QString ignoredRev;
+    deviceDescriptorStruct m_bootloaderDescription{};
+    bool m_bootloaderFirmwareValid = false;
 
     uploader::UploaderStatus uploaderStatus;
     QByteArray tempArray;
