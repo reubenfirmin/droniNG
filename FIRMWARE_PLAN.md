@@ -1,6 +1,6 @@
 # Firmware support and Betaflight driver integration plan
 
-Detailed implementation proposal, updated 2026-10-11. Hardware availability
+Detailed implementation proposal, updated 2026-10-13. Hardware availability
 checked on 2026-10-09. The [Betaflight source survey and offline driver proof](flight/Betaflight/README.md)
 now exist, along with the [Radix implementation](flight/Betaflight/RADIX_IMPLEMENTATION.md).
 The general importer and new peripheral adapter work below remain to be
@@ -682,7 +682,7 @@ not present Betaflight tuning defaults as hardware requirements.
 | Buses | SPI/I2C instance, pin assignments and allowed speeds; each device's chip select/address and transaction requirements. |
 | IMU | Allowed fitted models, bus, chip select, DRDY pin/edge, orientation matrix, supported sample rates/ranges and backend selection. Unexpected or absent required IMU prevents arming. |
 | Other peripherals | Required OSD backend and actual fitted hardware; barometer, magnetometer, flash, SD, LEDs and buzzer with explicit status/backends. Include navigation sensor dependencies and autotune storage requirements. |
-| UARTs | MCU UART, TX/RX pins, physical pad labels, inverter hardware, supported direction/duplex and available droniNG roles. Reserve a simultaneous receiver, GPS and external telemetry configuration; record permitted sharing. Distinguish a UART from a software-serial resource. |
+| UARTs | MCU UART, TX/RX pins, physical pad labels, inverter hardware, supported direction/duplex and available droniNG roles. Reserve a simultaneous receiver, GPS and external telemetry configuration; record permitted sharing. Include the optional Lidar role and its conflicts when implemented/build-enabled. Distinguish a UART from a software-serial resource. |
 | Outputs | Physical pad and stable output index; timer/channel/alternate function; any DMA mapping; supported PWM/DShot modes and shared timer constraints. Preserve intended motor numbering. |
 | Inputs and ADC | Receiver/PPM/RSSI resources; ADC pin/channel; board voltage-divider and current-sensor calibration, expressed in droniNG units with conversions documented. |
 | Resource alternatives | Mutually exclusive pin, timer, EXTI and DMA uses, plus tested feature combinations. Validate enabled combinations instead of rejecting every alternative assignment. |
@@ -869,6 +869,7 @@ origin of generated profiles and translated tables as well as imported C code.
 | MAX7456 OSD (required) | Existing PiOS device driver and CharacterOSD module. | Verify fitted hardware, wiring, video/font operation, live flight/GPS data and bus contention with the gyro or flash. |
 | MSP DisplayPort digital OSD (required for digital profiles) | Planned UART protocol/backend using droniNG flight/GPS state, after the initial analog reference. | Required for HDZero priorities. Verify actual VTX/goggle rendering, font/resolution, warnings, reconnect behavior and concurrent receiver/GPS/telemetry load. No digital support is implied by an analog OSD driver or board definition. |
 | GPS (required) | Existing GPS module and supported NMEA/UBX paths over an imported UART. | Verify protocol/configuration, fix/position/velocity, GCS/OSD/telemetry data and loss/staleness behavior. Navigation needs separately verified estimator/sensor prerequisites. |
+| Lidar/proximity sensing (optional) | Planned shared UART lidar driver through PiOS COM, with a common obstacle-measurement interface. | Validate the same driver on multiple FC resource maps, electrical compatibility, mounting/coverage, quality and stale-data handling. Sensor support and active avoidance have separate acceptance gates; see the roadmap below. |
 | Telemetry (required) | Native USB/UAVTalk plus an existing supported external telemetry backend for the chosen configuration. | Validate live flight/GPS data, link behavior and simultaneous receiver/GPS operation; document any shared UART. |
 | Autotune (strongly preferred) | Existing Autotune module and GCS tuning workflow. | Allocate buffers and tune-data storage, verify data collection/transfer/persistence and measure timing under required-feature load. |
 | Logging flash | Existing JEDEC/storage support where compatible. | Read actual geometry, validate erase commands and settings/log partition separation; add an adapted chip driver only if needed. |
@@ -880,6 +881,136 @@ origin of generated profiles and translated tables as well as imported C code.
 Motor, receiver and optional-device wiring must be validated independently of
 the IMU port. A working gyro does not establish that a controller can safely
 drive its motors or receive commands.
+
+### Lidar sensing and collision avoidance across FC targets
+
+Planned feature work: provide shared proximity sensing and onboard obstacle
+avoidance across compatible legacy and imported controllers. Board profiles
+supply resource mappings and capabilities; sensor drivers and flight algorithms
+remain shared. Select representative supported FCs with different wiring for
+the first validation, then extend coverage to F7/H7/G4/AT32 profiles as their
+processor backends become available. Do not make Omnibus or any other single
+controller the feature's architectural dependency. Measure each target's
+memory, CPU and control timing before enabling the feature in its image.
+
+Keep this optional roadmap separate from the required OSD/GPS/telemetry gates
+for basic board acceptance. Report proximity sensing, position-controlled
+braking and autonomous obstacle routing as separate capabilities. A working
+sensor connection alone does not establish collision avoidance.
+
+**Sensor interface and wiring.** Start with a documented UART lidar that
+calculates distance internally; no companion computer is required for this
+sensor path. Add a selectable Lidar port function through PiOS COM. Configure
+the sensor's actual baud rate, framing and protocol; cross sensor TX to FC RX
+and sensor RX to FC TX when configuration commands are needed, with common
+ground and a verified power supply/current budget. Verify signal voltage,
+inversion and connector labels independently of supply voltage. Validate port
+allocation alongside receiver, GPS, telemetry and digital OSD; identify conflicts
+before saving settings. Additional UART sensors normally need separate ports.
+Keep transports replaceable so implemented I2C or CAN backends can later publish
+the same measurements. CAN requires the actual peripheral, transceiver and
+sensor protocol; an MCU capability alone does not establish board support.
+
+**Initial sensor candidates.** Prefer TFmini-S for the first UART braking
+prototype, subject to bench and flight validation. Prices below are the user's
+selected variants from this
+[AliExpress listing](https://es.aliexpress.com/item/32732690096.html) on
+2026-10-13, not independently verified quotes. The listing contains multiple
+sensor models; its lowest displayed price applies to TWTOF240UI.
+Benewake's specified ranges depend on target reflectivity; compare dark-target
+performance rather than using the headline maximum as the stopping envelope.
+
+| Sensor | Listed price (USD) | Selection evidence and planned use |
+| --- | --- | --- |
+| TWTOF240UI | $7.92 | The [supplier listing](https://www.beemong.com/product/tof-laser-range-sensor-module-twtof240ui-10-240cm-distance-sensor-interface-uart-i2c-iic-output-3-0-3-6v-for-arduino-with-cable) advertises 0.1–2.4 m on a 90%-reflective white target, a 25° field of view and UART/I2C. These are supplier claims; manufacturer protocol, electrical limits and outdoor/dark-target performance remain unverified. Consider only bench/slow indoor experiments until validated; defer as the outdoor braking reference. It needs its own verified driver. |
+| TF-Luna | $24.99 | [Manufacturer specifications](https://ai.benewake.com/en/products/tf-luna/) give 8 m at 90% reflectivity and 2.5 m at 10%; candidate for bench integration and low-speed proximity, with external environmental protection. |
+| TFmini-S | $39.89 | [Manufacturer datasheet](https://en.benewake.com/uploadfiles/2024/04/20240426140025367.pdf) gives 12 m at 90% reflectivity and 7 m at 10%, including specified 70 klux conditions; approximately 5 g. Preferred first braking candidate. Verify enclosure protection for the exact revision rather than assuming a rating. |
+| TFmini Plus | $49.90 | [Manufacturer specifications](https://ai.benewake.com/en/products/tfmini-plus/) give 12 m at 90% reflectivity, 4 m at 10%, IP65 protection, a 3.6° field of view and approximately 12 g. Alternative for an installation requiring that documented enclosure rating and accepting the shorter specified dark-target range. |
+
+TFmini-S enclosure documentation differs: the linked 2024 English datasheet
+leaves the protection rating unspecified, while the manufacturer's current
+comparison on the TFmini Plus page lists IP65 for S as well. Confirm the exact
+sensor revision and its applicable documentation before making enclosure
+protection a reason to select Plus over S.
+
+Start TFmini-S integration with its documented 115200-baud, 8N1 UART and
+100 Hz default output. Its supply is 5 V +/-0.1 V, with 3.3 V signal levels,
+average current at most 140 mA and peak 200 mA; check each FC's supply and port
+resources. Model-specific framing, configuration and invalid-reading handling
+must be verified before sharing a Benewake parser across S, Plus and Luna.
+All three are single-point sensors: validate beam coverage, mounting attitude
+and narrow-obstacle detection, and derive speed limits from measured usable
+range, braking and latency with clearance margin.
+
+For the initial stopping model, require usable range of at least
+`v²/(2a) + v × latency + margin`, where `a` is validated deceleration and
+`margin` includes aircraft extent, clearance and measurement uncertainty.
+At 5 m/s, 2 m/s² deceleration and 100 ms total latency, the distance is already
+6.75 m before adding margin. Even the S model's specified 7 m dark-target
+range therefore does not establish support for that flight speed; set the
+tested speed envelope from measured performance.
+
+**Shared obstacle data.** Add a proximity interface/UAVObject that represents
+multiple sensors or scan sectors, with sensor identity, distance in metres,
+direction/frame, field of view, minimum/maximum range, quality/validity and
+acquisition timestamp. Distinguish valid no-return/out-of-range readings from
+unknown, stale or failed measurements. The existing single-instance
+[Rangefinder object](shared/uavobjectdefinition/rangefinder.xml) lacks direction,
+coverage and freshness; preserve its existing users while introducing the new
+contract. Sensor and airframe mounting transforms must account for attitude,
+including yaw and pitch, without applying rotation twice. A single forward
+beam provides limited forward coverage, not protection in every direction.
+
+**Braking before routing.** First implement slowing, braking and holding before
+sensed obstacles in explicitly supported position/velocity-controlled multirotor
+modes. Reuse and validate the existing
+[VTOL controller](flight/Modules/VtolPathFollower/vtol_follower_control.c), its
+estimator prerequisites and per-target module selection. Apply avoidance after
+desired velocity is computed and before acceleration/attitude control within
+the same navigation cycle; avoid competing asynchronous setpoint writers.
+Set clearance and speed limits using measured braking capability, sensor range,
+data/control latency and aircraft size. Include smooth limiting, hysteresis and
+recovery when the path clears. Define pilot override, blocked-path behavior,
+sensor/estimator loss and interactions with takeoff, landing, return-to-home and
+failsafe before advertising any supported mode. Keep decisions onboard so a
+GCS or telemetry outage cannot interrupt avoidance.
+
+Autonomous routing is a later milestone: add a local obstacle database and
+planner that can choose a clear route and resume the original mission, or hold
+with a clear blocked-path result. Use ArduPilot's
+[desired-velocity avoidance architecture](https://ardupilot.org/dev/docs/code-overview-object-avoidance.html)
+and [BendyRuler planner](https://ardupilot.org/copter/docs/common-oa-bendyruler.html)
+as references. Review algorithm and driver reuse against droniNG's APIs and
+scheduling; these are not drop-in firmware modules. Acro/manual intervention,
+fixed-wing avoidance and moving-aircraft separation need their own designs and
+validation beyond this initial multirotor scope.
+
+**Camera path.** Allow an onboard vision processor to publish the same obstacle
+data. Stereo/depth cameras are the first planned vision source; ArduPilot's
+[depth-camera integration](https://ardupilot.org/copter/docs/common-realsense-depth-camera.html)
+illustrates sending processed distances to the FC. Reusing a single FPV camera
+needs frame access, calibration, processing and validated depth or time-to-collision
+estimation. An analog OSD connection does not supply camera frames to the FC;
+that path needs video capture hardware. Ordinary downward optical flow helps
+estimate ground velocity and is not a forward obstacle-distance source. Validate
+vision latency, confidence, field of view and failure handling as a separate
+sensor backend; processing through the ground station is not the onboard path.
+
+**GCS journey.** Discover implemented/build-enabled capabilities and incoming
+sensor data. Offer compatible free ports with actual pad labels, guide power and
+mounting setup, and show live distances, coverage and sensor health. Explain any
+missing navigation prerequisites inline. Display Disabled, Ready, Braking,
+Blocked and Degraded states with their reason and next action; expose override
+and recovery settings, and verify persistence and reconnection. Use the shared
+application stylesheet and dark palette. Publish the tested sensor, mode, speed
+and coverage limits with each target's capability record.
+
+| Feature milestone | Completion criteria |
+| --- | --- |
+| CA1: shared UART sensing | The same parser/driver and GCS setup work on at least two representative FCs with different resource maps. Verify distance against a reference, signal quality, corrupt/partial frames, units, timestamps, disconnect/reconnect, power-cycle persistence and concurrent receiver/GPS/telemetry/OSD traffic. Record exact FC and sensor revisions and runtime margins. |
+| CA2: multirotor braking | Simulation and controlled flights demonstrate measured stopping clearance over the declared speed/coverage envelope, including angled approaches, yaw/pitch changes and narrow obstacles. Exercise sensor/estimator loss, blind sectors, pilot override, blocked-path recovery and supported mode transitions. Inspect setup, progress and failure states in the delivered GCS build; do not claim unseen directions are protected. |
+| CA3: obstacle routing | Demonstrate a sensed-obstacle detour and mission resumption, plus dead-end/blocked-path handling, without oscillation or routes through unknown coverage. Record planner resource costs and separate acceptance for each advertised mission/return mode. |
+| CA4: vision and broader sensing | Feed stereo/depth measurements through the common interface and repeat the relevant sensing/braking/routing gates. Add multiple sensors, scanning lidar or I2C/CAN transports only with their own coverage, protocol, timing and hardware evidence. Extend the FC matrix as newer processor targets are accepted. |
 
 ### Memory, resource and timing budgets
 
@@ -1437,6 +1568,7 @@ initial sensor/output bring-up in the development sequence.
 | OSD (required) | Font/video and live flight/GPS data with actual video hardware; simultaneous sensor and peripheral bus use. Digital profiles also validate MSP DisplayPort rendering, warnings and reconnect behavior. | Documented video/data checks on the exact analog OSD device or digital VTX/goggle combination, with protocol/UART configuration for digital profiles. |
 | Telemetry (required) | Live flight/GPS data over USB and the selected external link; simultaneous receiver and GPS traffic, disconnect/reconnect and stale-data reporting. | Protocol/port configuration and received-data trace with missing-link behavior. |
 | GPS (required) | Actual supported GPS reception, fix/position/velocity, configuration and loss/staleness behavior; agreement between onboard state, GCS, OSD and telemetry. | GPS model/protocol, UART allocation and reception/loss log. Advertised navigation modes need their own sensor/estimator and flight validation. |
+| Lidar and avoidance (when advertised) | Shared-driver coverage across FCs; electrical/port compatibility, range/quality/freshness and mounting; concurrent required-feature load. Supported avoidance modes pass the CA1–CA4 gates above as applicable, including sensor/estimator loss, override and recovery. | Exact FC/sensor/transport/build/settings, measured timing and stopping/coverage envelope, simulation and bench/flight records, and delivered GCS setup/state captures. Record sensing separately from active avoidance. |
 | Autotune (strongly preferred) | Module availability, buffer/storage allocation, sample collection, GCS transfer, tuning application and persistence; complete the existing flight tuning procedure where supported. | Build/memory report, tune-data/workflow record and resulting persisted settings, or a specific unsupported limitation. |
 | Optional hardware | Voltage/current against a reference meter, barometer and enabled LEDs/VTX/logging functions. | Per-capability result rather than an undifferentiated board-supported flag. |
 | Runtime load | At least 30 minutes of combined required USB/external telemetry/GPS/receiver/output/OSD activity, plus enabled logging and an autotune acquisition interval; measured sample timing and control deadlines, memory margins and watchdog/fault behavior. | Configuration, duration, maximum observed latency, deadline/sample error counts and memory report. This is bench evidence, not proof of all worst cases. |
@@ -1599,3 +1731,167 @@ runtime margins on Radix.
 Target deletions remain the separate proposals above. Lux's exact revision and
 the FlyingPi/host relationship remain conditional decisions. None of those
 decisions blocks the HGLRC reference profile or the adaptation-layer design.
+
+## Upgrade card and offline settings handling, 2026-10-13
+
+Accepted follow-up work: replace the embedded legacy upgrade assistant with a
+coherent operation inside the shared Firmware page. This adds implementation
+and acceptance tasks to the earlier inline-upgrade work; the screenshot and
+source inspection show that the current presentation is incomplete.
+
+The assistant's Abort button is inside its header, above progress. Separately,
+`UploaderGadgetWidget::promptFirmware()` inserts another operation widget with
+Qt standard dialog buttons. These retain platform icons and generic OK/Cancel
+labels, lack a designated primary action, and leave the assistant saying
+"Auto-upgrade running" while waiting for a decision. The shared stylesheet
+already supplies the intended button appearance and primary-action property.
+
+The legacy cloud request converts the old settings partition to XML; firmware
+and bootloader-update images are resolved locally. Every upgrade treated as
+having existing firmware checks the service without first establishing whether
+settings migration is needed. Accepting OK after service failure sets
+`blankFC = true`, skips settings download/backup, and then erases the settings
+partition. Replace this conflation of firmware presence, settings presence and
+permission to reset with explicit preparation results and user decisions.
+
+### Implementation tasks
+
+1. Use one card with upgrade identity, current status, progress, an inline
+   decision/recovery area and one bottom action row. Every state updates those
+   same elements. Remove the separate prompt widget and duplicate cancellation
+   actions. Use the shared typography, palette and button conventions, with
+   text-only controls and one designated primary action. Name actions by their
+   consequence, including "Install and reset settings" when reset is required.
+2. Validate local image identity/integrity, required bootloader image, storage
+   layout and settings compatibility before destructive operations. Back up
+   readable settings automatically to durable local storage and show the
+   location. Failure to capture or persist a required backup stops preparation
+   with a retry/recovery action; do not represent unknown settings as empty.
+3. Remove automatic cloud dependencies from installation, upgrades and their
+   backup path. Preserve settings when their schema and storage layout are
+   verified compatible. For supported schema changes, package the source
+   definitions and reviewed migration rules and convert locally. For unknown
+   schemas, retain a raw backup and offer explicit reset or cancellation; never
+   silently decode them with the current definitions or promise an automatic
+   restore. Firmware availability does not imply availability of old schemas.
+4. Evaluate the existing Python LogFS decoder as a reference for a maintained
+   local service. Its definition loader currently falls back to the network
+   and the decoder skips unknown objects, so direct reuse is insufficient.
+   Require source-schema identification, bounds/record validation, complete
+   conversion reporting and fixtures covering changed/unknown definitions.
+   Use confirmed live settings export where compatible telemetry is available;
+   retain raw partition backup for bootloader-only recovery.
+5. Replace nested event-loop prompts with explicit operation states. Show
+   "Waiting for your decision" when paused for input, real transfer progress
+   during writes and actionable recovery on failure. Allow cancellation during
+   preparation and safe waiting states; prevent interruption of critical writes
+   and explain when stopping becomes possible. Every failure branch must stop
+   subsequent destructive steps. Keep the diagnosis and backup visible instead
+   of hiding the operation card.
+6. Complete only after the expected firmware reconnects and restored settings
+   are confirmed saved. Explain any required power cycle and observe the
+   reconnect automatically. Reset installations lead into controller setup;
+   normal upgrades return to the connected controller's configuration/live-data
+   actions. Keep restore review and its progress in the same workflow.
+
+### Acceptance
+
+Exercise compatible upgrades, supported local migration, unknown schemas,
+empty/unknown settings, backup/read/write failures, missing or mismatched local
+images, USB removal, reconnect, cancellation and interrupted-write recovery.
+Offline runs must make no service requests. Verify settings preservation and
+reset consent independently of firmware presence, and verify that a failure
+cannot continue to erase/flash. Inspect running, waiting, failure and completion
+states in the delivered dark-theme build at wide and narrow sizes: one bottom
+action row, explicit primary action, no platform dialog icons, accurate status
+and no obsolete instructions. Retain physical acceptance tasks against the
+exact controller/image separately from simulated checks.
+
+### Implementation record, 2026-10-13
+
+The native firmware upgrade now runs in one shared Firmware-page card. Its
+status, progress, backup location and decision/recovery text update in place;
+Cancel/Close and the consequence-specific primary action share the bottom row.
+The legacy assistant form and cloud revision/conversion requests have been
+removed. Advanced partition confirmation controls also use text-only shared
+buttons with explicit Flash partition/Erase partition labels.
+
+`FirmwareUpgradeController` owns an asynchronous operation. It validates bundled
+image size, board identity, payload digest and application settings-definition
+hash before writing. It requires a complete settings read and a successfully
+saved backup before application installation or settings reset. Backups are
+created under the application's persistent `firmware-backups` directory;
+`settings.bin` retains the complete partition, `backup.json` records controller
+identity, source/destination descriptors, compatibility and a SHA-256 digest,
+and `settings.uav` is added when the packaged definitions can decode every live
+record. The card exposes the saved location and an Open backup folder link.
+
+The local LogFS reader uses reviewed native target geometry and validates arena
+selection, record state, bounds, object identity, instance, size and field values.
+It does not fall back to the Python decoder's network definition loader. Once
+the source board identity and storage format are verified, each saved record's
+schema ID and size determine compatibility. A change to the aggregate UAVObject
+hash alone does not require a reset. Matching records stay in place, and fresh
+telemetry readback is compared with every saved record before declaring
+completion. An erased partition leads to setup.
+Unknown or inconsistent settings retain a raw backup and require the explicit
+Install and reset settings action; erase readback must confirm an empty partition
+before firmware is written. One reviewed local conversion supports the
+Release-20180729 ManualControlSettings ID (0x884ed0e6) to the current ID
+(0x3c35be0e). The only schema difference is appending IBus to RssiType; the
+123-byte payload and all existing enum values are unchanged. The converter
+checks the original RSSI range, preserves every payload byte, and changes only
+the live record ID. It rejects destination collisions and unknown records.
+The backup manifest reports the conversion and destination partition hash;
+settings.uav contains the destination definitions while settings.bin retains
+the original partition. After writing the application and metadata, the
+bootloader writes the converted settings partition and reads it back in full
+before starting firmware. Write, readback or disconnect failures prevent boot.
+An in-session retry restores the same converted partition from the original
+backup after rechecking board, CPU serial, storage sizes and installed firmware;
+it does not recapture partially written settings as a new baseline.
+The new firmware must then return every preserved setting through telemetry.
+The original definitions were reviewed at upstream commit
+4df9abe5a7c52ce162c9f40821b075149050c032; the captured controller records are
+an offline fixture in ground/tests/fixtures/settings-20180729.hex.
+
+Reads can stop cooperatively. Critical writes settle before another job starts;
+failure, short transfers and observed USB removal prevent further writes or
+booting. Settings erase, firmware and metadata failures retain diagnosis and
+backup access. Completion checks controller serial and the expected firmware
+descriptor, observes reconnect automatically and leads into setup or
+configuration. A failed settings comparison offers configuration review without
+claiming a successful upgrade.
+Controller comparisons remove only the known USB run-state suffixes (+BL, +FW,
+and +UP), so telemetry's bare CPU serial confirms the same physical controller.
+Different CPU serials and unknown suffixes still stop the upgrade.
+
+Settings conversion verification covers 87 offline upgrade checks, including
+the captured ten-record controller fixture, every original receiver RSSI option,
+unchanged payloads, destination collisions, partition and telemetry readback,
+conversion failure/retry, USB removal, and reconnect identity. The delivered
+libraries and images are tested with USB and network access isolated. The
+connection/controller suite passed 155 checks; the three native inspection
+framing/schema checks also passed. Decision, progress, recovery and completion
+cards are rendered at 480 and 840 pixels using the shared dark theme. Conversion
+evidence is under `build/qt612-release/`: `settings-conversion-tests.log`,
+`settings-conversion-package-tests.log`, and `settings-conversion-captures/`.
+The test target is `ground/tests/firmware_upgrade.pro`;
+`ground/tests/run_ui.py` includes it when built alongside the release package.
+
+Old bootloaders that cannot expose settings require a separate Update bootloader
+decision before backup capture: the validated bundled updater temporarily
+replaces the application while retaining settings. After it returns, controller
+identity/storage are revalidated and settings are read and backed up before the
+application installation decision. Missing updater images stop preparation.
+
+Physical acceptance remains: perform a compatible settings-preserving upgrade
+and an explicit-reset installation on the exact native controller/image; confirm
+durable backup, settings readback and setup handoff; exercise USB removal and
+recovery during reads/writes; and check the old-bootloader path where a compatible
+bundled updater exists. Additional historical settings schemas need reviewed
+local converters with real source fixtures and complete conversion reporting.
+Recovery after restarting the GCS during a settings conversion still needs a
+backup-selection/resume flow; the current automatic retry retains its original
+backup within the active maintenance card. No hardware was flashed for this
+implementation verification.

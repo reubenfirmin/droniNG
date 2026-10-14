@@ -433,6 +433,29 @@ def run(arguments):
                         record("map-full-view-failure")
                         raise
                     report["map_full_view_seconds"] = round(time.monotonic() - map_started, 2)
+                    def route_button(name):
+                        return next((node for node in visible_nodes() if node.name == name
+                            and node.getRoleName() in ("button", "push button")), None)
+                    planner = wait_for("visible route planning entry", lambda: route_button("Plan route"), process)
+                    assert not planner.getState().contains(pyatspi.STATE_ENABLED), \
+                        "Waypoint planning must be disabled without this controller's GPS"
+                    assert any("Connect a controller with GPS" in node.name for node in visible_nodes())
+                    record("map-waypoints-unavailable")
+                    display.x.XMoveResizeWindow(display.display, window, 80, 40, 840, 740)
+                    display.x.XSync(display.display, False)
+                    wait_for("narrow map layout", lambda: display.geometry(window)[2] == 840, process)
+                    time.sleep(0.4)
+                    left, top, width, height = display.geometry(window)
+                    for name in ("Plan route", "Local map"):
+                        node = next(node for node in visible_nodes() if node.name == name)
+                        bounds = node.queryComponent().getExtents(pyatspi.DESKTOP_COORDS)
+                        assert left <= bounds.x and bounds.x + bounds.width <= left + width, \
+                            name + " must fit in a narrow Map workspace"
+                    map_bounds = next(node for node in visible_nodes() if node.name == "Local map") \
+                        .queryComponent().getExtents(pyatspi.DESKTOP_COORDS)
+                    assert map_bounds.height >= 200, "The planner must leave room to work on the map"
+                    record("map-waypoints-unavailable-narrow")
+                    display.resize(window)
                 for status in ("Flight time", "Arm status", "Flight mode and failsafe", "Telemetry TX/RX and alerts"):
                     node = next((node for node in visible_nodes() if node.name == status), None)
                     assert node, status + " must be visible on " + title
@@ -742,7 +765,7 @@ def run(arguments):
             # Keyboard selection keeps the selected configuration page visible
             # when the navigation list needs to scroll.
             display.keys(window, "Control_L", "3")
-            for index, title in enumerate(("Vehicle", "Input", "Output", "Attitude", "Stabilization", "Modules", "Camera Stab")):
+            for index, title in enumerate(("Hardware", "Vehicle", "Input", "Output", "Attitude", "Stabilization", "Modules", "Camera Stab", "TxPID", "Autotune")):
                 tab = wait_for(title + " tab", lambda: next((node for node in visible_nodes()
                                if node.name == title and node.getRoleName() == "list item"), None), process)
                 if index:

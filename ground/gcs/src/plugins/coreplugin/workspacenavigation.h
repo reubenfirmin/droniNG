@@ -5,6 +5,7 @@
 #include <QMap>
 
 class QPushButton;
+class QToolButton;
 class QTabBar;
 class QLabel;
 class QMenu;
@@ -36,7 +37,8 @@ private:
     QMap<QString, QPushButton *> m_buttons;
     QTabBar *m_systemTools;
     QLabel *m_brand;
-    QPushButton *m_toggle, *m_advanced, *m_exit;
+    QToolButton *m_toggle;
+    QPushButton *m_advanced, *m_exit;
     QMenu *m_advancedMenu;
 };
 }

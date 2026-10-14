@@ -106,6 +106,7 @@ public:
     bool DownloadPartitionThreaded(QByteArray *firmwareArray, dfu_partition_label partition,
                                    int size);
     bool WipePartition(dfu_partition_label partition);
+    bool WipePartitionThreaded(QByteArray *readback, dfu_partition_label partition, int size);
     QByteArray DownloadDescriptionAsByteArray(int const &numberOfChars);
 
 public slots:
@@ -145,7 +146,7 @@ private:
 
     typedef struct ThreadJobStruc
     {
-        enum Actions { Download, Upload };
+        enum Actions { Download, Upload, WipeAndRead };
         qint32 requestSize;
         dfu_partition_label requestTransferType;
         QByteArray *requestStorage;

@@ -44,7 +44,6 @@
 #include "uavsettingsimportexport/uavsettingsimportexportmanager.h"
 #include "upgradeassistantdialog.h"
 
-class QNetworkAccessManager;
 class QGridLayout;
 class Ui_UploaderWidget;
 namespace Core { class FirmwarePage; }
@@ -114,24 +113,17 @@ private:
     QString getImagePath(QString boardName, QString imageType = QString("fw"));
     bool FirmwareLoadFromFile(QString filename, QByteArray *contents);
     bool FirmwareCheckForUpdate(deviceDescriptorStruct device, bool blank = false);
-    void triggerPartitionDownload(int index);
+    bool triggerPartitionDownload(int index);
     void haltOrReset(bool halting);
     void startRescue();
-    bool tradeSettingsWithCloud(QString srcRelease, QString ancestor, bool upgrading = false,
-                                QByteArray *settingsOut = NULL);
-    int isCloudReleaseAvailable(QString srcRelease);
-
-    bool saveSettings(const QByteArray &settingsDump);
-
-    bool askIfShouldContinue();
     int promptFirmware(const QString &text, const QString &details,
-                       QDialogButtonBox::StandardButtons buttons);
+                       QDialogButtonBox::StandardButtons buttons, const QString &action);
     bool m_promptActive = false;
     bool downloadSettings();
-    void stepChangeAndDelay(QEventLoop &loop, int delayMs,
-                            UpgradeAssistantDialog::UpgradeAssistantStep step);
     void doUpgradeOperation(bool blankFC, tl_dfu::device &dev);
-    void upgradeError(QString why);
+    void finishUpgradeTransfer();
+    void verifyUpgradeSettings(const QList<FirmwareSettingRecord> &records);
+    void verifyNextUpgradeSetting();
     bool flashFirmware(QByteArray &firmwareImage);
     bool haveSettingsPart() const;
 
@@ -142,12 +134,20 @@ private:
     QList<QWidget *> m_recoveryButtons;
 
     UpgradeAssistantDialog m_dialog;
+    FirmwareUpgradeController *m_upgrade = nullptr;
+    enum UpgradeTransfer { NoUpgradeTransfer, BackupTransfer, FirmwareTransfer, MetadataTransfer,
+        ResetTransfer, SettingsConversionTransfer, SettingsConversionReadbackTransfer };
+    UpgradeTransfer m_upgradeTransfer = NoUpgradeTransfer;
+    QByteArray m_upgradeBuffer, m_upgradeMetadata;
+    bool m_upgradeTransferSuccess = false;
+    QList<FirmwareSettingRecord> m_upgradeVerification;
+    QMetaObject::Connection m_upgradeReadbackConnection;
+    QTimer m_upgradeReadbackTimer;
 
     bool telemetryConnected;
     bool iapUpdated;
 
     QByteArray loadedFile;
-    QByteArray settingsDump;
 
     DFUObject dfu;
     USBSignalFilter *usbFilterBL;
@@ -156,8 +156,6 @@ private:
     TelemetryManager *telMngr;
     UAVObjectUtilManager *utilMngr;
     Core::ConnectionManager *conMngr = nullptr;
-    QNetworkAccessManager *netMngr;
-    UAVSettingsImportExportManager *importMngr;
 
     FirmwareIAPObj *firmwareIap;
     deviceInfo currentBoard;
@@ -169,8 +167,6 @@ private:
     QTimer rescueTimer;
     bool upgraderActive = false;
 
-    const QString exportUrl = QString("http://dronin-autotown.appspot.com/convert");
-    const QString hasRevUrl = QString("http://dronin-autotown.appspot.com/uavos/%1");
 };
 }
 #endif // UPLOADERGADGETWIDGET_H

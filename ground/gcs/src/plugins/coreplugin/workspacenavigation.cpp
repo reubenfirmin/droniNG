@@ -12,6 +12,7 @@
 #include <QSignalBlocker>
 #include <QSvgRenderer>
 #include <QTabBar>
+#include <QToolButton>
 #include <QStyle>
 #include <QVBoxLayout>
 
@@ -85,9 +86,16 @@ WorkspaceNavigation::WorkspaceNavigation(ModeManager *manager, QWidget *parent)
     m_brand->setObjectName("navigationBrand");
     m_brand->setAccessibleName(tr("DroniNG"));
     m_brand->setFixedHeight(32);
-    layout->addWidget(m_brand);
-    m_toggle = addButton(tr("Expand sidebar"), "menu");
-    connect(m_toggle, &QPushButton::clicked, this, [this] {
+    auto *header = new QHBoxLayout;
+    header->setSpacing(0);
+    header->addWidget(m_brand, 1);
+    m_toggle = new QToolButton(this);
+    m_toggle->setObjectName("navigationToggle");
+    m_toggle->setAutoRaise(true);
+    m_toggle->setFixedSize(28, 32);
+    header->addWidget(m_toggle, 0, Qt::AlignCenter);
+    layout->addLayout(header);
+    connect(m_toggle, &QToolButton::clicked, this, [this] {
         setExpanded(!property("expanded").toBool());
     });
     layout->addSpacing(12);
@@ -156,9 +164,10 @@ void WorkspaceNavigation::setExpanded(bool expanded)
 {
     setProperty("expanded", expanded);
     setFixedWidth(expanded ? 208 : 68);
-    m_brand->setText(expanded ? tr("DroniNG") : tr("D"));
+    m_brand->setText(tr("DroniNG"));
+    m_brand->setVisible(expanded);
     const QString toggleLabel = expanded ? tr("Collapse sidebar") : tr("Expand sidebar");
-    m_toggle->setProperty("navigationLabel", toggleLabel);
+    m_toggle->setArrowType(expanded ? Qt::LeftArrow : Qt::RightArrow);
     m_toggle->setAccessibleName(toggleLabel);
     m_toggle->setToolTip(toggleLabel);
     for (auto *button : findChildren<QPushButton *>(QString(), Qt::FindDirectChildrenOnly)) {

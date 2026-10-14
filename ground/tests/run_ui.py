@@ -35,7 +35,9 @@ def run_logged(command, root, log, environment=None, native_log=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.parse_args()
+    parser.add_argument("--skip-native", action="store_true",
+                        help="Run packaged UI checks without repeating the native diagnostic suites")
+    arguments = parser.parse_args()
     root = Path(__file__).resolve().parents[2]
     build = root / "build"
     binaries = [
@@ -54,13 +56,13 @@ def main():
         description = f"Testing: {application}\nEvidence: {output}\nLog: {log_path}"
         report(description, log)
         try:
-            return check_application(root, application, output, log)
+            return check_application(root, application, output, log, arguments.skip_native)
         except Exception:
             traceback.print_exc(file=log)
             raise
 
 
-def check_application(root, application, output, log):
+def check_application(root, application, output, log, skip_native=False):
     report("Checking native diagnostic framing and object schemas…", log)
     result, recent = run_logged([
         sys.executable, str(root / "ground/tests/uavtalk_inspection.py"),
@@ -69,7 +71,7 @@ def check_application(root, application, output, log):
         print("\n".join(recent), file=sys.stderr, flush=True)
         return result
     native = application.parent.parent / "connection-journey-tests/connection-diagnostics-tests"
-    if native.exists():
+    if native.exists() and not skip_native:
         bwrap = shutil.which("bwrap")
         if not bwrap:
             report("Native controller checks require bubblewrap for USB isolation.", log, error=True)
@@ -97,6 +99,38 @@ def check_application(root, application, output, log):
         print("\n".join(recent), flush=True)
         if result:
             report(f"Native checks failed; details: {native_log_path}", log, error=True)
+            return result
+    upgrade = application.parent.parent / "firmware-upgrade-tests/firmware-upgrade-tests"
+    if upgrade.exists() and not skip_native:
+        bwrap = shutil.which("bwrap")
+        if not bwrap:
+            report("Upgrade checks require bubblewrap for USB and network isolation.", log, error=True)
+            return 1
+        runtime = output / "upgrade-runtime"
+        (runtime / "bin").mkdir(parents=True, exist_ok=True)
+        shutil.copy2(upgrade, runtime / "bin" / upgrade.name)
+        for directory in ("lib", "share", "firmware"):
+            link = runtime / directory
+            if link.is_symlink():
+                link.unlink()
+            link.symlink_to(application / directory, target_is_directory=True)
+        environment = dict(os.environ, QT_QPA_PLATFORM="offscreen")
+        environment["LD_LIBRARY_PATH"] = os.pathsep.join((
+            str(application / "lib"), str(application / "lib/droning"),
+            str(application / "lib/droning/plugins/droniNG")))
+        environment["QT_PLUGIN_PATH"] = str(application / "lib/droning/qtplugins")
+        environment["FIRMWARE_UPGRADE_CAPTURE_DIR"] = str(output / "upgrade-captures")
+        environment["FIRMWARE_UPGRADE_IMAGE_ROOT"] = str(application / "firmware")
+        command = [bwrap, "--ro-bind", "/", "/", "--dev", "/dev", "--unshare-net",
+                   "--tmpfs", "/tmp", "--tmpfs", "/sys", "--tmpfs", "/run/udev",
+                   "--bind", str(output), str(output), str(runtime / "bin" / upgrade.name)]
+        report("Running offline upgrade, backup and rendered card checks against packaged libraries…", log)
+        upgrade_log_path = output / "upgrade-tests.log"
+        with upgrade_log_path.open("w") as upgrade_log:
+            result, recent = run_logged(command, root, log, environment, upgrade_log)
+        print("\n".join(recent), flush=True)
+        if result:
+            report(f"Upgrade checks failed; details: {upgrade_log_path}", log, error=True)
             return result
     report("Running packaged application UI checks…", log)
     result, recent = run_logged([

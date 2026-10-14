@@ -27,6 +27,9 @@
 
 #include "modelmapproxy.h"
 #include "../pathplanner/waypointdialog.h"
+#include "homelocation.h"
+#include "extensionsystem/pluginmanager.h"
+#include "uavobjects/uavobjectmanager.h"
 
 ModelMapProxy::ModelMapProxy(QObject *parent, TLMapWidget *map, FlightDataModel *model,
                              QItemSelectionModel *selectionModel)
@@ -52,6 +55,7 @@ ModelMapProxy::ModelMapProxy(QObject *parent, TLMapWidget *map, FlightDataModel 
  */
 void ModelMapProxy::WPValuesChanged(WayPointItem *wp)
 {
+    if (!m_editingEnabled) return;
     QModelIndex index;
     index = model->index(wp->Number(), FlightDataModel::LATPOSITION);
     if (!index.isValid())
@@ -198,7 +202,10 @@ void ModelMapProxy::refreshOverlays()
     wp_current = findWayPointNumber(0);
     overlayType wp_current_overlay =
         overlayTranslate(model->data(model->index(0, FlightDataModel::MODE), Qt::UserRole).toInt());
-    createOverlay(wp_current, myMap->Home, wp_current_overlay, Qt::green);
+    auto *home = HomeLocation::GetInstance(
+        ExtensionSystem::PluginManager::instance()->getObject<UAVObjectManager>());
+    if (home && home->getData().Set == HomeLocation::SET_TRUE)
+        createOverlay(wp_current, myMap->Home, wp_current_overlay, Qt::green);
 
     for (int x = 0; x < model->rowCount(); ++x) {
         wp_current = findWayPointNumber(x);
@@ -294,7 +301,7 @@ void ModelMapProxy::dataChanged(const QModelIndex &topLeft, const QModelIndex &b
                 break;
             case FlightDataModel::LOCKED:
                 index = model->index(x, FlightDataModel::LOCKED);
-                item->setFlag(QGraphicsItem::ItemIsMovable, !index.data(Qt::DisplayRole).toBool());
+                item->setFlag(QGraphicsItem::ItemIsMovable, m_editingEnabled && !index.data(Qt::DisplayRole).toBool());
                 break;
             }
         }
@@ -325,6 +332,7 @@ void ModelMapProxy::rowsInserted(const QModelIndex &parent, int first, int last)
         altitude = index.data(Qt::DisplayRole).toDouble();
         myMap->WPInsert(latlng, altitude, desc, x);
     }
+    setEditingEnabled(m_editingEnabled);
     refreshOverlays();
 }
 
@@ -335,6 +343,7 @@ void ModelMapProxy::rowsInserted(const QModelIndex &parent, int first, int last)
  */
 void ModelMapProxy::deleteWayPoint(int number)
 {
+    if (!m_editingEnabled) return;
     model->removeRow(number, QModelIndex());
 }
 
@@ -345,18 +354,34 @@ void ModelMapProxy::deleteWayPoint(int number)
  */
 void ModelMapProxy::createWayPoint(internals::PointLatLng coord)
 {
+    if (!m_editingEnabled) return;
+    model->pauseValidation(true);
     model->insertRow(model->rowCount(), QModelIndex());
     QModelIndex index =
         model->index(model->rowCount() - 1, FlightDataModel::LATPOSITION, QModelIndex());
     model->setData(index, coord.Lat(), Qt::EditRole);
     index = model->index(model->rowCount() - 1, FlightDataModel::LNGPOSITION, QModelIndex());
     model->setData(index, coord.Lng(), Qt::EditRole);
+    model->pauseValidation(false);
 }
 
 /**
  * @brief ModelMapProxy::deleteAll When all the waypoints are deleted graphically, update the model
  */
+void ModelMapProxy::setEditingEnabled(bool enabled)
+{
+    m_editingEnabled = enabled;
+    for (int row = 0; row < model->rowCount(); ++row) {
+        if (auto *item = findWayPointNumber(row)) {
+            item->setEnabled(enabled);
+            item->setFlag(QGraphicsItem::ItemIsMovable,
+                enabled && !model->index(row, FlightDataModel::LOCKED).data().toBool());
+        }
+    }
+}
+
 void ModelMapProxy::deleteAll()
 {
+    if (!m_editingEnabled) return;
     model->removeRows(0, model->rowCount(), QModelIndex());
 }

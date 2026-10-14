@@ -36,14 +36,18 @@
 
 #include "algorithms/pathfillet.h"
 #include "extensionsystem/pluginmanager.h"
+#include "uavtalk/telemetrymanager.h"
+#include "homelocation.h"
+#include "waypointplanningcontroller.h"
 
 PathPlannerGadgetWidget::PathPlannerGadgetWidget(QWidget *parent)
-    : QLabel(parent)
+    : QWidget(parent)
     , prevModel(NULL)
 {
     ui = new Ui_PathPlanner();
     ui->setupUi(this);
     ui->statusTL->setVisible(false);
+    ui->statusPB->setVisible(false);
     ExtensionSystem::PluginManager *pm = ExtensionSystem::PluginManager::instance();
     FlightDataModel *model = pm->getObject<FlightDataModel>();
     Q_ASSERT(model);
@@ -51,6 +55,15 @@ PathPlannerGadgetWidget::PathPlannerGadgetWidget(QWidget *parent)
     QItemSelectionModel *selection = pm->getObject<QItemSelectionModel>();
     Q_ASSERT(selection);
     setModel(model, selection);
+    if (auto *telemetry = pm->getObject<TelemetryManager>()) {
+        connect(telemetry, &TelemetryManager::connected, this, [this] { enableButtons(m_buttonsEnabled); });
+        connect(telemetry, &TelemetryManager::disconnected, this, [this] { enableButtons(m_buttonsEnabled); });
+    }
+    enableButtons(true);
+    if (auto *home = HomeLocation::GetInstance(pm->getObject<UAVObjectManager>()))
+        connect(home, &UAVObject::objectUpdated, this, [this] { enableButtons(m_buttonsEnabled); });
+    if (auto *planning = pm->getObject<WaypointPlanningController>())
+        connect(planning, &WaypointPlanningController::changed, this, [this] { enableButtons(m_buttonsEnabled); });
 }
 
 PathPlannerGadgetWidget::~PathPlannerGadgetWidget()
@@ -80,22 +93,26 @@ void PathPlannerGadgetWidget::setModel(FlightDataModel *model, QItemSelectionMod
 
 void PathPlannerGadgetWidget::on_tbAdd_clicked()
 {
+    if (!ui->tbAdd->isEnabled()) return;
     ui->tableView->model()->insertRow(ui->tableView->model()->rowCount());
 }
 
 void PathPlannerGadgetWidget::on_tbDelete_clicked()
 {
+    if (!ui->tbDelete->isEnabled()) return;
     // XXX: TODO: Should delete all selected rows
     ui->tableView->model()->removeRow(ui->tableView->selectionModel()->currentIndex().row());
 }
 
 void PathPlannerGadgetWidget::on_tbInsert_clicked()
 {
+    if (!ui->tbInsert->isEnabled()) return;
     ui->tableView->model()->insertRow(ui->tableView->selectionModel()->currentIndex().row());
 }
 
 void PathPlannerGadgetWidget::on_tbReadFromFile_clicked()
 {
+    if (!ui->tbReadFromFile->isEnabled()) return;
     if (!model)
         return;
     QString fileName = QFileDialog::getOpenFileName(this, tr("Open File"));
@@ -117,6 +134,7 @@ void PathPlannerGadgetWidget::on_tbSaveToFile_clicked()
  */
 void PathPlannerGadgetWidget::on_tbDetails_clicked()
 {
+    if (!ui->tbDetails->isEnabled()) return;
     ExtensionSystem::PluginManager *pm = ExtensionSystem::PluginManager::instance();
     Q_ASSERT(pm);
     if (pm == NULL)
@@ -133,9 +151,12 @@ void PathPlannerGadgetWidget::on_tbDetails_clicked()
  */
 void PathPlannerGadgetWidget::on_tbSendToUAV_clicked()
 {
+    auto *planning = ExtensionSystem::PluginManager::instance()->getObject<WaypointPlanningController>();
+    if (!ui->tbSendToUAV->isEnabled() || !planning || !planning->canUpload()) return;
     enableButtons(false);
     ui->statusTL->setVisible(false);
     ui->statusPB->setValue(0);
+    ui->statusPB->setVisible(true);
     bool result;
     result = proxy->modelToObjects();
     if (result)
@@ -152,6 +173,7 @@ void PathPlannerGadgetWidget::on_tbSendToUAV_clicked()
  */
 void PathPlannerGadgetWidget::on_tbFetchFromUAV_clicked()
 {
+    if (!ui->tbFetchFromUAV->isEnabled()) return;
     proxy->objectsToModel();
     ui->tableView->resizeColumnsToContents();
 }
@@ -161,6 +183,7 @@ void PathPlannerGadgetWidget::on_tbFetchFromUAV_clicked()
  */
 void PathPlannerGadgetWidget::on_tbFilletPath_clicked()
 {
+    if (!ui->tbFilletPath->isEnabled()) return;
     // Create a copy of the model before filleting
     if (!prevModel)
         prevModel = new FlightDataModel(this);
@@ -185,6 +208,7 @@ void PathPlannerGadgetWidget::on_tbFilletPath_clicked()
  */
 void PathPlannerGadgetWidget::on_tbUnfilletPath_clicked()
 {
+    if (!ui->tbUnfilletPath->isEnabled()) return;
     if (prevModel)
         model->replaceData(prevModel);
 }
@@ -196,9 +220,23 @@ void PathPlannerGadgetWidget::on_waypointSendProgress(int value)
 
 void PathPlannerGadgetWidget::enableButtons(bool enable)
 {
+    m_buttonsEnabled = enable;
+    auto *planning = ExtensionSystem::PluginManager::instance()->getObject<WaypointPlanningController>();
+    const bool ready = enable && planning && planning->ready();
+    ui->tableView->setEnabled(ready);
     QList<QToolButton *> blist = this->findChildren<QToolButton *>();
     foreach (QToolButton *button, blist) {
-        button->setEnabled(enable);
+        button->setEnabled(ready);
+    }
+    auto *telemetry = ExtensionSystem::PluginManager::instance()->getObject<TelemetryManager>();
+    const bool connected = telemetry && telemetry->isConnected();
+    auto *home = HomeLocation::GetInstance(
+        ExtensionSystem::PluginManager::instance()->getObject<UAVObjectManager>());
+    ui->tbSendToUAV->setEnabled(ready && connected && home && planning->canUpload());
+    ui->tbFetchFromUAV->setEnabled(ready && connected);
+    if (!ready && planning && enable) {
+        ui->statusTL->setText(planning->status());
+        ui->statusTL->setVisible(true);
     }
 }
 

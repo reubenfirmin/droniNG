@@ -38,6 +38,7 @@ void BoardSettingsInstaller::start(const QJsonArray &settings)
 {
     if (m_phase != Phase::Idle) return;
     m_settings = settings;
+    m_preflight = m_requireDisarmed;
     QSet<QString> seen;
     // Validate the entire profile before sending any settings to the board.
     for (const auto &entry : settings) {
@@ -83,7 +84,7 @@ void BoardSettingsInstaller::start(const QJsonArray &settings)
 
 void BoardSettingsInstaller::next()
 {
-    if (m_pending.isEmpty()) {
+    if (m_preflight || m_pending.isEmpty()) {
         // Reset commands are accepted by firmware only while disarmed. Fetch
         // FlightStatus rather than relying on a default or an earlier session.
         m_current = FlightStatus::GetInstance(m_objects);
@@ -136,8 +137,10 @@ void BoardSettingsInstaller::unpacked(UAVObject *object)
     if (m_phase != Phase::Reading) return;
     if (object == FlightStatus::GetInstance(m_objects)) {
         if (FlightStatus::GetInstance(m_objects)->getData().Armed != FlightStatus::ARMED_DISARMED) {
-            finish(false, tr("Disarm the controller before restarting it.")); return;
+            finish(false, m_preflight ? tr("Disarm the controller before changing its settings.")
+                                      : tr("Disarm the controller before restarting it.")); return;
         }
+        if (m_preflight) { m_preflight = false; next(); return; }
         m_phase = Phase::Rebooting; m_rebootStep = 0; reboot(); return;
     }
     // The read transaction completes after objectUnpacked. Defer the write so

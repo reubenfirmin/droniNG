@@ -24,6 +24,10 @@ MyTabWidget::pane QTabWidget > QWidget {
     border-right: 1px solid palette(Mid);
 }
 #navigationBrand { font-size: 22px; font-weight: 600; padding-left: 14px; }
+#navigationToggle { background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 4px; color: @muted@; }
+#navigationToggle:hover { background: palette(Button); color: palette(WindowText); }
+#navigationToggle:focus { border-color: palette(Highlight); }
+#firmwareOverview QLabel[role="title"] { font-size: 22px; }
 QPushButton[navigationItem="true"] {
     background: transparent;
     color: palette(WindowText);
@@ -81,7 +85,7 @@ SystemHealthGadgetWidget, PfdQmlGadgetWidget, LineardialGadgetWidget, ModelViewG
 
 #frameTopBar > QToolButton:disabled, #frameMapControls > QToolButton:disabled {
 	background: palette(Window);
-	color: palette(Text);
+	color: @muted@;
 	border: 1px solid palette(Mid);
 }
 

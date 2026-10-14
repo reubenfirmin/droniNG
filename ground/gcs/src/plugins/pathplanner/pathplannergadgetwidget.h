@@ -27,14 +27,14 @@
 #ifndef PathPlannerGADGETWIDGET_H_
 #define PathPlannerGADGETWIDGET_H_
 
-#include <QLabel>
+#include <QWidget>
 #include <QItemSelectionModel>
 #include "flightdatamodel.h"
 #include "modeluavoproxy.h"
 
 class Ui_PathPlanner;
 
-class PATHPLANNER_EXPORT PathPlannerGadgetWidget : public QLabel
+class PATHPLANNER_EXPORT PathPlannerGadgetWidget : public QWidget
 {
     Q_OBJECT
 
@@ -76,6 +76,7 @@ private:
 
     //! Store previous models for rolling back changes
     FlightDataModel *prevModel;
+    bool m_buttonsEnabled = true;
     void enableButtons(bool);
 signals:
     void sendPathPlanToUAV();

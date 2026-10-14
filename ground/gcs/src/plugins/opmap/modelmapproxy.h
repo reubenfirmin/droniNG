@@ -73,6 +73,7 @@ public:
 
     //! When all the waypoints are deleted graphically, update the model
     void deleteAll();
+    void setEditingEnabled(bool enabled);
 private slots:
 
     //! Data in the model is changed, update the UI
@@ -94,6 +95,7 @@ private slots:
     void selectedWPChanged(QList<WayPointItem *>);
 
 private:
+    bool m_editingEnabled = false;
     overlayType overlayTranslate(int type);
     void createOverlay(WayPointItem *from, WayPointItem *to, overlayType type, QColor color,
                        double radius);

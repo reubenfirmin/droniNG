@@ -9,13 +9,14 @@
 class UAVObject;
 class UAVObjectManager;
 
-// Applies a catalog profile only during first installation. Each settings object
+// Applies a settings profile. Each settings object
 // is fetched, acknowledged, saved, loaded from flash and checked before reboot.
 class UAVTALK_EXPORT BoardSettingsInstaller : public QObject {
     Q_OBJECT
 public:
     explicit BoardSettingsInstaller(UAVObjectManager *objects, QObject *parent = nullptr);
     void start(const QJsonArray &settings);
+    void setRequireDisarmed(bool required) { m_requireDisarmed = required; }
     void disconnected();
     void cancel();
 signals:
@@ -38,5 +39,6 @@ private:
     QTimer m_timeout, m_rebootDelay;
     Phase m_phase = Phase::Idle;
     int m_rebootStep = 0;
+    bool m_requireDisarmed = false, m_preflight = false;
 };
 #endif

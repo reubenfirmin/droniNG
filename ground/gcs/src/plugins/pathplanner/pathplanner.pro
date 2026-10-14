@@ -10,6 +10,7 @@ include(../../libs/utils/utils.pri)
 
 include(../../plugins/coreplugin/coreplugin.pri)
 include(../../plugins/uavobjects/uavobjects.pri)
+include(../../plugins/uavtalk/uavtalk.pri)
 
 HEADERS += pathplannergadget.h \
     waypointdialog.h \
@@ -21,6 +22,7 @@ HEADERS += pathplannergadgetfactory.h
 HEADERS += pathplannerplugin.h
 HEADERS += flightdatamodel.h
 HEADERS += modeluavoproxy.h
+HEADERS += waypointplanningcontroller.h
 HEADERS += ipathalgorithm.h
 HEADERS += algorithms/pathfillet.h
 
@@ -33,6 +35,7 @@ SOURCES += pathplannergadgetfactory.cpp
 SOURCES += pathplannerplugin.cpp
 SOURCES += flightdatamodel.cpp
 SOURCES += modeluavoproxy.cpp
+SOURCES += waypointplanningcontroller.cpp
 SOURCES += algorithms/pathfillet.cpp
 
 OTHER_FILES += PathPlanner.pluginspec

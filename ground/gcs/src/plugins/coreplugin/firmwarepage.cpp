@@ -90,7 +90,7 @@ FirmwarePage::FirmwarePage(ConnectionManager *manager, QWidget *parent, DfuComma
     dashboard->addWidget(overview, 0, 0);
     m_contentLayout = qobject_cast<QVBoxLayout *>(overview->layout());
     m_contentLayout->setContentsMargins(20, 20, 20, 20);
-    m_contentLayout->setSpacing(16);
+    m_contentLayout->setSpacing(12);
     const char *names[] = {"firmwareAttitudeCard", "firmwareModelCard", "firmwareHealthCard"};
     const QString titles[] = {tr("Attitude"), tr("Aircraft"), tr("System health")};
     for (int index = 0; index < 3; ++index) {
@@ -224,8 +224,8 @@ FirmwarePage::FirmwarePage(ConnectionManager *manager, QWidget *parent, DfuComma
     m_board = value("firmwareDetectedBoard");
     m_firmware = value("firmwareDetectedFirmware");
     m_bootloader = value("firmwareDetectedBootloader");
-    m_identity = new QGridLayout; m_identity->setSpacing(24);
-    m_identity->setColumnStretch(0, 1); m_identity->setColumnStretch(1, 1);
+    m_identity = new QGridLayout; m_identity->setSpacing(16);
+    m_identity->setColumnStretch(0, 1);
     m_boardIdentity = new QWidget(m_deviceCard);
     auto *boardIdentity = new QVBoxLayout(m_boardIdentity);
     boardIdentity->setContentsMargins(0, 0, 0, 0); boardIdentity->setSpacing(8);
@@ -247,26 +247,27 @@ FirmwarePage::FirmwarePage(ConnectionManager *manager, QWidget *parent, DfuComma
     m_hardwareBoards->setAccessibleName(tr("Hardware model"));
     m_hardwareBoards->setView(new QListView(m_hardwareBoards));
     m_hardwareBoards->setMaxVisibleItems(7);
-    m_hardwareBoards->setMaximumWidth(360);
+    m_hardwareBoards->setMaximumWidth(540);
     m_hardwareBoards->addItem(tr("Not identified — select model…"), QString());
     for (const auto &board : boards) m_hardwareBoards->addItem(board.name, board.id);
     m_hardwareHint = FirmwareUi::label({}, "muted", m_boardIdentity);
     m_hardwareHint->setObjectName("firmwareHardwareHint");
     boardIdentity->addWidget(m_hardwareBoards); boardIdentity->addWidget(m_hardwareHint);
-    boardIdentity->addStretch();
     m_identity->addWidget(m_boardIdentity, 0, 0);
     m_firmwareIdentity = new QWidget(m_deviceCard);
-    auto *firmwareIdentity = new QVBoxLayout(m_firmwareIdentity);
-    firmwareIdentity->setContentsMargins(0, 0, 0, 0); firmwareIdentity->setSpacing(8);
-    m_currentHeading = FirmwareUi::label(tr("Firmware"), "section", m_firmwareIdentity);
+    auto *firmwareIdentity = new QGridLayout(m_firmwareIdentity);
+    firmwareIdentity->setContentsMargins(0, 0, 0, 0);
+    firmwareIdentity->setHorizontalSpacing(16); firmwareIdentity->setVerticalSpacing(8);
+    firmwareIdentity->setColumnStretch(1, 1);
+    m_currentHeading = FirmwareUi::label(tr("Firmware"), "muted", m_firmwareIdentity);
     m_currentHeading->setObjectName("firmwareCurrentHeading");
-    firmwareIdentity->addWidget(m_currentHeading); firmwareIdentity->addWidget(m_firmware);
+    firmwareIdentity->addWidget(m_currentHeading, 0, 0); firmwareIdentity->addWidget(m_firmware, 0, 1);
     m_targetCaption = FirmwareUi::label(tr("Firmware target"), "muted", m_firmwareIdentity);
     m_firmwareTarget = value("firmwareDetectedTarget");
-    firmwareIdentity->addWidget(m_targetCaption); firmwareIdentity->addWidget(m_firmwareTarget);
+    firmwareIdentity->addWidget(m_targetCaption, 1, 0); firmwareIdentity->addWidget(m_firmwareTarget, 1, 1);
     m_bootloaderCaption = FirmwareUi::label(tr("Bootloader"), "muted", m_firmwareIdentity);
-    firmwareIdentity->addWidget(m_bootloaderCaption);
-    firmwareIdentity->addWidget(m_bootloader); firmwareIdentity->addStretch();
+    firmwareIdentity->addWidget(m_bootloaderCaption, 2, 0);
+    firmwareIdentity->addWidget(m_bootloader, 2, 1);
     m_identity->addWidget(m_firmwareIdentity, 0, 1);
     m_installIdentity = new QWidget(m_deviceCard);
     m_installIdentity->setObjectName("firmwareInstallSummary");
@@ -417,8 +418,12 @@ FirmwarePage::FirmwarePage(ConnectionManager *manager, QWidget *parent, DfuComma
     m_recoveryBody->hide();
     dashboard->addWidget(m_recoveryCard, 2, 0, Qt::AlignTop);
     dashboard->addWidget(m_logCard, 2, 1, Qt::AlignTop);
+    auto *actionRow = new QHBoxLayout;
+    actionRow->addLayout(actions);
+    actionRow->addStretch();
+    m_contentLayout->addSpacing(8);
     m_contentLayout->addStretch(1);
-    m_contentLayout->addLayout(actions);
+    m_contentLayout->addLayout(actionRow);
     connect(m_recoveryToggle, &QToolButton::toggled, this, [this](bool expanded) {
         m_recoveryBody->setVisible(expanded);
         m_recoveryToggle->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
@@ -610,12 +615,10 @@ void FirmwarePage::updateDashboardLayout()
 void FirmwarePage::updateControllerLayout()
 {
     const int columns = m_content->width() < 720 ? 1 : 2;
-    const bool compact = (m_content->width() - (columns - 1) * 16) / columns < 540;
-    const bool choosingBoard = !m_boards->isHidden() || !m_hardwareBoards->isHidden();
     m_identity->removeWidget(m_boardIdentity); m_identity->removeWidget(m_firmwareIdentity); m_identity->removeWidget(m_installIdentity);
-    m_identity->addWidget(m_boardIdentity, 0, 0, 1, choosingBoard && !compact ? 2 : 1);
-    m_identity->addWidget(m_firmwareIdentity, compact || choosingBoard ? 1 : 0, compact || choosingBoard ? 0 : 1);
-    m_identity->addWidget(m_installIdentity, compact ? 2 : 1, compact ? 0 : 1);
+    m_identity->addWidget(m_boardIdentity, 0, 0);
+    m_identity->addWidget(m_firmwareIdentity, 1, 0);
+    m_identity->addWidget(m_installIdentity, 2, 0);
     const QList<QWidget *> buttons{m_connect, m_back, m_install, m_bootController, m_configure, m_scopes,
         m_retryConnection, m_recoverInstallation, m_otherController, m_disconnect};
     for (auto *button : buttons) m_deviceActions->removeWidget(button);
@@ -833,7 +836,7 @@ void FirmwarePage::refresh()
             : tr("The installed firmware targets %1. Firmware for %2 is not included in this build.")
                 .arg(m_firmwareTarget->text(), hardware.name)
         : !hardware.isValid()
-        ? tr("The firmware does not report the physical board model. Select the model printed on your board.")
+        ? tr("The physical board model is not reported. Select the model printed on your board.")
         : m_manager->controllerSerial().isEmpty()
             ? tr("Model selected for this connection. A controller serial is needed to remember it.")
             : tr("Model saved for this controller."));

@@ -33,6 +33,7 @@
 
 #include <QApplication>
 #include <QThread>
+#include <QElapsedTimer>
 
 #define TL_DFU_DEBUG
 #ifdef TL_DFU_DEBUG
@@ -52,6 +53,8 @@ DFUObject::DFUObject(int replyTimeoutMs)
 
 DFUObject::~DFUObject()
 {
+    requestInterruption();
+    wait(); // The worker owns the handle until its bounded transfer has settled.
     CloseBootloaderComs();
 }
 
@@ -83,7 +86,7 @@ bool DFUObject::StartUpload(qint32 const &numberOfBytes, dfu_partition_label con
                             quint32 crc)
 {
     messagePackets msg = CalculatePadding(numberOfBytes);
-    bl_messages message;
+    bl_messages message{};
     message.flags_command = BL_MSG_WRITE_START;
     message.v.xfer_start.expected_crc = ntohl(crc);
     message.v.xfer_start.packets_in_transfer = ntohl(msg.numberOfPackets);
@@ -113,19 +116,21 @@ bool DFUObject::StartUpload(qint32 const &numberOfBytes, dfu_partition_label con
   */
 bool DFUObject::UploadData(qint32 const &numberOfBytes, QByteArray &data)
 {
+    QElapsedTimer deadline; deadline.start();
     messagePackets msg = CalculatePadding(numberOfBytes);
     TL_DFU_QXTLOG_DEBUG(QString("Start Uploading:%0 56 byte packets").arg(msg.numberOfPackets));
-    bl_messages message;
+    bl_messages message{};
     message.flags_command = BL_MSG_WRITE_CONT;
     int packetsize;
     float percentage;
     int laspercentage = 0;
     for (quint32 packetcount = 0; packetcount < msg.numberOfPackets; ++packetcount) {
+        if (deadline.elapsed() > 120000) return false;
         percentage = (float)(packetcount + 1) / msg.numberOfPackets * 100;
         if (laspercentage != (int)percentage)
             emit operationProgress("", percentage);
         laspercentage = (int)percentage;
-        if (packetcount == msg.numberOfPackets)
+        if (packetcount == msg.numberOfPackets - 1)
             packetsize = msg.lastPacketCount;
         else
             packetsize = 14;
@@ -163,7 +168,7 @@ bool DFUObject::DownloadPartitionThreaded(QByteArray *firmwareArray, dfu_partiti
     TL_DFU_QXTLOG_DEBUG(QString("DOWNLOAD PARTITION- SETTING DOWNLOAD CONFIG PARTITION=%1 SIZE:%2")
                             .arg(partition)
                             .arg(size));
-    if (isRunning())
+    if (isRunning() || !firmwareArray || size <= 0 || size % 4)
         return false;
     threadJob.requestedOperation = ThreadJobStruc::Download;
     threadJob.requestSize = size;
@@ -186,6 +191,16 @@ bool DFUObject::WipePartition(dfu_partition_label partition)
     return (result > 0);
 }
 
+bool DFUObject::WipePartitionThreaded(QByteArray *readback, dfu_partition_label partition, int size)
+{
+    if (isRunning() || !readback || size <= 0 || size % 4) return false;
+    threadJob.requestedOperation = ThreadJobStruc::WipeAndRead;
+    threadJob.requestTransferType = partition;
+    threadJob.requestSize = size;
+    threadJob.requestStorage = readback;
+    start(); return true;
+}
+
 /**
    Runs the upload or download operations.
   */
@@ -194,6 +209,11 @@ void DFUObject::run()
     bool downloadResult;
     tl_dfu::Status uploadStatus;
     switch (threadJob.requestedOperation) {
+    case ThreadJobStruc::WipeAndRead:
+        downloadResult = WipePartition(threadJob.requestTransferType)
+            && DownloadPartition(threadJob.requestStorage, threadJob.requestSize, threadJob.requestTransferType);
+        emit downloadFinished(downloadResult);
+        break;
     case ThreadJobStruc::Download:
         TL_DFU_QXTLOG_DEBUG("DOWNLOAD THREAD STARTED");
         downloadResult = DownloadPartition(threadJob.requestStorage, threadJob.requestSize,
@@ -222,11 +242,13 @@ void DFUObject::run()
 bool DFUObject::DownloadPartition(QByteArray *fw, qint32 const &numberOfBytes,
                                   dfu_partition_label const &partition)
 {
+    if (!fw || numberOfBytes <= 0 || numberOfBytes % 4) return false;
+    QElapsedTimer deadline; deadline.start();
     int numTries = 3;
     quint32 x = 0;
     quint32 offset = 0;
 
-    EnterDFU();
+    if (!EnterDFU()) return false;
     emit operationProgress(
         QString("Downloading %0 partition...").arg(partitionStringFromLabel(partition)), -1);
     messagePackets msg = CalculatePadding(numberOfBytes);
@@ -234,14 +256,14 @@ bool DFUObject::DownloadPartition(QByteArray *fw, qint32 const &numberOfBytes,
 retry:
     offset = x;
 
-    bl_messages message;
+    bl_messages message{};
     message.flags_command = BL_MSG_READ_START;
     message.v.xfer_start.packets_in_transfer = ntohl(msg.numberOfPackets + offset);
     message.v.xfer_start.words_in_last_packet = msg.lastPacketCount;
     message.v.xfer_start.label = partition;
 
     int result = SendData(message);
-    Q_UNUSED(result);
+    if (result <= 0) return false;
 
     TL_DFU_QXTLOG_DEBUG(QString("StartDownload %0 Last Packet Size %1 Bytes sent %2")
                             .arg(msg.numberOfPackets)
@@ -252,6 +274,9 @@ retry:
 
     // Now get those packets:
     for (; x < msg.numberOfPackets; ++x) {
+        if (isInterruptionRequested() || deadline.elapsed() > 100000) {
+            AbortOperation(); return false;
+        }
         int size;
         percentage = (float)(x + 1) / msg.numberOfPackets * 100;
         if (laspercentage != (int)percentage)
@@ -259,8 +284,7 @@ retry:
         laspercentage = (int)percentage;
 
         result = ReceiveData(message);
-
-        if (message.flags_command != BL_MSG_READ_CONT) {
+        if (result <= 0 || message.flags_command != BL_MSG_READ_CONT) {
             qDebug()
                 << "Message different from BL_MSG_READ_CONT received while downloading partition";
             return false;
@@ -590,7 +614,7 @@ tl_dfu::Status DFUObject::UploadPartition(QByteArray &sourceArray, dfu_partition
         qDebug() << QString("[tl_dfu] StartUpload failed, status: %1, additional: 0x%2")
                         .arg(StatusToString(ret.status))
                         .arg(ret.additional, 8, 16, QChar('0'));
-        return ret.status;
+        return tl_dfu::abort;
     }
     emit operationProgress(QString("Erasing, please wait..."), -1);
 
@@ -621,7 +645,7 @@ tl_dfu::Status DFUObject::UploadPartition(QByteArray &sourceArray, dfu_partition
                         .arg(StatusToString(ret.status))
                         .arg(ret.additional, 8, 16, QChar('0'));
 
-        return ret.status;
+        return tl_dfu::abort;
     }
     if (!EndOperation()) {
         ret = StatusRequest();
@@ -629,7 +653,7 @@ tl_dfu::Status DFUObject::UploadPartition(QByteArray &sourceArray, dfu_partition
                         .arg(StatusToString(ret.status))
                         .arg(ret.additional, 8, 16, QChar('0'));
 
-        return ret.status;
+        return tl_dfu::abort;
     }
     ret = StatusRequest();
     if (ret.status != tl_dfu::Last_operation_Success) {
@@ -766,7 +790,7 @@ int DFUObject::SendData(bl_messages data)
         }
     }
 
-    return ret;
+    return ret == BUF_LEN ? ret : -1;
 }
 
 /**
@@ -784,6 +808,10 @@ int DFUObject::ReceiveData(bl_messages &data, int timeoutMS)
     int received =
         hid_read_timeout(m_hidHandle, reinterpret_cast<unsigned char *>(array), BUF_LEN,
                          timeoutMS < 0 ? m_replyTimeoutMs : timeoutMS);
+    if (received != BUF_LEN) {
+        data = {};
+        return received <= 0 ? received : -1;
+    }
     memcpy(&data, array + 1, sizeof(bl_messages));
     return received;
 }

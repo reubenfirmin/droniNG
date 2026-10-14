@@ -23,6 +23,16 @@
 #include <uavobjectutil/uavobjectutilmanager.h>
 #include <uploader/uploadergadgetwidget.h>
 #include <uavtalk/boardsettingsinstaller.h>
+#include <pathplanner/waypointplanningcontroller.h>
+#include <pathplanner/flightdatamodel.h>
+#include <pathplanner/pathplannergadgetwidget.h>
+#include <opmap/opmapgadgetwidget.h>
+#include <modulesettings.h>
+#include <systemsettings.h>
+#include <stateestimation.h>
+#include <taskinfo.h>
+#include <homelocation.h>
+#include <pathplannersettings.h>
 #include <uavobjects/uavobjectfield.h>
 #include <uavobjects/uavdataobject.h>
 #include <objectpersistence.h>
@@ -65,6 +75,8 @@
 #include <QTcpSocket>
 #include <QTest>
 #include <QToolButton>
+#include <QTableView>
+#include <QMouseEvent>
 #include <QWizard>
 #include <cstring>
 #include <cmath>
@@ -106,7 +118,8 @@ public:
     int writes = 0;
     bool rejectWrite = false, saveError = false, corruptSave = false;
     explicit ProfileBoard(UAVObjectManager *objects) {
-        for (const auto &name : {"AttitudeSettings", "HwRevolution", "FlightStatus", "FirmwareIAPObj", "ObjectPersistence"}) {
+        for (const auto &name : {"AttitudeSettings", "HwRevolution", "FlightStatus", "FirmwareIAPObj", "ObjectPersistence",
+                                "ModuleSettings", "SystemSettings", "StateEstimation", "GPSPosition", "TaskInfo", "HomeLocation", "PathPlannerSettings"}) {
             auto *object = objects->getObject(name);
             QByteArray bytes(object->getNumBytes(), 0); object->pack(reinterpret_cast<quint8 *>(bytes.data()));
             remote[object->getObjID()] = bytes;
@@ -364,6 +377,230 @@ class ConnectionDiagnosticsTests : public QObject
     }
 
 private slots:
+    void waypointEligibilityUsesCurrentGpsAndRunningModules()
+    {
+        WaypointPlanningController planning(objects, nullptr);
+        const auto receive = [this](const QString &name) {
+            auto *object = objects->getObject(name);
+            QByteArray bytes(object->getNumBytes(), 0);
+            object->pack(reinterpret_cast<quint8 *>(bytes.data()));
+            object->unpack(reinterpret_cast<const quint8 *>(bytes.constData()));
+        };
+        const auto set = [this, &receive](const QString &object, const QString &field, const QString &value, const QString &element = {}) {
+            auto *f = objects->getObject(object)->getField(field);
+            f->setValue(value, element.isEmpty() ? 0 : f->getElementIndex(element));
+            receive(object);
+        };
+        planning.setConnected(true);
+        QVERIFY(!planning.ready());
+        set("GPSPosition", "Status", "NoGPS");
+        QVERIFY(!planning.canEnable());
+        QVERIFY(planning.status().contains("attached GPS"));
+        set("SystemSettings", "AirframeType", "QuadX");
+        set("StateEstimation", "NavigationFilter", "None");
+        set("ModuleSettings", "AdminState", "Disabled", "PathPlanner");
+        set("ModuleSettings", "AdminState", "Disabled", "VtolPathFollower");
+        set("FlightStatus", "Armed", "Disarmed");
+        receive("PathPlannerSettings");
+        // An attached receiver with no fix is enough to offer setup.
+        set("GPSPosition", "Status", "NoFix");
+        QVERIFY(planning.offersSetup());
+        QVERIFY(planning.canEnable());
+        QVERIFY(!planning.ready());
+        set("FlightStatus", "Armed", "Armed");
+        QVERIFY(planning.offersSetup());
+        QVERIFY(!planning.canEnable());
+        set("FlightStatus", "Armed", "Disarmed");
+        set("StateEstimation", "NavigationFilter", "Raw");
+        set("ModuleSettings", "AdminState", "Enabled", "PathPlanner");
+        set("ModuleSettings", "AdminState", "Enabled", "VtolPathFollower");
+        set("TaskInfo", "Running", "FALSE", "PathPlanner");
+        set("TaskInfo", "Running", "FALSE", "PathFollower");
+        QVERIFY(!planning.ready()); // Saved settings do not prove modules started.
+        set("TaskInfo", "Running", "TRUE", "PathPlanner");
+        set("TaskInfo", "Running", "TRUE", "PathFollower");
+        QVERIFY(planning.ready());
+        QVERIFY(!planning.canUpload());
+        set("HomeLocation", "Set", "TRUE");
+        set("GPSPosition", "Status", "Fix3D");
+        QVERIFY(planning.canUpload());
+        set("GPSPosition", "Status", "NoGPS");
+        QVERIFY(!planning.ready());
+        QVERIFY(!planning.canUpload());
+        set("GPSPosition", "Status", "Fix3D");
+        QVERIFY(planning.ready());
+        planning.setConnected(false);
+        planning.setConnected(true);
+        QVERIFY(!planning.ready()); // A new session cannot inherit the previous receiver.
+        QVERIFY(!planning.canEnable());
+        receive("GPSPosition");
+        QVERIFY(!planning.ready()); // Fresh GPS alone cannot inherit old module state.
+    }
+
+    void waypointSetupPersistsVerifiesAndRestarts_data()
+    {
+        QTest::addColumn<QString>("airframe");
+        QTest::addColumn<bool>("failSave");
+        QTest::addColumn<bool>("armedBeforeWrite");
+        QTest::newRow("multirotor") << QString("QuadX") << false << false;
+        QTest::newRow("fixed-wing") << QString("FixedWing") << false << false;
+        QTest::newRow("save-failure") << QString("QuadX") << true << false;
+        QTest::newRow("armed-before-write") << QString("QuadX") << false << true;
+    }
+    void waypointSetupPersistsVerifiesAndRestarts()
+    {
+        QFETCH(QString, airframe);
+        QFETCH(bool, failSave);
+        QFETCH(bool, armedBeforeWrite);
+        const auto set = [this](const QString &object, const QString &field, const QString &value, const QString &element = {}) {
+            auto *f = objects->getObject(object)->getField(field);
+            f->setValue(value, element.isEmpty() ? 0 : f->getElementIndex(element));
+        };
+        set("SystemSettings", "AirframeType", airframe);
+        set("GPSPosition", "Status", "NoFix");
+        set("FlightStatus", "Armed", "Disarmed");
+        set("StateEstimation", "NavigationFilter", "None");
+        set("StateEstimation", "AttitudeFilter", "Complementary");
+        set("ModuleSettings", "AdminState", "Disabled", "PathPlanner");
+        set("ModuleSettings", "AdminState", "Disabled", "VtolPathFollower");
+        set("ModuleSettings", "AdminState", "Disabled", "FixedWingPathFollower");
+        set("TaskInfo", "Running", "FALSE", "PathPlanner");
+        set("TaskInfo", "Running", "FALSE", "PathFollower");
+        ProfileBoard board(objects);
+        board.saveError = failSave;
+        WaypointPlanningController planning(objects, nullptr);
+        planning.setConnected(true);
+        QTRY_VERIFY(planning.canEnable());
+        if (armedBeforeWrite) {
+            set("FlightStatus", "Armed", "Armed");
+            auto *flight = objects->getObject("FlightStatus");
+            flight->pack(reinterpret_cast<quint8 *>(board.remote[flight->getObjID()].data()));
+            // The UI's last received status is disarmed; the next read detects arming.
+            set("FlightStatus", "Armed", "Disarmed");
+        }
+        planning.enablePlanning();
+        QVERIFY(!planning.ready());
+        if (armedBeforeWrite) {
+            QTRY_VERIFY(planning.status().contains("Disarm"));
+            QCOMPARE(board.writes, 0);
+            QVERIFY(board.saved.isEmpty());
+            QVERIFY(board.rebootCommands.isEmpty());
+        } else if (failSave) {
+            QTRY_VERIFY(planning.status().contains("did not finish"));
+            QCOMPARE(board.rebootCommands.size(), 0);
+            QVERIFY(!planning.ready());
+            QVERIFY(planning.canEnable());
+        } else {
+            QTRY_COMPARE_WITH_TIMEOUT(board.rebootCommands.size(), 3, 5000);
+            QCOMPARE(board.rebootCommands, QList<int>({1122, 2233, 4455}));
+            QVERIFY(board.saved.contains(ModuleSettings::OBJID));
+            QVERIFY(board.saved.contains(StateEstimation::OBJID));
+            QCOMPARE(objects->getObject("StateEstimation")->getField("NavigationFilter")->getValue().toString(), QString("Raw"));
+            const QString follower = airframe == "FixedWing" ? "FixedWingPathFollower" : "VtolPathFollower";
+            auto *admin = objects->getObject("ModuleSettings")->getField("AdminState");
+            QCOMPARE(admin->getValue(admin->getElementIndex(follower)).toString(), QString("Enabled"));
+            QVERIFY(!planning.ready());
+            // Simulate the restart and its fresh runtime report.
+            QTest::qWait(750);
+            planning.setConnected(false);
+            planning.setConnected(true);
+            set("TaskInfo", "Running", "TRUE", "PathPlanner");
+            set("TaskInfo", "Running", "TRUE", "PathFollower");
+            auto *task = objects->getObject("TaskInfo");
+            task->pack(reinterpret_cast<quint8 *>(board.remote[task->getObjID()].data()));
+            QTRY_VERIFY(planning.ready());
+        }
+    }
+
+    void mapWaypointControlsFollowGpsAndModuleState()
+    {
+        const auto set = [this](const QString &object, const QString &field, const QVariant &value, const QString &element = {}) {
+            auto *obj = objects->getObject(object);
+            auto *f = obj->getField(field);
+            f->setValue(value, element.isEmpty() ? 0 : f->getElementIndex(element));
+            QByteArray bytes(obj->getNumBytes(), 0);
+            obj->pack(reinterpret_cast<quint8 *>(bytes.data()));
+            obj->unpack(reinterpret_cast<const quint8 *>(bytes.constData()));
+        };
+        set("HomeLocation", "Set", "FALSE");
+        WaypointPlanningController planning(objects, nullptr);
+        FlightDataModel model(nullptr);
+        QItemSelectionModel selection(&model);
+        plugins.addObject(&planning); plugins.addObject(&model); plugins.addObject(&selection);
+        const auto remove = qScopeGuard([&] {
+            plugins.removeObject(&selection); plugins.removeObject(&model); plugins.removeObject(&planning);
+        });
+        Core::ICore::instance()->settings()->setValue("Map/ApproximateLatitude", 9.3);
+        Core::ICore::instance()->settings()->setValue("Map/ApproximateLongitude", -83.8);
+        Core::ICore::instance()->settings()->setValue("Map/ApproximateLocationUpdated", QDateTime::currentSecsSinceEpoch());
+        OPMapGadgetWidget map;
+        map.resize(1100, 740); map.show();
+        auto *plan = map.findChild<QPushButton *>("planRouteButton");
+        auto *enable = map.findChild<QPushButton *>("enableWaypointPlanning");
+        QVERIFY(plan); QVERIFY(enable);
+        QVERIFY(!plan->isEnabled());
+        QVERIFY(enable->isHidden());
+        planning.setConnected(true);
+        set("SystemSettings", "AirframeType", "QuadX");
+        set("StateEstimation", "NavigationFilter", "None");
+        set("ModuleSettings", "AdminState", "Disabled", "PathPlanner");
+        set("ModuleSettings", "AdminState", "Disabled", "VtolPathFollower");
+        set("FlightStatus", "Armed", "Disarmed");
+        set("PathPlannerSettings", "PreprogrammedPath", "NONE");
+        set("GPSPosition", "Status", "NoFix");
+        QVERIFY(!plan->isEnabled());
+        QVERIFY(enable->isVisible()); QVERIFY(enable->isEnabled());
+        const auto capture = [&](const QString &name) {
+            const auto directory = qEnvironmentVariable("CONNECTION_DIALOG_CAPTURE_DIR");
+            if (!directory.isEmpty()) {
+                QCoreApplication::processEvents();
+                QVERIFY(map.grab().save(directory + '/' + name + ".png"));
+            }
+        };
+        capture("map-gps-enable-navigation");
+        set("StateEstimation", "NavigationFilter", "Raw");
+        set("ModuleSettings", "AdminState", "Enabled", "PathPlanner");
+        set("ModuleSettings", "AdminState", "Enabled", "VtolPathFollower");
+        set("TaskInfo", "Running", "TRUE", "PathPlanner");
+        set("TaskInfo", "Running", "TRUE", "PathFollower");
+        QVERIFY(plan->isEnabled()); QVERIFY(enable->isHidden());
+        QTest::mouseClick(plan, Qt::LeftButton);
+        auto *table = map.findChild<QTableView *>("tableView");
+        auto *add = map.findChild<QToolButton *>("tbAdd");
+        QVERIFY(table); QVERIFY(table->isEnabled()); QVERIFY(add->isEnabled());
+        QTest::mouseClick(add, Qt::LeftButton);
+        QCOMPARE(model.rowCount(), 1);
+        auto *view = map.findChild<mapcontrol::TLMapWidget *>("localMapView");
+        QVERIFY(view);
+        auto *waypoint = view->WPFind(0);
+        QVERIFY(waypoint);
+        QVERIFY(waypoint->flags().testFlag(QGraphicsItem::ItemIsMovable));
+        const double longitude = model.index(0, FlightDataModel::LNGPOSITION).data().toDouble();
+        QCoreApplication::processEvents();
+        const QPoint grab = view->mapFromScene(waypoint->scenePos()) - QPoint(0, 12);
+        QTest::mousePress(view->viewport(), Qt::LeftButton, Qt::NoModifier, grab);
+        for (int step = 1; step <= 5; ++step) {
+            const QPoint pos = grab + QPoint(step * 10, step * 10);
+            QMouseEvent move(QEvent::MouseMove, pos, view->viewport()->mapToGlobal(pos),
+                Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+            QApplication::sendEvent(view->viewport(), &move);
+        }
+        QTest::mouseRelease(view->viewport(), Qt::LeftButton, Qt::NoModifier, grab + QPoint(50, 50));
+        QVERIFY(model.index(0, FlightDataModel::LNGPOSITION).data().toDouble() != longitude);
+        capture("map-waypoint-planning-ready");
+        map.resize(840, 740); capture("map-waypoint-planning-ready-narrow");
+        model.setData(model.index(0, FlightDataModel::LOCKED), true);
+        set("GPSPosition", "Status", "NoGPS");
+        QVERIFY(!plan->isEnabled()); QVERIFY(!table->isEnabled()); QVERIFY(!add->isEnabled());
+        QVERIFY(!waypoint->flags().testFlag(QGraphicsItem::ItemIsMovable));
+        QMetaObject::invokeMethod(add, "clicked");
+        QCOMPARE(model.rowCount(), 1);
+        capture("map-waypoint-gps-lost");
+        set("GPSPosition", "Status", "NoFix");
+        QVERIFY(plan->isEnabled()); QVERIFY(table->isEnabled());
+        QVERIFY(!waypoint->flags().testFlag(QGraphicsItem::ItemIsMovable));
+    }
+
     void initTestCase()
     {
         Utils::applyDarkTheme();
@@ -2704,7 +2941,7 @@ private slots:
                 if (!captures.isEmpty()) QVERIFY(uploader.grab().save(captures + QString("/inline-legacy-update-%1.png").arg(width)));
             }
         }
-        auto *assistant = uploader.findChild<QWidget *>("UpgradeAssistant");
+        auto *assistant = uploader.findChild<QWidget *>("firmwareUpgradeCard");
         QVERIFY(assistant); QVERIFY(overview->isAncestorOf(assistant));
         if (offerExpected) {
             assistant->show();
@@ -3361,15 +3598,18 @@ private slots:
         for (const auto &size : {QSize(1100, 740), QSize(1320, 1100), QSize(680, 740), QSize(800, 740)}) {
             page->resize(size); QCoreApplication::processEvents();
             QTRY_COMPARE(page->size(), size);
-            int bottom = 0;
+            auto *intro = page->findChild<QLabel *>("firmwareSetupIntro");
+            const QRect introBounds(intro->mapTo(overview, QPoint()), intro->size());
+            int actionBottom = 0;
             for (const auto *name : {"firmwareConfigureAction", "firmwareScopesAction", "firmwareDisconnectAction"}) {
                 auto *button = page->findChild<QPushButton *>(name);
                 if (!button->isVisible()) continue;
                 const QRect bounds(button->mapTo(overview, QPoint()), button->size());
                 QVERIFY(overview->rect().contains(bounds));
-                bottom = qMax(bottom, bounds.bottom());
+                QVERIFY2(bounds.top() >= introBounds.bottom(), "Setup actions must follow the controller details");
+                actionBottom = qMax(actionBottom, bounds.bottom());
             }
-            QVERIFY2(qAbs(overview->height() - 21 - bottom) <= 1, "Setup actions must stay at the bottom of their card");
+            QVERIFY2(overview->height() - actionBottom <= 32, "Controller actions must stay at the bottom of the card");
             QVERIFY(overview->rect().contains(QRect(launch->mapTo(overview, QPoint()), launch->size())));
         }
         page->resize(originalSize); QCoreApplication::processEvents();
@@ -3418,6 +3658,7 @@ private slots:
         QVERIFY(!manager->controllerSetupRequired());
         QCOMPARE(launch->text(), QString("Tune && configure"));
         QVERIFY(!page->findChild<QLabel *>("firmwareSetupIntro")->isVisible());
+        captureFirmwarePage("firmware-controller-ready");
         outputs.ChannelMin[0] = 0; outputs.ChannelMax[0] = 2000; actuators->setData(outputs);
         QVERIFY(!manager->controllerSetupRequired());
         outputs.ChannelMax[0] = 0; actuators->setData(outputs);

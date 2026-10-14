@@ -11,6 +11,8 @@ include(../gcs/src/plugins/uavobjects/uavobjects.pri)
 include(../gcs/src/plugins/uavtalk/uavtalk.pri)
 include(../gcs/src/plugins/uavobjectutil/uavobjectutil.pri)
 include(../gcs/src/plugins/uploader/uploader.pri)
+include(../gcs/src/plugins/pathplanner/pathplanner.pri)
+LIBS += -lOPMapGadget
 include(../gcs/src/plugins/rawhid/rawhid.pri)
 include(../gcs/src/libs/utils/utils.pri)
 include(../gcs/src/libs/tlmapcontrol/tlmapcontrol.pri)

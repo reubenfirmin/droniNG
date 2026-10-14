@@ -1,6 +1,7 @@
 QT += xml network
 TEMPLATE = lib
 TARGET = OPMapGadget
+DEFINES += OPMAP_LIBRARY
 
 include(../../gcsplugin.pri)
 
@@ -14,6 +15,7 @@ include(../../plugins/uavobjectutil/uavobjectutil.pri)
 include(../../plugins/uavtalk/uavtalk.pri)
 
 HEADERS += opmapplugin.h \
+    opmap_global.h \
     opmapgadgetoptionspage.h \
     opmapgadgetfactory.h \
     opmapgadgetconfiguration.h \

@@ -32,57 +32,31 @@
 
 #include <QWidget>
 #include <QLabel>
-#include <QMap>
-#include <QString>
+#include "firmwareupgradecontroller.h"
 
-namespace Ui {
-class UpgradeAssistant;
-}
+class QPushButton;
+class QProgressBar;
 
-class UpgradeAssistantDialog : public QWidget
+class UPLOADER_EXPORT UpgradeAssistantDialog : public QWidget
 {
     Q_OBJECT
 public:
-    typedef enum {
-        STEP_FIRST = 0,
-        STEP_ENTERLOADER = 0,
-        STEP_CHECKCLOUD,
-        STEP_UPGRADEBOOTLOADER,
-        STEP_DOWNLOADSETTINGS,
-        STEP_TRANSLATESETTINGS,
-        STEP_ERASESETTINGS,
-        STEP_FLASHFIRMWARE,
-        STEP_BOOT,
-        STEP_IMPORT,
-        STEP_DONE,
-        STEP_NUM = STEP_DONE // STEP_DONE is not a real step with a label
-    } UpgradeAssistantStep;
-
     explicit UpgradeAssistantDialog(QWidget *parent = nullptr);
-    ~UpgradeAssistantDialog();
-
-    void setOperatingMode(bool upgradingBootloader, bool blankFC);
-
-    int PromptUser(QString promptText, QString detailText, QStringList buttonText);
-
-    // public slots:
-    void onStepChanged(UpgradeAssistantStep step);
-    void open() { show(); }
-    void reject() { hide(); emit finished(0); }
+    void bind(uploader::FirmwareUpgradeController *controller);
+    void reject();
 signals:
     void finished(int result);
+    void configureRequested();
 
 protected:
     void closeEvent(QCloseEvent *event);
 
 private:
-    Ui::UpgradeAssistant *ui;
-
-    QLabel *stepLabels[STEP_NUM];
-
-    QString *originalText[STEP_NUM];
-
-    UpgradeAssistantStep curStep;
+    void refresh();
+    uploader::FirmwareUpgradeController *m_controller = nullptr;
+    QLabel *m_identity, *m_status, *m_detail, *m_backup, *m_openBackup, *m_percentage;
+    QProgressBar *m_progress;
+    QPushButton *m_primary, *m_cancel;
 };
 
 #endif // UPGRADEASSISTANT_H

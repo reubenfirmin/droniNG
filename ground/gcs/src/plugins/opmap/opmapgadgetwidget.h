@@ -88,9 +88,13 @@ enum opMapModeType { Normal_MapMode = 0, MagicWaypoint_MapMode = 1 };
 
 class WindVelocityActual;
 class MapStartup;
+class WaypointPlanningController;
 class QLabel;
+class QPushButton;
 
-class OPMapGadgetWidget : public QFrame
+#include "opmap_global.h"
+
+class OPMAP_EXPORT OPMapGadgetWidget : public QFrame
 {
     Q_OBJECT
 
@@ -230,8 +234,14 @@ private slots:
     void on_leFind_returnPressed();
 
 private:
+    void refreshWaypointPlanning();
+    WaypointPlanningController *m_planning = nullptr;
+    QLabel *m_planningStatus;
+    QPushButton *m_enablePlanning;
     MapStartup *m_startup;
     QLabel *m_locationStatus;
+    QPushButton *m_routePlannerButton;
+    QWidget *m_routePlanner = nullptr;
     QPointF m_savedLocation, m_startupCenter;
     bool m_viewInitialized = false;
     int m_min_zoom;
@@ -335,7 +345,6 @@ private:
     WayPointItem *magicWayPoint;
 
     QPointer<FlightDataModel> model;
-    QPointer<QDialog> pathPlannerDialog;
     QPointer<ModelMapProxy> mapProxy;
     QPointer<QItemSelectionModel> selectionModel;
 };
