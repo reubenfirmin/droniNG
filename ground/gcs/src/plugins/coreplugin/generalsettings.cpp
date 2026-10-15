@@ -37,6 +37,7 @@
 #include <QtCore/QSettings>
 #include <QDialog>
 #include "ui_generalsettings.h"
+#include <utils/settingsstyle.h>
 
 using namespace Core::Internal;
 
@@ -134,6 +135,31 @@ QWidget *GeneralSettings::createPage(QWidget *parent)
     m_page->hostNameLE->setText(m_proxyHostname);
     m_page->userLE->setText(m_proxyUser);
     m_page->passwordLE->setText(m_proxyPassword);
+
+    // Keep general preferences in compact rows, with each checkbox carrying
+    // its own label instead of a narrow, wrapping label in another column.
+    while (m_page->gridLayout->count()) delete m_page->gridLayout->takeAt(0);
+    m_page->widget->hide();
+    m_page->widget_2->hide();
+    m_page->gridLayout->addWidget(m_page->label_3, 0, 0);
+    m_page->gridLayout->addWidget(m_page->languageBox, 0, 1);
+    const QList<QPair<QLabel *, QCheckBox *>> preferences{
+        {m_page->label_4, m_page->checkBoxSaveOnExit},
+        {m_page->label_5, m_page->checkAutoConnect},
+        {m_page->label_6, m_page->checkAutoSelect},
+        {m_page->labelExpert, m_page->cbExpertMode}};
+    int row = 1;
+    for (const auto &preference : preferences) {
+        preference.second->setText(preference.first->text().remove(':'));
+        preference.first->hide();
+        m_page->gridLayout->addWidget(preference.second, row++, 0, 1, 2);
+    }
+    m_page->gridLayout->setProperty("compactForm", true);
+    m_page->gridLayout_5->removeItem(m_page->gridLayout_4);
+    delete m_page->gridLayout_4;
+    m_page->gridLayout_5->addWidget(m_page->proxyTypeCB, 0, 1);
+    m_page->groupBox->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+    Utils::styleSettingsPage(w);
 
     return w;
 }

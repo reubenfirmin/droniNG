@@ -21,7 +21,7 @@ Item {
 
     ListModel {
         id: sitesModel
-        ListElement { title: "Documentation"; link: "https://github.com/reubenfirmin/droniNG#readme" }
+        ListElement { title: "Documentation"; link: "https://github.com/reubenfirmin/droniNG/wiki" }
         ListElement { title: "Issue Tracker"; link: "https://github.com/reubenfirmin/droniNG/issues" }
         ListElement { title: "Releases"; link: "https://github.com/reubenfirmin/droniNG/releases" }
         ListElement { title: "GitHub Repository"; link: "https://github.com/reubenfirmin/droniNG" }

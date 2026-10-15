@@ -71,13 +71,20 @@ MyTabbedStackWidget::MyTabbedStackWidget(QWidget *parent, bool isVertical, bool 
                                             "QScrollBar::add-line:vertical { width: 0; height: 0; }"
                                             "QScrollBar::sub-line:vertical { width: 0; height: 0 }"));
     }
+    if (!m_iconAbove && m_vertical) {
+        setProperty("settingsPage", true);
+        m_listWidget->setObjectName("settingsNavigation");
+        m_listWidget->setFixedWidth(180);
+        m_listWidget->setWrapping(false);
+        m_listWidget->setUniformItemSizes(true);
+    }
 
     toplevelLayout->setSpacing(0);
     toplevelLayout->setContentsMargins(0, 0, 0, 0);
     m_listWidget->setContentsMargins(0, 0, 4, 0);
     m_listWidget->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
     m_listWidget->setSpacing(4);
-    m_listWidget->setViewMode(QListView::IconMode);
+    m_listWidget->setViewMode(m_iconAbove ? QListView::IconMode : QListView::ListMode);
     m_stackWidget->setContentsMargins(0, 0, 0, 0);
     setLayout(toplevelLayout);
 
@@ -90,14 +97,32 @@ void MyTabbedStackWidget::insertTab(const int index, QWidget *tab, const QIcon &
     m_stackWidget->insertWidget(index, tab);
     QListWidgetItem *item = new QListWidgetItem(icon, label);
     item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
-    item->setTextAlignment(Qt::AlignHCenter | Qt::AlignBottom);
+    item->setTextAlignment(m_iconAbove ? Qt::AlignHCenter | Qt::AlignBottom : Qt::AlignLeft | Qt::AlignVCenter);
     item->setToolTip(label);
 
     if (m_vertical) {
-        item->setSizeHint(QSize(85, 82));
+        item->setSizeHint(m_iconAbove ? QSize(85, 82) : QSize(144, 42));
     }
 
     m_listWidget->insertItem(index, item);
+    // Pages expose their draft state without coupling the navigation to the
+    // configuration plugin. The marker remains visible while another page is open.
+    if (tab->metaObject()->indexOfSignal("dirtyChanged(bool)") >= 0) {
+        connect(tab, SIGNAL(dirtyChanged(bool)), this, SLOT(updateDirtyMarker(bool)));
+    }
+}
+
+void MyTabbedStackWidget::updateDirtyMarker(bool dirty)
+{
+    for (int index = 0; index < m_stackWidget->count(); ++index) {
+        if (m_stackWidget->widget(index) != sender()) continue;
+        auto *item = m_listWidget->item(index);
+        const QString label = item->toolTip();
+        item->setText(dirty ? label + QStringLiteral(" •") : label);
+        item->setData(Qt::AccessibleDescriptionRole,
+                      dirty ? tr("Unsaved changes. Draft kept while switching tabs.") : QString());
+        break;
+    }
 }
 
 void MyTabbedStackWidget::removeTab(int index)

@@ -849,7 +849,7 @@ margin:1px;</string>
        <property name="objrelation" stdset="0">
         <stringlist notr="true">
          <string>button:help</string>
-         <string>url:https://github.com/d-ronin/dRonin/wiki/OnlineHelp:-TxPID-Module</string>
+         <string>url:https://github.com/reubenfirmin/droniNG/wiki/OnlineHelp:-TxPID-Module</string>
         </stringlist>
        </property>
       </widget>

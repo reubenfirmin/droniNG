@@ -54,6 +54,91 @@ ConfigStabilizationWidget::ConfigStabilizationWidget(QWidget *parent)
     m_stabilization = new Ui_StabilizationWidget();
     m_stabilization->setupUi(this);
 
+    // Each tuning value already has an exact numeric input. The adjacent
+    // sliders collapse to tiny tracks and make these tables unnecessarily wide.
+    for (auto *slider : findChildren<QSlider *>()) slider->hide();
+    for (auto *grid : {m_stabilization->gridLayout_6, m_stabilization->gridLayout,
+                       m_stabilization->gridLayout_12}) {
+        struct Cell { QWidget *widget; int row, column, rows, columns; };
+        QList<Cell> cells;
+        while (grid->count()) {
+            int row, column, rows, columns;
+            grid->getItemPosition(0, &row, &column, &rows, &columns);
+            auto *item = grid->takeAt(0);
+            if (auto *widget = item->widget()) cells.append({widget, row, column, rows, columns});
+            delete item;
+        }
+        for (int column = 0; column < grid->columnCount(); ++column)
+            grid->setColumnStretch(column, 0);
+        for (const auto &cell : cells) {
+            if (qobject_cast<QSlider *>(cell.widget)) continue;
+            if (cell.widget == m_stabilization->expoPlot) {
+                grid->addWidget(cell.widget, 8, 0, 1, 4, Qt::AlignLeft);
+                continue;
+            }
+            const int column = cell.column ? (cell.column + 1) / 2 : 0;
+            grid->addWidget(cell.widget, cell.row, column, cell.rows, cell.columns > 1 ? 3 : 1);
+            if (auto *label = qobject_cast<QLabel *>(cell.widget))
+                if (!column) label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        }
+        grid->setProperty("uniformFieldWidth", true);
+        grid->setProperty("compactForm", true);
+    }
+    m_stabilization->label->setWordWrap(true);
+    m_stabilization->label->setFixedSize(724, 42);
+    m_stabilization->gridLayout_6->addWidget(m_stabilization->label, 5, 0, 1, 4, Qt::AlignLeft);
+    // The outer-loop wrapper must use the same left edge as the inner-loop table.
+    m_stabilization->gridLayout_23->setContentsMargins(0, 12, 0, 12);
+    for (auto *grid : findChildren<QGridLayout *>()) {
+        bool axisTable = false;
+        for (int index = 0; index < grid->count(); ++index)
+            if (auto *label = qobject_cast<QLabel *>(grid->itemAt(index)->widget()))
+                axisTable |= label->text() == "Roll" || label->text() == "Pitch" || label->text() == "Yaw";
+        if (axisTable) {
+            // Advanced tables still contain the spacer columns formerly used
+            // for sliders. Use the same four columns as the basic tables.
+            bool spacerColumns = false;
+            for (int index = 0; index < grid->count(); ++index) {
+                int row, column, rows, columns;
+                grid->getItemPosition(index, &row, &column, &rows, &columns);
+                spacerColumns |= grid->itemAt(index)->widget() && column >= 4;
+            }
+            if (spacerColumns) {
+                struct Cell { QWidget *widget; int row, column, rows, columns; };
+                QList<Cell> cells;
+                while (grid->count()) {
+                    int row, column, rows, columns;
+                    grid->getItemPosition(0, &row, &column, &rows, &columns);
+                    auto *item = grid->takeAt(0);
+                    if (auto *widget = item->widget()) cells.append({widget, row, column, rows, columns});
+                    delete item;
+                }
+                for (int column = 0; column < grid->columnCount(); ++column)
+                    grid->setColumnStretch(column, 0);
+                for (const auto &cell : cells)
+                    grid->addWidget(cell.widget, cell.row, cell.column ? (cell.column + 1) / 2 : 0,
+                                    cell.rows, cell.columns);
+            }
+            grid->setContentsMargins(8, 8, 8, 8);
+            for (int index = 0; index < grid->count(); ++index) {
+                int row, column, rows, columns;
+                grid->getItemPosition(index, &row, &column, &rows, &columns);
+                if (!column)
+                    if (auto *label = qobject_cast<QLabel *>(grid->itemAt(index)->widget()))
+                        label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+            }
+            grid->setColumnMinimumWidth(0, 180);
+            grid->setProperty("uniformFieldWidth", true);
+            grid->setProperty("fieldMinimumWidth", 172);
+            grid->setProperty("compactForm", true);
+            grid->addItem(new QSpacerItem(0, 0, QSizePolicy::Expanding, QSizePolicy::Minimum), 0, 4);
+            grid->setProperty("settingsTailColumn", 4);
+        }
+    }
+    m_stabilization->expoPlot->setMinimumSize(420, 240);
+    m_stabilization->expoPlot->setMaximumSize(640, 280);
+    m_stabilization->expoPlot->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+
     m_stabilization->tabWidget->setCurrentIndex(0);
 
     updateInProgress = false;

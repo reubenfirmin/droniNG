@@ -69,6 +69,7 @@ public slots:
     void setCurrentIndex(int index);
 
 private slots:
+    void updateDirtyMarker(bool dirty);
     void showWidget(int index);
 
 private:

@@ -3,6 +3,8 @@
 #include <coreplugin/icore.h>
 #include <coreplugin/modemanager.h>
 #include <coreplugin/imode.h>
+#include <coreplugin/iuavgadget.h>
+#include <coreplugin/iuavgadgetfactory.h>
 #include <coreplugin/firmwarecatalog.h>
 #include <coreplugin/firmwareinstallimage.h>
 #include <coreplugin/iboardtype.h>
@@ -45,6 +47,7 @@
 #include <boardprofile.h>
 #include <utils/pathutils.h>
 #include <utils/darktheme.h>
+#include <utils/mytabbedstackwidget.h>
 #include <tlmapcontrol/internals/core.h>
 #include <attitudeactual.h>
 #include <flighttelemetrystats.h>
@@ -54,6 +57,11 @@
 #include <gpsposition.h>
 #include <QPluginLoader>
 #include <QAbstractItemView>
+#include <QAbstractSpinBox>
+#include <QCheckBox>
+#include <QGraphicsView>
+#include <QGridLayout>
+#include <QLineEdit>
 #include <QClipboard>
 #include <QDialog>
 #include <QFile>
@@ -70,12 +78,17 @@
 #include <QScrollBar>
 #include <QScopeGuard>
 #include <QSignalSpy>
+#include <QSlider>
+#include <QSpinBox>
 #include <QTemporaryDir>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTest>
 #include <QToolButton>
 #include <QTableView>
+#include <QTabWidget>
+#include <QStyle>
+#include <QStyleOptionComboBox>
 #include <QMouseEvent>
 #include <QWizard>
 #include <cstring>
@@ -2300,7 +2313,9 @@ private slots:
             port->setCurrentIndex(port->findText("UART3"));
             QVERIFY(hasLabel("Receiver · UART3")); QVERIFY(hasLabel("GPS · UART6"));
         }
-        QCOMPARE(widget->findChildren<QPushButton *>().size(), 3);
+        auto *discard = widget->findChild<QPushButton *>("settingsDiscard");
+        QVERIFY(discard);
+        QVERIFY(widget->findChild<QWidget *>("settingsActions"));
         bool hasPortInstructions = false;
         for (auto *label : widget->findChildren<QLabel *>()) {
             QVERIFY(!label->text().contains("experimental", Qt::CaseInsensitive));
@@ -2308,7 +2323,13 @@ private slots:
         }
         QVERIFY(hasPortInstructions);
         const auto directory = qEnvironmentVariable("CONNECTION_DIALOG_CAPTURE_DIR");
-        if (!directory.isEmpty()) QVERIFY(widget->grab().save(directory + (radix ? "/radix-native-configuration.png" : "/omnibus-native-configuration.png")));
+        if (!directory.isEmpty()) {
+            const QString filename = radix ? "/radix-native-configuration.png" : "/omnibus-native-configuration.png";
+            QVERIFY(widget->grab().save(directory + filename));
+            widget->resize(1236, 950); QCoreApplication::processEvents();
+            QVERIFY(QDir().mkpath(directory + "/fullscreen"));
+            QVERIFY(widget->grab().save(directory + "/fullscreen" + filename));
+        }
     }
     void controllerRecoveryOffersDetectedBoardWorkflow_data()
     {
@@ -3502,6 +3523,424 @@ private slots:
         manager->reportFlightDataReceived();
         QVERIFY(manager->flightDataAvailable()); QVERIFY(!manager->firmwareDetectionActive());
         QVERIFY(page->findChild<QPushButton *>("firmwareConfigureAction")->isVisible());
+    }
+    void configurationPagesRenderAndKeepKeyboardNavigation_data()
+    {
+        QTest::addColumn<QSize>("windowSize");
+        QTest::newRow("compact") << QSize(1080, 820);
+        QTest::newRow("full-screen-content") << QSize(1852, 1025);
+    }
+    void configurationPagesRenderAndKeepKeyboardNavigation()
+    {
+        QFETCH(QSize, windowSize);
+        TelemetryManager telemetry;
+        UAVObjectUtilManager util;
+        plugins.addObject(&telemetry); plugins.addObject(&util);
+        const auto remove = qScopeGuard([&] {
+            plugins.removeObject(&util); plugins.removeObject(&telemetry);
+        });
+        QPluginLoader loader(QDir(GCS_BUILD_TREE_PATH).filePath("lib/droning/plugins/droniNG/libConfig.so"));
+        auto *plugin = qobject_cast<ExtensionSystem::IPlugin *>(loader.instance());
+        QVERIFY2(plugin, qPrintable(loader.errorString()));
+        QString error;
+        QVERIFY2(plugin->initialize({}, &error), qPrintable(error));
+        const auto unload = qScopeGuard([&] { loader.unload(); });
+        Core::IUAVGadgetFactory *factory = nullptr;
+        for (auto *candidate : plugins.getObjects<Core::IUAVGadgetFactory>())
+            if (candidate->classId() == "ConfigGadget") factory = candidate;
+        QVERIFY(factory);
+        std::unique_ptr<Core::IUAVGadget> gadget(factory->createGadget(nullptr));
+        auto *widget = gadget->widget();
+        widget->resize(windowSize); widget->show();
+        auto *tabs = widget->findChild<MyTabbedStackWidget *>();
+        QVERIFY(tabs);
+        auto *navigation = tabs->findChild<QListWidget *>();
+        QVERIFY(navigation);
+        QTRY_COMPARE(navigation->count(), 12);
+        // Preview capability-specific pages without attaching a physical controller.
+        tabs->setHidden(10, false); tabs->setHidden(11, false);
+        auto captures = qEnvironmentVariable("CONNECTION_DIALOG_CAPTURE_DIR");
+        if (!captures.isEmpty() && windowSize.width() > 1080) {
+            captures += "/fullscreen";
+            QVERIFY(QDir().mkpath(captures));
+        }
+        const auto renderingIssue = [&]() -> QString {
+            for (auto *spin : tabs->currentWidget()->findChildren<QAbstractSpinBox *>()) {
+                if (!spin->isVisible()) continue;
+                auto *editor = spin->findChild<QLineEdit *>();
+                if (!editor || editor->width() < editor->fontMetrics().horizontalAdvance(editor->text())
+                        + editor->textMargins().left() + editor->textMargins().right()
+                    || editor->height() < editor->fontMetrics().height())
+                    return QString("%1 clips its numeric value").arg(spin->objectName());
+            }
+            for (auto *combo : tabs->currentWidget()->findChildren<QComboBox *>()) {
+                if (!combo->isVisible()) continue;
+                QStyleOptionComboBox option;
+                option.initFrom(combo);
+                option.editable = combo->isEditable();
+                const QRect text = combo->style()->subControlRect(QStyle::CC_ComboBox, &option,
+                    QStyle::SC_ComboBoxEditField, combo);
+                if (text.width() < combo->fontMetrics().horizontalAdvance(combo->currentText()))
+                    return QString("%1 clips its selected option").arg(combo->objectName());
+            }
+            for (auto *grid : tabs->currentWidget()->findChildren<QGridLayout *>()) {
+                for (int first = 0; first < grid->count(); ++first) {
+                    auto *a = grid->itemAt(first)->widget();
+                    if (!a || !a->isVisible()
+                        || !(qobject_cast<QAbstractSpinBox *>(a) || qobject_cast<QComboBox *>(a))) continue;
+                    for (int second = first + 1; second < grid->count(); ++second) {
+                        auto *b = grid->itemAt(second)->widget();
+                        if (!b || !b->isVisible()
+                            || !(qobject_cast<QAbstractSpinBox *>(b) || qobject_cast<QComboBox *>(b))) continue;
+                        if (a->geometry().intersects(b->geometry())) {
+                            return QString("%1 overlaps %2").arg(a->objectName(), b->objectName());
+                        }
+                    }
+                }
+            }
+            return {};
+        };
+        navigation->setFocus();
+        tabs->setCurrentIndex(0);
+        for (int index = 0; index < navigation->count(); ++index) {
+            if (index) QTest::keyClick(navigation, Qt::Key_Down);
+            QTRY_COMPARE(tabs->currentWidget(), tabs->getWidget(index));
+            QTest::qWait(30);
+            QVERIFY(navigation->visualItemRect(navigation->item(index)).intersects(navigation->viewport()->rect()));
+            auto issue = renderingIssue();
+            if (!issue.isEmpty() && !captures.isEmpty())
+                widget->grab().save(captures + "/settings-render-failure.png");
+            QVERIFY2(issue.isEmpty(), qPrintable(issue));
+            QString name = navigation->item(index)->text().toLower().replace(' ', '-');
+            if (!captures.isEmpty()) QVERIFY(widget->grab().save(captures + "/settings-" + name + ".png"));
+            if (auto *footer = tabs->currentWidget()->findChild<QWidget *>("settingsActions")) {
+                QPushButton *primary = nullptr;
+                for (auto *button : footer->findChildren<QPushButton *>()) {
+                    if (!button->isVisible() || !button->property("primary").toBool()) continue;
+                    primary = button;
+                    QVERIFY2(button->mapTo(footer, QPoint()).x() <= 24,
+                             "The primary configuration action must start at the left of the footer");
+                }
+                const QMap<int, QStringList> secondaryActions {
+                    {4, {"resetButton", "reloadButton"}},
+                    {5, {"stabilizationReloadBoardData_6"}},
+                    {6, {"pushButton"}},
+                    {7, {"camerastabilizationResetToDefaults", "pushButton"}},
+                    {11, {"reloadButton"}}
+                };
+                for (const auto &name : secondaryActions.value(index)) {
+                    auto *button = tabs->currentWidget()->findChild<QPushButton *>(name);
+                    QVERIFY2(button, qPrintable(name));
+                    QCOMPARE(button->parentWidget(), footer);
+                    QVERIFY(primary);
+                    QCOMPARE(button->geometry().center().y(), primary->geometry().center().y());
+                }
+            }
+            for (auto *button : tabs->currentWidget()->findChildren<QPushButton *>()) {
+                const auto relation = button->property("objrelation").toStringList();
+                for (const auto &entry : relation)
+                    if (entry.startsWith("url:"))
+                        QVERIFY2(entry.startsWith("url:https://github.com/reubenfirmin/droniNG/wiki/"),
+                                 qPrintable(entry));
+            }
+            for (auto *scroll : tabs->currentWidget()->findChildren<QScrollArea *>()) {
+                if (!scroll->isVisible() || !scroll->verticalScrollBar()->isVisible()) continue;
+                const auto right = scroll->mapTo(widget, scroll->rect().topRight()).x();
+                QVERIFY2(widget->width() - right <= 40,
+                         "Page scrollbars must be at the right edge, outside the compact form");
+            }
+            if (index == 5) {
+                auto *sectionDefault = tabs->currentWidget()->findChild<QPushButton *>("pushButton_8");
+                QVERIFY(sectionDefault);
+                QVERIFY(sectionDefault->parentWidget()->objectName() != "settingsActions");
+                auto *roll = tabs->currentWidget()->findChild<QDoubleSpinBox *>("fullStickRateRoll");
+                auto *pitch = tabs->currentWidget()->findChild<QDoubleSpinBox *>("fullStickRatePitch");
+                auto *yaw = tabs->currentWidget()->findChild<QDoubleSpinBox *>("fullStickRateYaw");
+                QVERIFY(roll); QVERIFY(pitch); QVERIFY(yaw);
+                QCOMPARE(pitch->x() - roll->geometry().right(), 13);
+                QCOMPARE(yaw->x() - pitch->geometry().right(), 13);
+            }
+            if (index == 7) {
+                auto *save = tabs->currentWidget()->findChild<QPushButton *>("camerastabilizationSaveSD");
+                QVERIFY(save);
+                const int bottom = save->mapTo(tabs->currentWidget(), save->rect().bottomRight()).y();
+                QVERIFY2(tabs->currentWidget()->height() - bottom <= 16,
+                         "The action row must not absorb height intended for the scrollable form");
+            }
+            // Extra window width belongs outside the fields, so a monitor resize
+            // must not turn ordinary numeric inputs and selections into long bars.
+            QList<QPair<QWidget *, int>> widths;
+            for (auto *field : tabs->currentWidget()->findChildren<QWidget *>())
+                if (field->isVisible() && (qobject_cast<QAbstractSpinBox *>(field)
+                    || qobject_cast<QComboBox *>(field))) widths.append({field, field->width()});
+            widget->resize(windowSize + QSize(520, 0));
+            QTest::qWait(10);
+            for (const auto &field : widths)
+                QVERIFY2(field.first->width() <= field.second,
+                         qPrintable(field.first->objectName() + " stretches with the window"));
+            widget->resize(windowSize);
+            QTest::qWait(10);
+            for (auto *subtabs : tabs->currentWidget()->findChildren<QTabWidget *>()) {
+                if (!subtabs->isVisible()) continue;
+                for (int sub = 0; sub < subtabs->count(); ++sub) {
+                    subtabs->setCurrentIndex(sub);
+                    QTest::qWait(20);
+                    issue = renderingIssue();
+                    QVERIFY2(issue.isEmpty(), qPrintable(issue));
+                    if (!captures.isEmpty()) QVERIFY(widget->grab().save(captures + QString("/settings-%1-%2-%3.png")
+                        .arg(name, subtabs->objectName()).arg(sub)));
+                }
+                subtabs->setCurrentIndex(0);
+            }
+            if (index == 1) {
+                QVERIFY(!tabs->currentWidget()->findChild<QLabel *>("settingsDraftStatus")->isVisible());
+                auto *mixCaption = tabs->currentWidget()->findChild<QLabel *>("mrRollMixValue");
+                QVERIFY(mixCaption);
+                QVERIFY2(mixCaption->height() <= 32, "Mix captions must not absorb spare page height");
+                if (windowSize.width() > 1080) {
+                    auto *scroll = tabs->currentWidget()->findChild<QScrollArea *>("scrollArea_1");
+                    QVERIFY(scroll);
+                    QCOMPARE(scroll->verticalScrollBar()->maximum(), 0);
+                }
+                auto *airframe = tabs->currentWidget()->findChild<QComboBox *>("aircraftType");
+                QVERIFY(airframe);
+                const int original = airframe->currentIndex();
+                for (int type = 0; type < airframe->count(); ++type) {
+                    airframe->setCurrentIndex(type);
+                    QTest::qWait(20);
+                    issue = renderingIssue();
+                    QVERIFY2(issue.isEmpty(), qPrintable(issue));
+                    if (!captures.isEmpty()) QVERIFY(widget->grab().save(captures + QString("/settings-vehicle-type-%1.png").arg(type)));
+                    for (auto *subtabs : tabs->currentWidget()->findChildren<QTabWidget *>()) {
+                        if (!subtabs->isVisible()) continue;
+                        for (int sub = 0; sub < subtabs->count(); ++sub) {
+                            subtabs->setCurrentIndex(sub);
+                            QTest::qWait(20);
+                            issue = renderingIssue();
+                            QVERIFY2(issue.isEmpty(), qPrintable(issue));
+                            if (!captures.isEmpty()) QVERIFY(widget->grab().save(captures + QString("/settings-vehicle-type-%1-%2-%3.png")
+                                .arg(type).arg(subtabs->objectName()).arg(sub)));
+                        }
+                        subtabs->setCurrentIndex(0);
+                    }
+                }
+                airframe->setCurrentIndex(original);
+                airframe->setCurrentIndex(airframe->findText("Multirotor"));
+                auto *frames = tabs->currentWidget()->findChild<QComboBox *>("multirotorFrameType");
+                auto *reverse = tabs->currentWidget()->findChild<QCheckBox *>("MultirotorRevMixercheckBox");
+                auto *diagram = tabs->currentWidget()->findChild<QGraphicsView *>("quadShape");
+                QVERIFY(frames); QVERIFY(reverse); QVERIFY(diagram);
+                const int originalFrame = frames->currentIndex();
+                for (int frame = 0; frame < frames->count(); ++frame) {
+                    frames->setCurrentIndex(frame);
+                    for (int motor = 1; motor <= 8; ++motor) {
+                        auto *channel = tabs->currentWidget()->findChild<QComboBox *>(
+                            QString("multiMotorChannelBox%1").arg(motor));
+                        auto *label = tabs->currentWidget()->findChild<QLabel *>(
+                            QString("MotorOutputLabel%1").arg(motor));
+                        QCOMPARE(channel->isVisible(), label->isVisible());
+                        if (channel->isVisible()) QVERIFY(!label->text().isEmpty());
+                    }
+                    for (bool reversed : {false, true}) {
+                        reverse->setChecked(reversed);
+                        QVERIFY(QMetaObject::invokeMethod(tabs->currentWidget(), "reverseMultirotorMotor"));
+                        QTest::qWait(20);
+                        const QRect rendered = diagram->mapFromScene(diagram->sceneRect()).boundingRect();
+                        QVERIFY2(diagram->viewport()->rect().adjusted(-1, -1, 1, 1).contains(rendered),
+                                 "Rotor directions must fit within the diagram viewport");
+                        QVERIFY2(diagram->viewport()->visibleRegion().contains(rendered),
+                                 "The complete rotor diagram must be visible without scrolling");
+                        if (!captures.isEmpty()) QVERIFY(widget->grab().save(captures
+                            + QString("/settings-rotors-%1-%2.png").arg(frame).arg(reversed ? "reverse" : "normal")));
+                    }
+                }
+                reverse->setChecked(false);
+                QVERIFY(QMetaObject::invokeMethod(tabs->currentWidget(), "reverseMultirotorMotor"));
+                frames->setCurrentIndex(originalFrame);
+                airframe->setCurrentIndex(original);
+                navigation->setFocus();
+            }
+            if (index == 9) {
+                QVERIFY(tabs->currentWidget()->findChildren<QTextEdit *>().isEmpty());
+                auto *warning = tabs->currentWidget()->findChild<QLabel *>("autotuneWarning");
+                QVERIFY(warning); QVERIFY(warning->wordWrap());
+                QCOMPARE(warning->property("role").toString(), QString("notice"));
+                auto *scroll = tabs->currentWidget()->findChild<QScrollArea *>("autotuneScrollArea");
+                QVERIFY(scroll);
+                QCOMPARE(scroll->verticalScrollBar()->maximum(), 0);
+            }
+            if (index == 2) {
+                const auto rows = tabs->currentWidget()->findChildren<QLabel *>("channelName");
+                QVERIFY(rows.size() >= 10);
+                const auto columnsAligned = [&] {
+                    const char *fields[] = {"channelName", "channelGroup", "channelNumberDropdown",
+                        "channelMin", "channelNeutral", "channelMax", "channelCurrent", "btnReverse"};
+                    const auto bounds = [&](QWidget *control) {
+                        return QRect(control->mapTo(tabs->currentWidget(), QPoint()), control->size());
+                    };
+                    int previousRight = -1;
+                    for (const char *field : fields) {
+                        const auto reference = bounds(rows.first()->parentWidget()->findChild<QWidget *>(field));
+                        if (reference.left() <= previousRight) return false;
+                        previousRight = reference.right();
+                        for (auto *row : rows) {
+                            auto *control = row->parentWidget()->findChild<QWidget *>(field);
+                            if (!control || control->isHidden()) continue;
+                            const auto rect = bounds(control);
+                            if (rect.left() != reference.left() || rect.width() != reference.width()) return false;
+                        }
+                    }
+                    return true;
+                };
+                QTRY_VERIFY(columnsAligned());
+                // A longer channel name must resize the shared column, not shift
+                // one row's receiver and calibration fields sideways.
+                auto *label = rows.last();
+                const QString original = label->text();
+                label->setText("Accessory channel");
+                QTRY_VERIFY(columnsAligned());
+                label->setText(original);
+                QTRY_VERIFY(columnsAligned());
+            }
+            if (index == 3) {
+                auto *neutral = tabs->currentWidget()->findChild<QSpinBox *>("actuatorNeutralValue");
+                QVERIFY(neutral);
+                auto *form = neutral->parentWidget();
+                const auto rows = tabs->currentWidget()->findChildren<QSpinBox *>("actuatorNeutralValue");
+                const auto columnsAligned = [&] {
+                    const auto bounds = [&](QWidget *control) {
+                        return QRect(control->mapTo(tabs->currentWidget(), QPoint()), control->size());
+                    };
+                    const char *fields[] = {"actuatorNumber", "actuatorName", "actuatorMin",
+                        "actuatorNeutralValue", "actuatorMax", "pb_reverseActuator", "actuatorLink"};
+                    const char *headings[] = {"legend6", "legend0", "legend1", "legend2",
+                        "legend3", "legend3_2", "legend5"};
+                    int previousRight = -1;
+                    for (int column = 0; column < 7; ++column) {
+                        const auto reference = bounds(form->findChild<QWidget *>(fields[column]));
+                        if (reference.left() <= previousRight) return false;
+                        previousRight = reference.right();
+                        for (auto *row : rows) {
+                            const auto rect = bounds(row->parentWidget()->findChild<QWidget *>(fields[column]));
+                            if (rect.left() != reference.left() || rect.width() != reference.width()) return false;
+                        }
+                        const auto heading = bounds(form->findChild<QWidget *>(headings[column]));
+                        if (column == 6) {
+                            if (qAbs(heading.center().x() - reference.center().x()) > 1) return false;
+                        } else if (heading.left() != reference.left() || heading.width() != reference.width()) return false;
+                    }
+                    return true;
+                };
+                QTRY_VERIFY(columnsAligned());
+                // Different assignments, PWM ranges and digital protocols must
+                // never move a channel out from under its column heading.
+                for (int row = 0; row < rows.size(); ++row) {
+                    auto *channel = rows[row]->parentWidget();
+                    QVERIFY(QMetaObject::invokeMethod(channel, "setAssignment",
+                        Q_ARG(QString, row % 2 ? QString("Camera pitch servo") : QString("Motor NW"))));
+                    QVERIFY(QMetaObject::invokeMethod(channel, "updateChannelLimits", Q_ARG(int, row % 2 ? 1000 : 48),
+                        Q_ARG(int, row % 2 ? 2000 : 2047), Q_ARG(bool, !(row % 2))));
+                }
+                QTest::qWait(30);
+                QTRY_VERIFY(columnsAligned());
+                if (!captures.isEmpty()) QVERIFY(widget->grab().save(captures + "/settings-output-assigned.png"));
+                auto *slider = form->findChild<QSlider *>("actuatorNeutral");
+                QVERIFY(slider);
+                QSignalSpy outputChanges(form, SIGNAL(channelChanged(int,int)));
+                QSignalSpy edits(form, SIGNAL(formChanged()));
+                QVERIFY(outputChanges.isValid()); QVERIFY(edits.isValid());
+                form->setEnabled(false);
+                QVERIFY(QMetaObject::invokeMethod(form, "updateChannelLimits", Q_ARG(int, 1000),
+                    Q_ARG(int, 2000), Q_ARG(bool, false)));
+                QVERIFY(QMetaObject::invokeMethod(form, "setMinmax", Q_ARG(int, 1000), Q_ARG(int, 2000)));
+                QVERIFY(neutral->isEnabledTo(form));
+                form->setEnabled(true);
+                neutral->setValue(1501);
+                QCOMPARE(slider->value(), 1501);
+                QVERIFY(edits.size() > 0);
+                QCOMPARE(outputChanges.size(), 0); // Editing neutral never tests motors.
+                QVERIFY(QMetaObject::invokeMethod(form, "enableChannelTest", Q_ARG(bool, true)));
+                QVERIFY(slider->isVisible()); QVERIFY(!neutral->isVisible());
+                QTRY_VERIFY(slider->width() >= 200);
+                QTRY_VERIFY(columnsAligned());
+                if (!captures.isEmpty()) QVERIFY(widget->grab().save(captures + "/settings-output-testing.png"));
+                slider->setValue(1602);
+                QCOMPARE(neutral->value(), 1602);
+                QCOMPARE(outputChanges.size(), 1);
+                QVERIFY(QMetaObject::invokeMethod(form, "enableChannelTest", Q_ARG(bool, false)));
+                QVERIFY(neutral->isVisible()); QVERIFY(!slider->isVisible());
+                QTRY_VERIFY(columnsAligned());
+                QVERIFY(QMetaObject::invokeMethod(form, "setMinmax", Q_ARG(int, 2000), Q_ARG(int, 1000)));
+                QCOMPARE(neutral->minimum(), 1000); QCOMPARE(neutral->maximum(), 2000);
+                neutral->setValue(2500);
+                QCOMPARE(slider->value(), 2000);
+                QCOMPARE(outputChanges.size(), 1);
+                QVERIFY(QMetaObject::invokeMethod(form, "updateChannelLimits", Q_ARG(int, 48),
+                    Q_ARG(int, 2047), Q_ARG(bool, true)));
+                QCOMPARE(neutral->minimum(), 48); QCOMPARE(neutral->maximum(), 2047);
+                QVERIFY(neutral->suffix().isEmpty());
+            }
+        }
+    }
+    void configurationDraftsSurviveNavigationAndControllerUpdates()
+    {
+        TelemetryManager telemetry;
+        UAVObjectUtilManager util;
+        plugins.addObject(&telemetry); plugins.addObject(&util);
+        const auto remove = qScopeGuard([&] {
+            plugins.removeObject(&util); plugins.removeObject(&telemetry);
+        });
+        QPluginLoader loader(QDir(GCS_BUILD_TREE_PATH).filePath("lib/droning/plugins/droniNG/libConfig.so"));
+        auto *plugin = qobject_cast<ExtensionSystem::IPlugin *>(loader.instance());
+        QVERIFY2(plugin, qPrintable(loader.errorString()));
+        QString error;
+        QVERIFY2(plugin->initialize({}, &error), qPrintable(error));
+        const auto unload = qScopeGuard([&] { loader.unload(); });
+        Core::IUAVGadgetFactory *factory = nullptr;
+        for (auto *candidate : plugins.getObjects<Core::IUAVGadgetFactory>())
+            if (candidate->classId() == "ConfigGadget") factory = candidate;
+        QVERIFY(factory);
+        std::unique_ptr<Core::IUAVGadget> gadget(factory->createGadget(nullptr));
+        auto *widget = gadget->widget();
+        widget->resize(1852, 1025); widget->show();
+        auto *tabs = widget->findChild<MyTabbedStackWidget *>();
+        auto *navigation = tabs->findChild<QListWidget *>();
+        QTRY_COMPARE(navigation->count(), 12);
+        tabs->setCurrentIndex(5);
+        QTRY_COMPARE(tabs->currentWidget(), tabs->getWidget(5));
+        auto *tuning = tabs->currentWidget();
+        auto *rate = tuning->findChild<QDoubleSpinBox *>("fullStickRateRoll");
+        auto *status = tuning->findChild<QLabel *>("settingsDraftStatus");
+        auto *discard = tuning->findChild<QPushButton *>("settingsDiscard");
+        QVERIFY(rate); QVERIFY(status); QVERIFY(discard);
+        QVERIFY(QMetaObject::invokeMethod(tuning, "discardChanges"));
+        QVERIFY(!status->isVisible());
+        const double original = rate->value();
+        rate->setValue(original + 17);
+        QVERIFY(status->isVisible()); QVERIFY(discard->isVisible());
+        QVERIFY(navigation->item(5)->text().endsWith(" •"));
+        auto *settings = objects->getObject("StabilizationSettings");
+        QVERIFY(settings);
+        const auto controllerRate = settings->getField("ManualRate")->getValue(0);
+        QCOMPARE(controllerRate.toDouble(), original);
+        // A received settings update must not overwrite the draft.
+        QVERIFY(QMetaObject::invokeMethod(settings, "objectUpdated", Q_ARG(UAVObject *, settings)));
+        QCOMPARE(rate->value(), original + 17);
+        tabs->setCurrentIndex(2);
+        QTRY_COMPARE(tabs->currentWidget(), tabs->getWidget(2));
+        QVERIFY(QMetaObject::invokeMethod(settings, "objectUpdated", Q_ARG(UAVObject *, settings)));
+        QCOMPARE(rate->value(), original + 17);
+        tabs->setCurrentIndex(5);
+        QTRY_COMPARE(tabs->currentWidget(), tuning);
+        QCOMPARE(rate->value(), original + 17);
+        for (auto *top : QApplication::topLevelWidgets())
+            QVERIFY2(!qobject_cast<QMessageBox *>(top) || !top->isVisible(), "Navigation must not open an unsaved-changes modal");
+        if (const auto captures = qEnvironmentVariable("CONNECTION_DIALOG_CAPTURE_DIR"); !captures.isEmpty())
+            QVERIFY(widget->grab().save(captures + "/settings-unsaved-draft.png"));
+        QTest::mouseClick(discard, Qt::LeftButton);
+        QCOMPARE(rate->value(), controllerRate.toDouble());
+        QVERIFY(!status->isVisible()); QVERIFY(!discard->isVisible());
+        QVERIFY(!navigation->item(5)->text().endsWith(" •"));
     }
     void controllerSetupOfferAndExplicitWizard_data()
     {

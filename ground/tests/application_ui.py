@@ -81,7 +81,7 @@ def run(arguments):
     display.test.XTestFakeButtonEvent.restype = c.c_int
     capture = xdisplay.Display()
     disabled = ("RawHID", "Serial", "IPconnection", "UsageStats", "SetupWizard")
-    if arguments.check_firmware_installation:
+    if arguments.check_firmware_installation or arguments.fullscreen:
         disabled = tuple(name for name in disabled if name != "RawHID")
     else:
         disabled += ("Uploader",)
@@ -101,7 +101,14 @@ def run(arguments):
             window = display.main_window(process)
             wait_for("mapped main window", lambda: capture.create_resource_object("window", window)
                      .get_attributes().map_state == X.IsViewable, process)
-            display.resize(window)
+            def restore_window():
+                if arguments.fullscreen:
+                    display.resize(window, 0, 0, 1920, 1080)
+                    assert display.geometry(window) == [0, 0, 1920, 1080]
+                    report["window_size"] = [1920, 1080]
+                else:
+                    display.resize(window)
+            restore_window()
             accessible = wait_for("application accessibility tree",
                                   lambda: next((app for app in desktop
                                                 if app.get_process_id() == process.pid), None), process)
@@ -145,10 +152,16 @@ def run(arguments):
                 context = GLib.MainContext.default()
                 while context.pending():
                     context.iteration(False)
+                def bounds(node):
+                    try:
+                        return list(node.queryComponent().getExtents(pyatspi.DESKTOP_COORDS))
+                    except NotImplementedError:
+                        return None
                 nodes = [{"role": node.getRoleName(), "name": node.name,
                           "selected": node.getState().contains(pyatspi.STATE_SELECTED),
                           "checked": node.getState().contains(pyatspi.STATE_CHECKED),
-                          "enabled": node.getState().contains(pyatspi.STATE_ENABLED)}
+                          "enabled": node.getState().contains(pyatspi.STATE_ENABLED),
+                          "bounds": bounds(node)}
                          for node in visible_nodes()]
                 (output / f"{label}.json").write_text(json.dumps(nodes, indent=2) + "\n")
                 x, y, width, height = display.geometry(target)
@@ -354,7 +367,7 @@ def run(arguments):
                 wait_for("narrow Welcome layout", lambda: display.geometry(window)[2] == 800, process)
                 time.sleep(0.4)
                 record("startup-usb-narrow")
-                display.resize(window)
+                restore_window()
                 community = next(node for node in visible_nodes()
                     if " ".join(node.name.replace("&", "").split()) == "Community updates"
                     and node.getRoleName() in ("button", "push button", "check box"))
@@ -455,7 +468,7 @@ def run(arguments):
                         .queryComponent().getExtents(pyatspi.DESKTOP_COORDS)
                     assert map_bounds.height >= 200, "The planner must leave room to work on the map"
                     record("map-waypoints-unavailable-narrow")
-                    display.resize(window)
+                    restore_window()
                 for status in ("Flight time", "Arm status", "Flight mode and failsafe", "Telemetry TX/RX and alerts"):
                     node = next((node for node in visible_nodes() if node.name == status), None)
                     assert node, status + " must be visible on " + title
@@ -525,6 +538,7 @@ def run(arguments):
                         and node.getRoleName() in ("panel", "filler")) \
                         .queryComponent().getExtents(pyatspi.DESKTOP_COORDS)
 
+                display.resize(window)
                 previous_width = card_bounds("Attitude").width
                 display.x.XMoveResizeWindow(display.display, window, 80, 40, 1300, 900)
                 display.x.XSync(display.display, False)
@@ -542,7 +556,7 @@ def run(arguments):
                 assert narrow.width > previous_width, "A narrow window uses one full-width card per row"
                 assert narrow.y >= card_bounds("Controller setup").y + card_bounds("Controller setup").height
                 record("firmware-narrow")
-                display.resize(window)
+                restore_window()
                 wait_for("dashboard returns to two columns", lambda: card_bounds("Attitude").x > card_bounds("Controller setup").x, process)
                 def dashboard_scroll(bottom):
                     pane = next(node for node in visible_nodes() if node.name == "Firmware dashboard")
@@ -581,7 +595,7 @@ def run(arguments):
                         assert maintenance_bounds.x <= bounds.x and bounds.x + bounds.width <= \
                             maintenance_bounds.x + maintenance_bounds.width, node.name + " overflows the maintenance card"
                 record("firmware-maintenance-narrow")
-                display.resize(window)
+                restore_window()
                 wait_for("expanded maintenance restores its width", lambda:
                     card_bounds("Maintenance and recovery").width > 900, process)
                 dashboard_scroll(True)
@@ -768,13 +782,21 @@ def run(arguments):
             for index, title in enumerate(("Hardware", "Vehicle", "Input", "Output", "Attitude", "Stabilization", "Modules", "Camera Stab", "TxPID", "Autotune")):
                 tab = wait_for(title + " tab", lambda: next((node for node in visible_nodes()
                                if node.name == title and node.getRoleName() == "list item"), None), process)
-                if index:
+                if index and not arguments.fullscreen:
                     send("Down")
                 else:
                     click(tab)
                 wait_for(title + " tab selection", lambda: tab.getState().contains(pyatspi.STATE_SELECTED), process)
                 time.sleep(0.3)
                 record("config-" + title.lower().replace(" ", "-"))
+                if arguments.fullscreen:
+                    subtabs = [node for node in visible_nodes() if node.getRoleName() == "page tab"]
+                    for sub, node in enumerate(subtabs):
+                        click(node)
+                        time.sleep(0.3)
+                        record("config-" + title.lower().replace(" ", "-") + f"-tab-{sub}")
+                    if subtabs:
+                        click(subtabs[0])
 
             display.keys(window, "Control_L", "Shift_L", "s")
             general_before = ET.tostring(ET.parse(profile).getroot().find("General"))
@@ -854,6 +876,8 @@ def main():
     parser.add_argument("--application", type=Path, required=True)
     parser.add_argument("--profile", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--fullscreen", action="store_true",
+                        help="Capture the application and configuration tabs at 1920×1080")
     parser.add_argument("--check-replay-seek", action="store_true",
                         help="Exercise the System workspace's position control without a log")
     parser.add_argument("--check-firmware-installation", action="store_true",
@@ -888,10 +912,11 @@ def main():
             path.mkdir(mode=0o700)
             environment[variable] = str(path)
         try:
+            screen = "1920x1080x24" if arguments.fullscreen else "1440x1000x24"
             command = ["dbus-run-session", "--", "xvfb-run", "-d",
-                       "--server-args=-screen 0 1440x1000x24", sys.executable,
+                       "--server-args=-screen 0 " + screen, sys.executable,
                        str(Path(__file__).resolve()), *sys.argv[1:], "--inside-private-session"]
-            if arguments.check_firmware_installation or arguments.check_usb_access_startup:
+            if arguments.fullscreen or arguments.check_firmware_installation or arguments.check_usb_access_startup:
                 # The Install click authorizes automatic flashing. Hide physical USB
                 # devices from the entire test session before launching the real GCS.
                 bwrap = shutil.which("bwrap")

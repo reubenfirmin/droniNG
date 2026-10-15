@@ -188,7 +188,9 @@ public slots:
     void invalidateObjects();
     void apply();
     void save();
+    void discardChanges();
 signals:
+    void dirtyChanged(bool dirty);
     // fired when a widgets contents changes
     void widgetContentsChanged(QWidget *widget);
     // fired when the framework requests that the widgets values be populated, use for custom
@@ -207,6 +209,7 @@ signals:
     void defaultRequested(int group);
 
 private slots:
+    void refreshFromObject(UAVObject *object);
     void objectUpdated(UAVObject *);
     void defaultButtonClicked();
     void reloadButtonClicked();
@@ -299,6 +302,9 @@ protected slots:
     virtual void helpButtonPressed();
 
 protected:
+    void setupPageActions();
+    QLabel *draftStatus = nullptr;
+    QPushButton *discardButton = nullptr;
     virtual void enableControls(bool enable);
     void checkWidgetsLimits(QWidget *widget, UAVObjectField *field, int index, bool hasLimits,
                             bool useUnits, QVariant value, double scale);

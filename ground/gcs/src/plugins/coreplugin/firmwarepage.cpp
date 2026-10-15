@@ -421,8 +421,8 @@ FirmwarePage::FirmwarePage(ConnectionManager *manager, QWidget *parent, DfuComma
     auto *actionRow = new QHBoxLayout;
     actionRow->addLayout(actions);
     actionRow->addStretch();
-    m_contentLayout->addSpacing(8);
     m_contentLayout->addStretch(1);
+    m_contentLayout->addSpacing(8);
     m_contentLayout->addLayout(actionRow);
     connect(m_recoveryToggle, &QToolButton::toggled, this, [this](bool expanded) {
         m_recoveryBody->setVisible(expanded);
@@ -619,8 +619,11 @@ void FirmwarePage::updateControllerLayout()
     m_identity->addWidget(m_boardIdentity, 0, 0);
     m_identity->addWidget(m_firmwareIdentity, 1, 0);
     m_identity->addWidget(m_installIdentity, 2, 0);
-    const QList<QWidget *> buttons{m_connect, m_back, m_install, m_bootController, m_configure, m_scopes,
+    QList<QWidget *> buttons{m_connect, m_back, m_install, m_bootController, m_configure, m_scopes,
         m_retryConnection, m_recoverInstallation, m_otherController, m_disconnect};
+    std::stable_sort(buttons.begin(), buttons.end(), [](QWidget *left, QWidget *right) {
+        return left->property("primary").toBool() && !right->property("primary").toBool();
+    });
     for (auto *button : buttons) m_deviceActions->removeWidget(button);
     int widest = 1, count = 0;
     for (auto *button : buttons) {

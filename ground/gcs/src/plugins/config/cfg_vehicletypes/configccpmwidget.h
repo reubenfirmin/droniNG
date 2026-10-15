@@ -124,6 +124,7 @@ public slots:
     void saveccpmUpdate();
 
 protected:
+    bool eventFilter(QObject *object, QEvent *event) override;
     void showEvent(QShowEvent *event);
     void resizeEvent(QResizeEvent *event);
 };

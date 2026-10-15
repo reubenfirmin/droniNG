@@ -41,6 +41,11 @@ MixerCurve::MixerCurve(QWidget *parent)
     // setup some convienence pointers
     m_curve = m_mixerUI->CurveWidget;
     m_settings = m_mixerUI->CurveSettings;
+    // Keep draggable curve values large enough to read and grab.
+    m_curve->setMinimumSize(320, 320);
+    m_curve->setMaximumSize(420, 420);
+    m_settings->setMinimumSize(150, 250);
+    m_settings->setMaximumSize(180, 260);
 
     // by default mixcurve isn't used for curve2source
     m_mixerUI->CBCurve2Source->hide();

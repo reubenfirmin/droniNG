@@ -238,6 +238,13 @@ void ConfigMultiRotorWidget::setupUI(SystemSettings::AirframeTypeOptions frameTy
     setLabelText(uiowner, CHANNELLABELNAME, labels);
     // enable necessary motor boxes
     enableComboBoxes(uiowner, CHANNELBOXNAME, numMotors, true);
+    for (int motor = 1; motor <= 8; ++motor) {
+        uiowner->findChild<QLabel *>(CHANNELLABELNAME + QString::number(motor))->setVisible(motor <= numMotors);
+        uiowner->findChild<QComboBox *>(CHANNELBOXNAME + QString::number(motor))->setVisible(motor <= numMotors);
+    }
+    const bool tricopter = frameType == SystemSettings::AIRFRAMETYPE_TRI;
+    m_aircraft->label_2->setVisible(tricopter);
+    m_aircraft->triYawChannelBox->setVisible(tricopter);
 
     // Draw the appropriate airframe
     drawAirframe(frameType);

@@ -1,6 +1,10 @@
 <RCC>
     <qresource prefix="/utils" >
         <file alias="application.qss">../../../share/stylesheets/global.qss</file>
+        <file>images/settings-icons.svg</file>
+        <file>images/check.svg</file>
+        <file>images/spin-up.svg</file>
+        <file>images/spin-down.svg</file>
         <file>images/removesubmitfield.png</file>
     </qresource>
 </RCC>

@@ -90,6 +90,7 @@ Rectangle {
         Flow {
             Layout.fillWidth: true
             visible: card.hasCommand
+            layoutDirection: Qt.LeftToRight
             spacing: 12
             WelcomeButton {
                 id: copy
@@ -109,6 +110,7 @@ Rectangle {
         }
         WelcomeButton {
             objectName: "welcomeConnectController"
+            Layout.alignment: Qt.AlignLeft
             visible: !card.setup.required
             text: card.needsSetup ? qsTr("Launch setup wizard")
                 : card.controllerConnected ? qsTr("Tune & configure") : qsTr("Connect controller")

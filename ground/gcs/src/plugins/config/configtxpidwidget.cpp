@@ -32,6 +32,12 @@ ConfigTxPIDWidget::ConfigTxPIDWidget(QWidget *parent)
     m_txpid = new Ui_TxPIDWidget();
     m_txpid->setupUi(this);
 
+    // Keep throttle limits under the same minimum/maximum columns as PID limits.
+    m_txpid->gridLayout->addWidget(m_txpid->label_4, 6, 3);
+    m_txpid->gridLayout->addWidget(m_txpid->label_5, 6, 4);
+    m_txpid->gridLayout->addWidget(m_txpid->ThrottleMin, 7, 3);
+    m_txpid->gridLayout->addWidget(m_txpid->ThrottleMax, 7, 4);
+
     autoLoadWidgets();
 
     setNotMandatory("TxPIDSettings");

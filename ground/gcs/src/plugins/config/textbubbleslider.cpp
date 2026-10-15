@@ -28,6 +28,8 @@
 #include <QPainter>
 #include <QDebug>
 #include <qmath.h>
+#include <QApplication>
+#include <utils/darktheme.h>
 
 #include "textbubbleslider.h"
 
@@ -73,7 +75,8 @@ TextBubbleSlider::TextBubbleSlider(QSlider *copySlider, QWidget *parent)
  */
 void TextBubbleSlider::construct()
 {
-    font = QFont("Arial", 13);
+    font = QApplication::font();
+    font.setPixelSize(13);
     slideHandleMargin = 2; // This is a dubious way to set the margin. In reality, it should be read
                            // from the style sheet.
 }
@@ -126,8 +129,8 @@ void TextBubbleSlider::setMaxPixelWidth()
     maximumFontHeight = fontMetrics.height();
 
     // Override stylesheet slider handle width
-    slideHandleWidth = maximumFontWidth + 6;
-    setStyleSheet(QString("QSlider::handle:horizontal { width: %1px; margin: -5px 0;}")
+    slideHandleWidth = maximumFontWidth + 12;
+    setStyleSheet(QString("QSlider::handle:horizontal { width: %1px; margin: -10px 0;}")
                       .arg(slideHandleWidth));
 }
 
@@ -185,7 +188,9 @@ void TextBubbleSlider::paintEvent(QPaintEvent *paintEvent)
     bool drawIndicator =
         indicatorValue >= (minimum() * -0.1) && indicatorValue <= (1.1 * maximum());
     qreal indicatorPos = 0;
-    QPen indicatorPen(QBrush(QColor(255, 0, 0, 180)), indicatorWidth, Qt::SolidLine, Qt::RoundCap,
+    QColor indicatorColor = Utils::errorColor();
+    indicatorColor.setAlpha(180);
+    QPen indicatorPen(QBrush(indicatorColor), indicatorWidth, Qt::SolidLine, Qt::RoundCap,
                       Qt::RoundJoin);
     if (drawIndicator) {
         QPainter p(this);
@@ -205,7 +210,8 @@ void TextBubbleSlider::paintEvent(QPaintEvent *paintEvent)
 
     // draw indicator translucent over handle + slider
     if (drawIndicator) {
-        indicatorPen.setColor(QColor(255, 0, 0, 50));
+        indicatorColor.setAlpha(50);
+        indicatorPen.setColor(indicatorColor);
         painter.setPen(indicatorPen);
         painter.drawLine(QLineF(indicatorPos, indicatorWidth / 2.0, indicatorPos,
                                 sliderHeight - indicatorWidth / 2.0));
@@ -216,7 +222,7 @@ void TextBubbleSlider::paintEvent(QPaintEvent *paintEvent)
 
     // Draw neutral value text. Verically center it in the handle
     painter.setFont(font);
-    painter.setPen(Qt::SolidLine);
+    painter.setPen(palette().color(isEnabled() ? QPalette::Active : QPalette::Disabled, QPalette::Text));
     QString neutralStringWidth = QString("%1").arg(value());
     QFontMetrics fontMetrics(font);
     int textWidth = fontMetrics.horizontalAdvance(neutralStringWidth);

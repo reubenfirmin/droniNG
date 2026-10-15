@@ -27,6 +27,10 @@
 
 #include <cmath>
 #include <limits>
+#include <QSignalBlocker>
+#include <QMap>
+#include <QStyle>
+#include <QTimer>
 
 #include "outputchannelform.h"
 #include "configoutputwidget.h"
@@ -40,8 +44,27 @@ OutputChannelForm::OutputChannelForm(const int index, QWidget *parent, const boo
     , limitMin(1000)
     , limitMax(2000)
     , minMaxFixed(false)
+    , inhibitRangeChanges(false)
 {
     ui.setupUi(this);
+    ui.actuatorNumber->setAlignment(Qt::AlignCenter);
+    ui.actuatorNeutral->hide();
+    ui.actuatorNeutralValue->setRange(ui.actuatorNeutral->minimum(), ui.actuatorNeutral->maximum());
+    ui.actuatorNeutralValue->setValue(ui.actuatorNeutral->value());
+    ui.actuatorNeutralValue->setToolTip(ui.actuatorNeutral->toolTip());
+    if (showLegend) ui.legend2->setText(tr("Neutral"));
+    connect(ui.actuatorNeutralValue, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int value) {
+        ui.actuatorNeutral->setValue(value);
+        notifyFormChanged();
+    });
+    connect(ui.actuatorNeutral, &QSlider::valueChanged, this, [this](int value) {
+        const QSignalBlocker blocker(ui.actuatorNeutralValue);
+        ui.actuatorNeutralValue->setValue(value);
+    });
+    connect(ui.actuatorNeutral, &QSlider::rangeChanged, this, [this](int minimum, int maximum) {
+        const QSignalBlocker blocker(ui.actuatorNeutralValue);
+        ui.actuatorNeutralValue->setRange(minimum, maximum);
+    });
 
     ActuatorSettings *actuatorSettings = ActuatorSettings::GetInstance(getObjectManager());
     Q_ASSERT(actuatorSettings);
@@ -106,6 +129,8 @@ void OutputChannelForm::enableChannelTest(bool state)
     if (m_inChannelTest == state)
         return;
     m_inChannelTest = state;
+    ui.actuatorNeutralValue->setVisible(!state);
+    ui.actuatorNeutral->setVisible(state);
 
     if (m_inChannelTest) {
         // Prevent users from changing the minimum & maximum ranges while
@@ -118,6 +143,7 @@ void OutputChannelForm::enableChannelTest(bool state)
         ui.actuatorMax->setEnabled(!minMaxFixed);
         ui.pb_reverseActuator->setEnabled(!minMaxFixed);
     }
+    alignFields();
 }
 
 /**
@@ -205,19 +231,60 @@ void OutputChannelForm::setNeutral(int value)
 
 void OutputChannelForm::alignFields()
 {
-    int actuatorWidth = 0;
-
-    foreach (OutputChannelForm *form, parent()->findChildren<OutputChannelForm *>()) {
-        actuatorWidth = fmax(actuatorWidth, form->ui.actuatorMin->minimumSize().width());
-        actuatorWidth = fmax(actuatorWidth, form->ui.actuatorMin->sizeHint().width());
-        actuatorWidth = fmax(actuatorWidth, form->ui.actuatorMax->minimumSize().width());
-        actuatorWidth = fmax(actuatorWidth, form->ui.actuatorMax->sizeHint().width());
+    if (!parent()) return;
+    const auto forms = parent()->findChildren<OutputChannelForm *>();
+    QMap<int, int> widths;
+    int numericWidth = 124;
+    for (auto *form : forms) {
+        for (auto *spin : {form->ui.actuatorMin, form->ui.actuatorNeutralValue, form->ui.actuatorMax})
+            numericWidth = qMax(numericWidth, spin->sizeHint().width() + 16);
+        for (int index = 0; index < form->ui.gridLayout->count(); ++index) {
+            auto *item = form->ui.gridLayout->itemAt(index);
+            auto *widget = item->widget();
+            if (!widget || widget->isHidden()) continue;
+            int row, column, rows, columns;
+            form->ui.gridLayout->getItemPosition(index, &row, &column, &rows, &columns);
+            const auto *label = qobject_cast<QLabel *>(widget);
+            const int width = label ? label->fontMetrics().horizontalAdvance(label->text()) + 8
+                : widget == form->ui.actuatorNeutral ? 200 : widget->sizeHint().width();
+            widths[column] = qMax(widths.value(column), width);
+        }
     }
-
-    foreach (OutputChannelForm *form, parent()->findChildren<OutputChannelForm *>()) {
-        form->ui.actuatorMin->setMinimumSize(actuatorWidth, 0);
-        form->ui.actuatorMax->setMinimumSize(actuatorWidth, 0);
+    for (int column : {2, 4, 6}) widths[column] = qMax(widths.value(column), numericWidth);
+    for (auto *form : forms) {
+        auto *grid = form->ui.gridLayout;
+        for (int index = 0; index < grid->count(); ++index) {
+            auto *widget = grid->itemAt(index)->widget();
+            if (!widget) continue;
+            int row, column, rows, columns;
+            grid->getItemPosition(index, &row, &column, &rows, &columns);
+            const int width = widget == form->ui.actuatorLink
+                ? widget->style()->pixelMetric(QStyle::PM_IndicatorWidth, nullptr, widget)
+                : widths.value(column);
+            if (widget->minimumWidth() != width || widget->maximumWidth() != width)
+                widget->setFixedWidth(width);
+            if (grid->itemAt(index)->alignment() != Qt::AlignCenter)
+                grid->setAlignment(widget, Qt::AlignCenter);
+        }
+        for (auto it = widths.cbegin(); it != widths.cend(); ++it)
+            if (grid->columnMinimumWidth(it.key()) != it.value())
+                grid->setColumnMinimumWidth(it.key(), it.value());
     }
+}
+
+bool OutputChannelForm::event(QEvent *event)
+{
+    const bool handled = ConfigTaskWidget::event(event);
+    // Each channel owns its controls, but all rows share the same column sizes.
+    // Recalculate after styling, assignments, protocol changes and test-mode toggles.
+    if (event->type() == QEvent::LayoutRequest && !alignmentPending) {
+        alignmentPending = true;
+        QTimer::singleShot(0, this, [this] {
+            alignFields();
+            alignmentPending = false;
+        });
+    }
+    return handled;
 }
 
 /**
@@ -226,17 +293,7 @@ void OutputChannelForm::alignFields()
 void OutputChannelForm::setAssignment(const QString &assignment)
 {
     ui.actuatorName->setText(assignment);
-    QFontMetrics metrics(ui.actuatorName->font());
-    int width = metrics.horizontalAdvance(assignment) + 1;
-    foreach (OutputChannelForm *form, parent()->findChildren<OutputChannelForm *>()) {
-        if (form == this)
-            continue;
-        if (form->ui.actuatorName->minimumSize().width() < width)
-            form->ui.actuatorName->setMinimumSize(width, 0);
-        else
-            width = form->ui.actuatorName->minimumSize().width();
-    }
-    ui.actuatorName->setMinimumSize(width, 0);
+    alignFields();
 }
 
 /**
@@ -296,6 +353,7 @@ void OutputChannelForm::reverseChannel()
  */
 void OutputChannelForm::updateSlider()
 {
+    ui.actuatorNeutralValue->setEnabled(ui.actuatorNeutral->isEnabledTo(this));
     // Invert the slider
     if (ui.actuatorMin->value() > ui.actuatorMax->value()) {
         ui.actuatorNeutral->setInvertedAppearance(true);
@@ -372,6 +430,10 @@ void OutputChannelForm::updateChannelLimits(int minPulse, int maxPulse, bool dig
     limitMin = minPulse;
     limitMax = maxPulse;
     minMaxFixed = digitalProtocol;
+    const QString suffix = digitalProtocol ? QString() : tr(" us");
+    ui.actuatorNeutralValue->setSuffix(suffix);
+    ui.actuatorMin->setSuffix(suffix);
+    ui.actuatorMax->setSuffix(suffix);
 
     if (digitalProtocol) {
         // digital protocol like Dshot, fix min to 0, max to maxPulse, and neutral range goes

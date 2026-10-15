@@ -37,6 +37,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--skip-native", action="store_true",
                         help="Run packaged UI checks without repeating the native diagnostic suites")
+    parser.add_argument("--fullscreen", action="store_true",
+                        help="Capture application screens and configuration tabs at 1920×1080")
+    parser.add_argument("--layout-audit", action="store_true",
+                        help="Capture full-screen layouts without repeating controller installation flows")
     arguments = parser.parse_args()
     root = Path(__file__).resolve().parents[2]
     build = root / "build"
@@ -56,13 +60,15 @@ def main():
         description = f"Testing: {application}\nEvidence: {output}\nLog: {log_path}"
         report(description, log)
         try:
-            return check_application(root, application, output, log, arguments.skip_native)
+            return check_application(root, application, output, log,
+                                     arguments.skip_native or arguments.layout_audit,
+                                     arguments.fullscreen or arguments.layout_audit, arguments.layout_audit)
         except Exception:
             traceback.print_exc(file=log)
             raise
 
 
-def check_application(root, application, output, log, skip_native=False):
+def check_application(root, application, output, log, skip_native=False, fullscreen=False, layout_audit=False):
     report("Checking native diagnostic framing and object schemas…", log)
     result, recent = run_logged([
         sys.executable, str(root / "ground/tests/uavtalk_inspection.py"),
@@ -136,10 +142,12 @@ def check_application(root, application, output, log, skip_native=False):
     result, recent = run_logged([
         sys.executable, str(root / "ground/tests/application_ui.py"),
         "--application", str(application),
-        "--profile", str(root / "ground/gcs/share/default_configurations/developer.xml"),
+        "--profile", str(root / "ground/gcs/share/default_configurations" /
+                         ("netbook.xml" if layout_audit else "developer.xml")),
         "--output", str(output),
-        "--check-firmware-installation", "--check-controller-setup",
-        "--check-usb-access-startup", "--check-replay-seek",
+        *([] if layout_audit else ["--check-firmware-installation", "--check-controller-setup",
+                                  "--check-usb-access-startup", "--check-replay-seek"]),
+        *(["--fullscreen"] if fullscreen else []),
     ], root, log)
     report("Packaged application UI checks " + ("failed." if result else "passed."), log)
     if result:

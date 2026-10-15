@@ -30,6 +30,7 @@
 #include "mixercurvepoint.h"
 
 #include <QObject>
+#include <QApplication>
 #include <QtGui>
 #include <QDebug>
 
@@ -62,9 +63,19 @@ MixerCurveWidget::MixerCurveWidget(QWidget *parent)
     setStyleSheet("background:transparent");
 
     QGraphicsScene *scene = new QGraphicsScene(this);
-    QSvgRenderer *renderer = new QSvgRenderer();
+    QSvgRenderer *renderer = new QSvgRenderer(this);
     plot = new QGraphicsSvgItem();
-    renderer->load(QString(":/configgadget/images/curve-bg.svg"));
+    // Preserve the original plot coordinates used by the mixer calculations.
+    const QPalette colors = QApplication::palette();
+    renderer->load(QStringLiteral(
+        "<svg xmlns='http://www.w3.org/2000/svg' width='253' height='253' viewBox='0 0 253 253'>"
+        "<rect x='.5' y='.5' width='252' height='252' rx='6' fill='%1' stroke='%3'/>"
+        "<path d='M31.625 0V253 M63.25 0V253 M94.875 0V253 M158.125 0V253 M189.75 0V253 M221.375 0V253 "
+        "M0 31.625H253 M0 63.25H253 M0 94.875H253 M0 158.125H253 M0 189.75H253 M0 221.375H253' "
+        "fill='none' stroke='%2' stroke-width='.6'/>"
+        "<path d='M126.5 0V253 M0 126.5H253' fill='none' stroke='%3' stroke-width='.8'/>"
+        "</svg>").arg(colors.color(QPalette::Base).name(), colors.color(QPalette::Midlight).name(),
+                      colors.color(QPalette::Mid).name()).toUtf8());
     plot->setSharedRenderer(renderer);
     // plot->setElementId("map");
     scene->addItem(plot);
@@ -462,7 +473,7 @@ void MixerCurveWidget::showEvent(QShowEvent *event)
 
     QRectF rect = plot->boundingRect();
     resizeCommands();
-    fitInView(rect.adjusted(-15, -15, 15, 15), Qt::KeepAspectRatio);
+    fitInView(rect.adjusted(-24, -24, 24, 24), Qt::KeepAspectRatio);
 }
 
 void MixerCurveWidget::resizeEvent(QResizeEvent *event)
@@ -471,7 +482,7 @@ void MixerCurveWidget::resizeEvent(QResizeEvent *event)
 
     QRectF rect = plot->boundingRect();
     resizeCommands();
-    fitInView(rect.adjusted(-15, -15, 15, 15), Qt::KeepAspectRatio);
+    fitInView(rect.adjusted(-24, -24, 24, 24), Qt::KeepAspectRatio);
 }
 
 void MixerCurveWidget::resizeCommands()

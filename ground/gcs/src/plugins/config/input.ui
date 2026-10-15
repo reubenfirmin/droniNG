@@ -2414,7 +2414,7 @@ QFrame[hasWarning=&quot;true&quot;] QLabel {
        <property name="objrelation" stdset="0">
         <stringlist notr="true">
          <string>button:help</string>
-         <string>url:https://github.com/d-ronin/dRonin/wiki/OnlineHelp:-Input-Configuration</string>
+         <string>url:https://github.com/reubenfirmin/droniNG/wiki/OnlineHelp:-Input-Configuration</string>
         </stringlist>
        </property>
       </widget>

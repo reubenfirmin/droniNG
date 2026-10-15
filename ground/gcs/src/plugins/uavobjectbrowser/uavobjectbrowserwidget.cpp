@@ -45,6 +45,7 @@
 #include <QComboBox>
 #include <QtCore/QDebug>
 #include <QItemEditorFactory>
+#include <utils/settingsstyle.h>
 #include "extensionsystem/pluginmanager.h"
 #include <math.h>
 
@@ -92,6 +93,31 @@ UAVObjectBrowserWidget::UAVObjectBrowserWidget(QWidget *parent)
 
     // Set browser buttons to disabled
     enableUAVOBrowserButtons(false);
+    m_browser->requestButton->setIcon(Utils::settingsIcon("download"));
+    m_browser->sendButton->setIcon(Utils::settingsIcon("upload"));
+    m_browser->readSDButton->setIcon(Utils::settingsIcon("load"));
+    m_browser->saveSDButton->setIcon(Utils::settingsIcon("save"));
+    m_browser->eraseSDButton->setIcon(Utils::settingsIcon("trash"));
+    m_browser->viewSettingsButton->setIcon(Utils::settingsIcon("view"));
+    for (auto *button : {m_browser->requestButton, m_browser->sendButton,
+                        m_browser->readSDButton, m_browser->saveSDButton,
+                        m_browser->eraseSDButton, m_browser->viewSettingsButton}) {
+        button->setIconSize(QSize(20, 20));
+        button->setFixedSize(36, 36);
+    }
+    m_browser->verticalLayout->setContentsMargins(12, 12, 12, 12);
+    auto *filterLayout = new QHBoxLayout;
+    for (auto *control : {static_cast<QWidget *>(m_browser->label),
+                          static_cast<QWidget *>(m_browser->le_searchField),
+                          static_cast<QWidget *>(m_browser->bn_clearSearchField)}) {
+        m_browser->horizontalLayout->removeWidget(control);
+        filterLayout->addWidget(control);
+    }
+    m_browser->verticalLayout->insertLayout(1, filterLayout);
+    m_browser->le_searchField->setProperty("flexibleWidth", true);
+    treeView->setAlternatingRowColors(true);
+    Utils::styleSettingsPage(this);
+    Utils::styleSettingsPage(m_viewoptionsDialog);
 }
 
 void UAVObjectBrowserWidget::onTreeItemExpanded(QModelIndex currentProxyIndex)

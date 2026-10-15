@@ -81,8 +81,8 @@ class Display:
                                   c.byref(border), c.byref(depth))
         return [x.value, y.value, width.value, height.value]
 
-    def resize(self, window):
-        self.x.XMoveResizeWindow(self.display, window, 120, 80, 1100, 740)
+    def resize(self, window, x=120, y=80, width=1100, height=740):
+        self.x.XMoveResizeWindow(self.display, window, x, y, width, height)
         self.x.XSync(self.display, False)
         time.sleep(0.3)
 

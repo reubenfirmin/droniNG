@@ -29,6 +29,7 @@
 #include <QRegularExpression>
 
 #include <QDebug>
+#include <utils/settingsstyle.h>
 #include <QStringList>
 #include <QTimer>
 #include <QWidget>
@@ -175,8 +176,48 @@ ConfigVehicleTypeWidget::ConfigVehicleTypeWidget(QWidget *parent)
     // Setup the Multirotor picture in the Quad settings interface
     m_aircraft->quadShape->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_aircraft->quadShape->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    QSvgRenderer *renderer = new QSvgRenderer();
-    renderer->load(QString(":/configgadget/images/multirotor-shapes.svg"));
+    m_aircraft->quadShape->setFixedSize(420, 320);
+    m_aircraft->verticalLayout_8->setAlignment(Qt::AlignTop);
+    m_aircraft->gridLayout_7->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    // Keep the diagram, its channel assignments and tuning levels together.
+    // The old full-width assignments section pushed the whole form into a scroll pane.
+    m_aircraft->gridLayout_7->removeWidget(m_aircraft->groupBox);
+    m_aircraft->gridLayout_7->removeWidget(m_aircraft->groupBox_9);
+    m_aircraft->gridLayout_7->addWidget(m_aircraft->groupBox, 0, 1, Qt::AlignTop);
+    m_aircraft->gridLayout_7->addWidget(m_aircraft->groupBox_9, 0, 2, Qt::AlignTop);
+    m_aircraft->gridLayout_7->setColumnStretch(3, 1);
+    // Motor assignments share one grid, including labels that change with the frame.
+    auto *motorGrid = m_aircraft->gridLayout_6;
+    for (auto *form : {m_aircraft->formLayout_2, m_aircraft->formLayout_4}) {
+        while (form->count()) delete form->takeAt(0);
+    }
+    while (motorGrid->count()) delete motorGrid->takeAt(0);
+    for (int motor = 0; motor < 8; ++motor) {
+        auto *label = findChild<QLabel *>(QString("MotorOutputLabel%1").arg(motor + 1));
+        auto *channel = findChild<QComboBox *>(QString("multiMotorChannelBox%1").arg(motor + 1));
+        label->setMinimumWidth(64);
+        label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        motorGrid->addWidget(label, motor, 0);
+        motorGrid->addWidget(channel, motor, 1);
+    }
+    m_aircraft->line->hide();
+    m_aircraft->label_2->setText(tr("Yaw servo"));
+    motorGrid->addWidget(m_aircraft->label_2, 8, 0);
+    motorGrid->addWidget(m_aircraft->triYawChannelBox, 8, 1);
+    m_aircraft->label_3->hide();
+    motorGrid->addWidget(m_aircraft->MultirotorRevMixercheckBox, 9, 0, 1, 2);
+    // Trimming is part of the page body, above the persistent action row.
+    m_aircraft->verticalLayout_10->removeWidget(m_aircraft->groupBox_14);
+    m_aircraft->verticalLayout->addWidget(m_aircraft->groupBox_14);
+    // Ground vehicles share the page's scroll area rather than nesting another.
+    auto *groundContent = m_aircraft->scrollArea_3->takeWidget();
+    delete m_aircraft->verticalLayout_4->replaceWidget(m_aircraft->scrollArea_3, groundContent);
+    m_aircraft->scrollArea_3->hide();
+    m_aircraft->gridLayout_6->setProperty("compactForm", true);
+    for (int column = 0; column < m_aircraft->gridLayout_6->columnCount(); ++column)
+        m_aircraft->gridLayout_6->setColumnStretch(column, 0);
+    QSvgRenderer *renderer = new QSvgRenderer(this);
+    renderer->load(Utils::flatSvgDiagram(":/configgadget/images/multirotor-shapes.svg", true));
     quad = new QGraphicsSvgItem();
     quad->setSharedRenderer(renderer);
     quad->setElementId("quad-x");
@@ -184,6 +225,8 @@ ConfigVehicleTypeWidget::ConfigVehicleTypeWidget(QWidget *parent)
     scene->addItem(quad);
     scene->setSceneRect(quad->boundingRect());
     m_aircraft->quadShape->setScene(scene);
+    m_aircraft->quadShape->viewport()->installEventFilter(this);
+    m_aircraft->quadShape->setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing);
 
     // Put combo boxes in line one of the custom mixer table:
     UAVDataObject *obj =
@@ -195,6 +238,10 @@ ConfigVehicleTypeWidget::ConfigVehicleTypeWidget(QWidget *parent)
         qb->addItems(list);
         m_aircraft->customMixerTable->setCellWidget(0, i, qb);
     }
+    m_aircraft->customMixerTable->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    m_aircraft->customMixerTable->horizontalHeader()->setMinimumSectionSize(124);
+    m_aircraft->customMixerTable->verticalHeader()->setMinimumSectionSize(40);
+    m_aircraft->customMixerTable->setFixedHeight(420);
 
     SpinBoxDelegate *sbd = new SpinBoxDelegate();
     for (int i = 1; i < (int)(ActuatorCommand::CHANNEL_NUMELEM); i++) {
@@ -218,6 +265,17 @@ ConfigVehicleTypeWidget::ConfigVehicleTypeWidget(QWidget *parent)
     // create and setup a Helicopter config widget
     m_heli = m_aircraft->helicopterLayout;
     m_heli->setupUI(SystemSettings::AIRFRAMETYPE_HELICP);
+
+    const auto sizeCurrentAirframe = [this] {
+        auto *stack = m_aircraft->airframesWidget;
+        for (int index = 0; index < stack->count(); ++index)
+            stack->widget(index)->setSizePolicy(QSizePolicy::Preferred,
+                index == stack->currentIndex() ? QSizePolicy::Preferred : QSizePolicy::Ignored);
+        stack->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+        stack->updateGeometry();
+    };
+    connect(m_aircraft->airframesWidget, &QStackedWidget::currentChanged, this, sizeCurrentAirframe);
+    sizeCurrentAirframe();
 
     // Connect aircraft type selection dropbox to callback function
     connect(m_aircraft->aircraftType, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
@@ -340,13 +398,6 @@ void ConfigVehicleTypeWidget::switchAirframeType(int index)
         break;
     case AIRFRAME_CUSTOM:
         m_aircraft->customMixerTable->resizeColumnsToContents();
-        for (int i = 0; i < (int)(ActuatorCommand::CHANNEL_NUMELEM); i++) {
-            m_aircraft->customMixerTable->setColumnWidth(
-                i,
-                (m_aircraft->customMixerTable->width()
-                 - m_aircraft->customMixerTable->verticalHeader()->width())
-                    / 10);
-        }
         Q_FALLTHROUGH();
     case AIRFRAME_MULTIROTOR:
     case AIRFRAME_HELICOPTER:
@@ -367,13 +418,6 @@ void ConfigVehicleTypeWidget::showEvent(QShowEvent *event)
     // the result is usually a ahrsbargraph that is way too small.
     m_aircraft->quadShape->fitInView(quad, Qt::KeepAspectRatio);
     m_aircraft->customMixerTable->resizeColumnsToContents();
-    for (int i = 0; i < (int)(ActuatorCommand::CHANNEL_NUMELEM); i++) {
-        m_aircraft->customMixerTable->setColumnWidth(
-            i,
-            (m_aircraft->customMixerTable->width()
-             - m_aircraft->customMixerTable->verticalHeader()->width())
-                / 10);
-    }
 }
 
 /**
@@ -383,15 +427,14 @@ void ConfigVehicleTypeWidget::resizeEvent(QResizeEvent *event)
 {
     Q_UNUSED(event);
     m_aircraft->quadShape->fitInView(quad, Qt::KeepAspectRatio);
-    // Make the custom table columns autostretch:
     m_aircraft->customMixerTable->resizeColumnsToContents();
-    for (int i = 0; i < (int)(ActuatorCommand::CHANNEL_NUMELEM); i++) {
-        m_aircraft->customMixerTable->setColumnWidth(
-            i,
-            (m_aircraft->customMixerTable->width()
-             - m_aircraft->customMixerTable->verticalHeader()->width())
-                / 10);
-    }
+}
+
+bool ConfigVehicleTypeWidget::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == m_aircraft->quadShape->viewport() && event->type() == QEvent::Resize)
+        m_aircraft->quadShape->fitInView(quad, Qt::KeepAspectRatio);
+    return ConfigTaskWidget::eventFilter(watched, event);
 }
 
 void ConfigVehicleTypeWidget::toggleAileron2(int index)

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+  <g id="hardware"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 3v3m6-3v3M9 18v3m6-3v3M3 9h3m-3 6h3m12-6h3m-3 6h3"/></g>
+  <g id="vehicle"><path d="m12 3 2 7 7 4v2l-7-2v4l2 2v1l-4-1-4 1v-1l2-2v-4l-7 2v-2l7-4z"/></g>
+  <g id="input"><rect x="3" y="8" width="18" height="13" rx="3"/><path d="M7 8 5 3m12 5 2-5M6 14h4m-2-2v4m6-2h.01M18 16h.01M10 18h4"/></g>
+  <g id="output"><path d="M3 12h4V5h5v14h5v-7h4M4 21h16"/></g>
+  <g id="attitude"><circle cx="12" cy="12" r="9"/><path d="M3 12h6m6 0h6m-9-9v3m0 12v3m-7-6 7-6 7 6"/></g>
+  <g id="stabilization"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="black"/><circle cx="15" cy="12" r="2" fill="black"/><circle cx="9" cy="18" r="2" fill="black"/></g>
+  <g id="modules"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7m-3.5-3.5v7"/></g>
+  <g id="camera"><path d="M4 7h4l2-3h4l2 3h4a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="4"/></g>
+  <g id="txpid"><path d="M4 8h16M4 16h16M8 3v5m8-5v5m-8 8v5m8-5v5"/><circle cx="8" cy="8" r="2.5" fill="black"/><circle cx="16" cy="16" r="2.5" fill="black"/></g>
+  <g id="autotune"><path d="M3 3v18h18M5 15l4-7 4 9 4-12 4 7"/></g>
+  <g id="osd"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8m-4-3v3M6 8h3m6 6h3m-7-3h2"/></g>
+  <g id="radio"><path d="M12 12v9m-3 0h6M8 8a6 6 0 0 0 0 8m8-8a6 6 0 0 1 0 8M5 5a10 10 0 0 0 0 14M19 5a10 10 0 0 1 0 14"/><circle cx="12" cy="12" r="1.5"/></g>
+  <g id="download"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></g>
+  <g id="upload"><path d="M12 16V4m-5 5 5-5 5 5M4 16v5h16v-5"/></g>
+  <g id="load"><path d="M12 3v11m-4-4 4 4 4-4M4 16h16v5H4z"/></g>
+  <g id="save"><path d="M4 3h13l4 4v14H3V3zm3 0v6h9V3M7 21v-8h10v8"/></g>
+  <g id="trash"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></g>
+  <g id="view"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></g>
+  <g id="help"><circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 0 1 6 0c0 2-3 2-3 4m0 3h.01"/></g>
+  <g id="check"><path d="m5 12 4 4L19 6"/></g>
+  <g id="reverse"><path d="M4 7h16m-4-4 4 4-4 4M20 17H4m4-4-4 4 4 4"/></g>
+  <g id="chevron-down"><path d="m6 9 6 6 6-6"/></g>
+  <g id="chevron-up"><path d="m6 15 6-6 6 6"/></g>
+</svg>

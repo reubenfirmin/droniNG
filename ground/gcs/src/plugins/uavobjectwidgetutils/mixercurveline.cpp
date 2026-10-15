@@ -26,6 +26,8 @@
  */
 
 #include <QPainter>
+#include <QApplication>
+#include <QPalette>
 
 #include "mixercurveline.h"
 #include "mixercurvepoint.h"
@@ -112,6 +114,8 @@ void Edge::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWidget *)
         return;
 
     // Draw the line itself
-    painter->setPen(QPen(Qt::black, 1, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    QPen pen(QApplication::palette().color(QPalette::Highlight), 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    pen.setCosmetic(true);
+    painter->setPen(pen);
     painter->drawLine(line);
 }

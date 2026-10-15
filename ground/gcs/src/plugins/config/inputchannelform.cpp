@@ -7,6 +7,9 @@
 #include <coreplugin/iboardtype.h>
 #include <uavobjectutil/uavobjectutilmanager.h>
 #include <uavtalk/telemetrymanager.h>
+#include <QEvent>
+#include <QMap>
+#include <QTimer>
 
 inputChannelForm::inputChannelForm(QWidget *parent, bool showlegend, bool showSlider,
                                    ChannelFunc chanType)
@@ -15,6 +18,7 @@ inputChannelForm::inputChannelForm(QWidget *parent, bool showlegend, bool showSl
     , m_chanType(chanType)
 {
     ui->setupUi(this);
+    ui->channelNumber->hide();
 
     // The first time through the loop, keep the legend. All other times, delete it.
     if (!showlegend) {
@@ -39,6 +43,25 @@ inputChannelForm::inputChannelForm(QWidget *parent, bool showlegend, bool showSl
     if (!showSlider) {
         ui->channelNeutral->setHidden(true);
     }
+
+    // Every channel uses the same contiguous columns, including RSSI rows
+    // without a neutral slider and the first row containing headings.
+    struct Cell { QWidget *widget; int row, column; };
+    QList<Cell> cells;
+    const QMap<int, int> columns {{1, 0}, {2, 1}, {3, 2}, {4, 3},
+                                 {6, 4}, {8, 5}, {10, 6}, {11, 7}};
+    while (ui->gridLayout->count()) {
+        int row, column, rows, span;
+        ui->gridLayout->getItemPosition(0, &row, &column, &rows, &span);
+        auto *item = ui->gridLayout->takeAt(0);
+        if (auto *widget = item->widget()) cells.append({widget, row, columns.value(column)});
+        delete item;
+    }
+    for (const auto &cell : cells) ui->gridLayout->addWidget(cell.widget, cell.row, cell.column);
+    ui->gridLayout->setContentsMargins(0, 1, 0, 1);
+    ui->gridLayout->addItem(new QSpacerItem(0, 0, QSizePolicy::Expanding, QSizePolicy::Minimum), 0, 8);
+    ui->gridLayout->setColumnStretch(8, 1);
+    ui->gridLayout->setProperty("settingsTailColumn", 8);
 
     // setup a hidden widget to track channel value without too much pain
     sbChannelCurrent = new QSpinBox(this);
@@ -75,17 +98,60 @@ inputChannelForm::~inputChannelForm()
 void inputChannelForm::setName(QString &name)
 {
     ui->channelName->setText(name);
-    QFontMetrics metrics(ui->channelName->font());
-    int width = metrics.horizontalAdvance(name) + 5;
-    foreach (inputChannelForm *form, parent()->findChildren<inputChannelForm *>()) {
-        if (form == this)
-            continue;
-        if (form->ui->channelName->minimumSize().width() < width)
-            form->ui->channelName->setMinimumSize(width, 0);
-        else
-            width = form->ui->channelName->minimumSize().width();
+    alignFields();
+}
+
+void inputChannelForm::alignFields()
+{
+    if (!parent()) return;
+    const auto forms = parent()->findChildren<inputChannelForm *>();
+    QMap<int, int> widths;
+    for (auto *form : forms) {
+        auto *grid = form->ui->gridLayout;
+        for (int index = 0; index < grid->count(); ++index) {
+            auto *widget = grid->itemAt(index)->widget();
+            if (!widget || widget == form->ui->channelNumber) continue;
+            int row, column, rows, span;
+            grid->getItemPosition(index, &row, &column, &rows, &span);
+            int width = widget->sizeHint().width();
+            if (auto *label = qobject_cast<QLabel *>(widget))
+                width = label->fontMetrics().horizontalAdvance(label->text()) + 8;
+            else if (auto *combo = qobject_cast<QComboBox *>(widget)) {
+                int textWidth = 0;
+                for (int option = 0; option < combo->count(); ++option)
+                    textWidth = qMax(textWidth, combo->fontMetrics().horizontalAdvance(combo->itemText(option)));
+                width = qBound(124, textWidth + 52, 300);
+            } else if (qobject_cast<QAbstractSpinBox *>(widget)) width = qMax(124, width + 16);
+            else if (widget == form->ui->channelNeutral) width = 200;
+            widths[column] = qMax(widths.value(column), width);
+        }
     }
-    ui->channelName->setMinimumSize(width, 0);
+    for (auto *form : forms) {
+        auto *grid = form->ui->gridLayout;
+        for (int index = 0; index < grid->count(); ++index) {
+            auto *widget = grid->itemAt(index)->widget();
+            if (!widget || widget == form->ui->channelNumber) continue;
+            int row, column, rows, span;
+            grid->getItemPosition(index, &row, &column, &rows, &span);
+            const int width = widths.value(column);
+            if (widget->minimumWidth() != width || widget->maximumWidth() != width)
+                widget->setFixedWidth(width);
+            if (grid->itemAt(index)->alignment() != Qt::AlignCenter)
+                grid->setAlignment(widget, Qt::AlignCenter);
+        }
+        for (auto it = widths.cbegin(); it != widths.cend(); ++it)
+            if (grid->columnMinimumWidth(it.key()) != it.value())
+                grid->setColumnMinimumWidth(it.key(), it.value());
+    }
+}
+
+bool inputChannelForm::event(QEvent *event)
+{
+    if (event->type() == QEvent::LayoutRequest && !alignmentPending) {
+        alignmentPending = true;
+        QTimer::singleShot(0, this, [this] { alignmentPending = false; alignFields(); });
+    }
+    return ConfigTaskWidget::event(event);
 }
 
 /**

@@ -40,9 +40,14 @@
 #include <uavsettingsimportexport/uavsettingsimportexportmanager.h>
 #include <uavtalk/telemetrymanager.h>
 #include <utils/longlongspinbox.h>
+#include <utils/settingsstyle.h>
 
 #include <QWidget>
 #include <QLineEdit>
+#include <QBoxLayout>
+#include <QGridLayout>
+#include <QScrollArea>
+#include <functional>
 
 /**
  * Constructor
@@ -57,6 +62,13 @@ ConfigTaskWidget::ConfigTaskWidget(QWidget *parent)
     , outOfLimitsStyle("background-color: rgb(255, 180, 0);")
     , timeOut(NULL)
 {
+    setProperty("settingsPage", true);
+    QTimer::singleShot(0, this, [this] {
+        setupPageActions();
+        Utils::styleSettingsPage(this);
+        // Populating dynamic forms during construction is not a user edit.
+        setDirty(false);
+    });
     pm = ExtensionSystem::PluginManager::instance();
     objManager = pm->getObject<UAVObjectManager>();
     TelemetryManager *telMngr = pm->getObject<TelemetryManager>();
@@ -156,7 +168,7 @@ void ConfigTaskWidget::addUAVObjectToWidgetRelation(QString object, QString fiel
         objectUpdates.insert(obj, true);
         connect(obj, SIGNAL(objectUpdated(UAVObject *)), this, SLOT(objectUpdated(UAVObject *)));
         connect(obj, SIGNAL(objectUpdated(UAVObject *)), this,
-                SLOT(refreshWidgetsValues(UAVObject *)), Qt::UniqueConnection);
+                SLOT(refreshFromObject(UAVObject *)), Qt::UniqueConnection);
         UAVDataObject *dobj = dynamic_cast<UAVDataObject *>(obj);
         if (dobj) {
             connect(dobj, SIGNAL(presentOnHardwareChanged(UAVDataObject *)), this,
@@ -542,7 +554,117 @@ void ConfigTaskWidget::clearDirty()
  */
 void ConfigTaskWidget::setDirty(bool value)
 {
+    const bool changed = dirty != value;
     dirty = value;
+    if (draftStatus) draftStatus->setVisible(dirty);
+    if (discardButton) discardButton->setVisible(dirty);
+    if (changed) emit dirtyChanged(dirty);
+}
+
+void ConfigTaskWidget::refreshFromObject(UAVObject *object)
+{
+    // Telemetry continues to update, but controller settings must not replace
+    // an unfinished draft on either the visible page or a page in the background.
+    auto *data = qobject_cast<UAVDataObject *>(object);
+    if (dirty && data && data->isSettings()) return;
+    refreshWidgetsValues(object);
+}
+
+void ConfigTaskWidget::discardChanges()
+{
+    setDirty(false);
+    refreshWidgetsValues();
+    forceShadowUpdates();
+    setDirty(false);
+    if (smartsave) smartsave->resetIcons();
+}
+
+void ConfigTaskWidget::setupPageActions()
+{
+    QList<QPushButton *> help, apply, save;
+    for (auto *button : findChildren<QPushButton *>()) {
+        // Embedded configuration widgets own their own actions.
+        auto *owner = button->parentWidget();
+        while (owner && owner != this && !qobject_cast<ConfigTaskWidget *>(owner))
+            owner = owner->parentWidget();
+        if (owner != this) continue;
+        const auto relation = button->property("objrelation").toStringList();
+        if (relation.contains("button:help")) help.append(button);
+        else if (relation.contains("button:apply")) apply.append(button);
+        else if (relation.contains("button:save")) save.append(button);
+    }
+    if (save.isEmpty() && apply.isEmpty()) return;
+
+    // Keep every action from the original footer together. Section-specific
+    // buttons (for example a tuning group's Default button) stay with their fields.
+    std::function<QLayout *(QLayout *, QWidget *)> containingLayout =
+        [&](QLayout *layout, QWidget *widget) -> QLayout * {
+        if (!layout) return nullptr;
+        for (int i = 0; i < layout->count(); ++i) {
+            auto *item = layout->itemAt(i);
+            if (item->widget() == widget) return layout;
+            if (auto *found = containingLayout(item->layout(), widget)) return found;
+        }
+        return nullptr;
+    };
+    QList<QLayout *> originalFooters;
+    for (auto *button : save + apply) {
+        auto *original = containingLayout(layout(), button);
+        if (original && !originalFooters.contains(original)) originalFooters.append(original);
+    }
+    QList<QPushButton *> secondary;
+    for (auto *button : findChildren<QPushButton *>()) {
+        if (help.contains(button) || apply.contains(button) || save.contains(button)) continue;
+        if (originalFooters.contains(containingLayout(layout(), button))) secondary.append(button);
+    }
+    std::function<void(QLayout *, QWidget *)> remove = [&](QLayout *layout, QWidget *widget) {
+        if (!layout) return;
+        layout->removeWidget(widget);
+        for (int i = 0; i < layout->count(); ++i) remove(layout->itemAt(i)->layout(), widget);
+    };
+    auto *footer = new QWidget(this);
+    footer->setObjectName("settingsActions");
+    footer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    auto *row = new QHBoxLayout(footer);
+    row->setContentsMargins(12, 8, 12, 0);
+    row->setSpacing(8);
+    draftStatus = new QLabel(tr("Unsaved changes"), footer);
+    draftStatus->setToolTip(tr("This page keeps your draft while you switch tabs. Apply sends it to the controller; Save also stores it permanently."));
+    draftStatus->setObjectName("settingsDraftStatus");
+    draftStatus->setProperty("role", "warning");
+    discardButton = new QPushButton(tr("Discard"), footer);
+    discardButton->setObjectName("settingsDiscard");
+    discardButton->setToolTip(tr("Restore this page from the controller's current settings."));
+    connect(discardButton, &QPushButton::clicked, this, &ConfigTaskWidget::discardChanges);
+    for (auto *button : save + apply) {
+        remove(layout(), button);
+        row->addWidget(button);
+    }
+    row->addWidget(discardButton);
+    for (auto *button : secondary + help) {
+        remove(layout(), button);
+        row->addWidget(button);
+    }
+    row->addSpacing(8);
+    row->addWidget(draftStatus);
+    row->addStretch();
+    std::function<bool(QLayout *)> prune = [&](QLayout *layout) {
+        bool content = false;
+        for (int i = layout->count() - 1; i >= 0; --i) {
+            auto *item = layout->itemAt(i);
+            if (auto *child = item->layout()) {
+                if (!prune(child)) delete layout->takeAt(i);
+                else content = true;
+            } else if (item->widget()) content = true;
+        }
+        return content;
+    };
+    prune(layout());
+    if (auto *box = qobject_cast<QBoxLayout *>(layout())) box->addWidget(footer);
+    else if (auto *grid = qobject_cast<QGridLayout *>(layout()))
+        grid->addWidget(footer, grid->rowCount(), 0, 1, grid->columnCount());
+    draftStatus->setVisible(dirty);
+    discardButton->setVisible(dirty);
 }
 /**
  * Checks if the form is dirty (unsaved changes)
@@ -570,7 +692,7 @@ void ConfigTaskWidget::disableObjUpdates()
     foreach (objectToWidget *obj, objOfInterest) {
         if (obj->object)
             disconnect(obj->object, SIGNAL(objectUpdated(UAVObject *)), this,
-                       SLOT(refreshWidgetsValues(UAVObject *)));
+                       SLOT(refreshFromObject(UAVObject *)));
     }
 }
 /**
@@ -582,7 +704,7 @@ void ConfigTaskWidget::enableObjUpdates()
     foreach (objectToWidget *obj, objOfInterest) {
         if (obj->object)
             connect(obj->object, SIGNAL(objectUpdated(UAVObject *)), this,
-                    SLOT(refreshWidgetsValues(UAVObject *)), Qt::UniqueConnection);
+                    SLOT(refreshFromObject(UAVObject *)), Qt::UniqueConnection);
     }
 }
 /**

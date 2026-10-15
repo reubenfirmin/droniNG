@@ -6,6 +6,9 @@
 #include <QPalette>
 #include <QStyleFactory>
 
+QColor Utils::warningColor() { return QColor(231, 187, 116); }
+QColor Utils::errorColor() { return QColor(239, 128, 139); }
+
 void Utils::applyDarkTheme()
 {
     // Fusion ships with Qt, so packaged builds need no desktop style plugin.
@@ -46,7 +49,10 @@ void Utils::applyDarkTheme()
     if (stylesheet.open(QIODevice::ReadOnly)) {
         QString style = QString::fromUtf8(stylesheet.readAll());
         style.replace(QStringLiteral("@muted@"), palette.color(QPalette::PlaceholderText).name());
+        style.replace(QStringLiteral("@text@"), palette.color(QPalette::WindowText).name());
         style.replace(QStringLiteral("@highlightedText@"), palette.color(QPalette::HighlightedText).name());
+        style.replace(QStringLiteral("@warning@"), warningColor().name());
+        style.replace(QStringLiteral("@error@"), errorColor().name());
         qApp->setStyleSheet(style);
     } else {
         qFatal("The application stylesheet is missing.");

@@ -94,7 +94,7 @@ void ImportSummaryDialog::setUAVOSettings(UAVObjectManager *objs)
 void ImportSummaryDialog::openHelp()
 {
     QDesktopServices::openUrl(
-        QUrl("https://github.com/d-ronin/dRonin/wiki/OnlineHelp:-UAV-Settings-import-export",
+        QUrl("https://github.com/reubenfirmin/droniNG/wiki/OnlineHelp:-UAV-Settings-import-export",
              QUrl::StrictMode));
 }
 

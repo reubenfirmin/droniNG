@@ -26,11 +26,13 @@
  */
 
 #include <QGraphicsScene>
+#include <QApplication>
 #include <QGraphicsSceneMouseEvent>
 #include <QPainter>
 #include <QStyleOption>
 #include <QColor>
 #include <QDebug>
+#include <utils/darktheme.h>
 
 #include "mixercurveline.h"
 #include "mixercurvepoint.h"
@@ -42,7 +44,7 @@ MixerNode::MixerNode(MixerCurveWidget *graphWidget)
     setFlag(ItemIsMovable);
     setFlag(ItemSendsGeometryChanges);
     setCacheMode(DeviceCoordinateCache);
-    setZValue(-1);
+    setZValue(1);
     cmdActive = false;
     vertical = false;
     cmdNode = false;
@@ -69,56 +71,50 @@ QList<Edge *> MixerNode::edges() const
 
 QRectF MixerNode::boundingRect() const
 {
-    return cmdNode ? QRectF(-4, -4, 15, 10) : QRectF(-13, -13, 26, 26);
+    return cmdNode ? QRectF(-4, -4, 15, 10) : QRectF(-21, -13, 42, 26);
 }
 
 QPainterPath MixerNode::shape() const
 {
     QPainterPath path;
-    path.addEllipse(boundingRect());
+    path.addRoundedRect(boundingRect(), cmdNode ? 2 : 4, cmdNode ? 2 : 4);
     return path;
 }
 
 void MixerNode::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *)
 {
     QString text = cmdNode ? cmdText : QString::asprintf("%.2f", value());
-    painter->setFont(graph->font());
+    QFont font = graph->font();
+    font.setPixelSize(cmdNode ? 9 : 12);
+    painter->setFont(font);
+    const QPalette palette = QApplication::palette();
+    QColor color = cmdNode ? (cmdActive ? posColor0 : negColor0) : (value() < 0 ? negColor0 : posColor0);
+    if (color.saturationF() < 0.18)
+        color = palette.color(QPalette::Mid);
+    else if (color.hueF() < 0.07 || color.hueF() > 0.9)
+        color = Utils::errorColor();
+    else if (color.hueF() < 0.2)
+        color = Utils::warningColor();
+    else
+        color = palette.color(QPalette::Highlight);
+    const bool active = (option->state & QStyle::State_Sunken) || (cmdNode && cmdActive);
     if (drawNode) {
-        QRadialGradient gradient(-3, -3, 10);
-        if (option->state & QStyle::State_Sunken) {
-            gradient.setCenter(3, 3);
-            gradient.setFocalPoint(3, 3);
-
-            gradient.setColorAt(1, Qt::darkBlue);
-            gradient.setColorAt(0, Qt::darkBlue);
-        } else {
-            if (cmdNode) {
-                gradient.setColorAt(0, cmdActive ? posColor0 : negColor0);
-                gradient.setColorAt(1, cmdActive ? posColor1 : negColor1);
-            } else {
-                if (value() < 0) {
-                    gradient.setColorAt(0, negColor0);
-                    gradient.setColorAt(1, negColor1);
-                } else {
-                    gradient.setColorAt(0, posColor0);
-                    gradient.setColorAt(1, posColor1);
-                }
-            }
-        }
-        painter->setBrush(gradient);
-        painter->setPen(QPen(Qt::black, 0));
-        painter->drawEllipse(boundingRect());
+        painter->setBrush(active ? color : palette.color(QPalette::Base));
+        QPen border(color, 1);
+        border.setCosmetic(true);
+        painter->setPen(border);
+        painter->drawRoundedRect(boundingRect(), cmdNode ? 2 : 4, cmdNode ? 2 : 4);
 
         if (!image.isNull())
             painter->drawImage(boundingRect().adjusted(1, 1, -1, -1), image);
     }
 
     if (drawText) {
-        painter->setPen(QPen(drawNode ? Qt::white : Qt::black, 0));
+        painter->setPen(active && drawNode ? palette.color(QPalette::HighlightedText) : palette.color(QPalette::Text));
         if (cmdNode) {
             painter->drawText(0, 4, text);
         } else {
-            painter->drawText((value() < 0) ? -13 : -11, 4, text);
+            painter->drawText(boundingRect(), Qt::AlignCenter, text);
         }
     }
 }

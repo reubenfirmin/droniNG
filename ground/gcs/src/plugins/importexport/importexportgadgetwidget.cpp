@@ -205,7 +205,7 @@ void ImportExportGadgetWidget::on_helpButton_clicked()
 {
     qDebug() << "Show Help";
     QDesktopServices::openUrl(
-        QUrl("https://github.com/d-ronin/dRonin/wiki/OnlineHelp:-Import-Export"));
+        QUrl("https://github.com/reubenfirmin/droniNG/wiki/OnlineHelp:-Import-Export"));
 }
 
 void ImportExportGadgetWidget::on_resetButton_clicked()

@@ -273,3 +273,213 @@ QWidget[pageLayout="true"] QProgressBar {
 }
 QWidget[pageLayout="true"] QProgressBar::chunk { background: palette(Highlight); border-radius: 3px; }
 QWidget[pageLayout="true"] QScrollArea { border: none; background: palette(Window); }
+
+/* Configuration and its object browser share one compact, flat control style. */
+QWidget[settingsPage="true"], #settingsNavigation {
+    background: palette(Window);
+    color: palette(WindowText);
+    font-size: 14px;
+}
+QWidget[settingsPage="true"] QWidget { font-size: 14px; font-weight: 400; }
+QWidget[settingsPage="true"] QLabel { background: transparent; }
+QWidget[settingsPage="true"] QLabel[columnHeading="true"] {
+    color: @muted@; font-weight: 600; padding: 6px 0;
+}
+QWidget[settingsPage="true"] QLabel[role="warning"] { color: @warning@; }
+QWidget[settingsPage="true"] QLabel[role="notice"] {
+    color: @warning@;
+    background: palette(AlternateBase);
+    border: 1px solid @warning@;
+    border-radius: 6px;
+    padding: 16px;
+}
+QWidget[settingsPage="true"] QLabel[role="error"] { color: @error@; }
+QWidget[settingsPage="true"] QGroupBox {
+    border: none;
+    border-top: 1px solid palette(Midlight);
+    margin-top: 16px;
+    padding: 16px 0 8px;
+    font-size: 15px;
+    font-weight: 600;
+}
+QWidget[settingsPage="true"] QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 8px 0 0;
+    background: palette(Window);
+    color: palette(WindowText);
+}
+QWidget[settingsPage="true"] QGroupBox[sectionTitle="false"] {
+    border: none; margin: 0; padding: 0;
+}
+QWidget[settingsPage="true"] QTabWidget::pane { border: none; padding-top: 12px; }
+QWidget[settingsPage="true"] QTabBar::tab {
+    background: transparent;
+    color: @muted@;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 10px 12px;
+    margin-right: 4px;
+}
+QWidget[settingsPage="true"] QTabBar::tab:selected {
+    color: palette(WindowText); border-bottom-color: palette(Highlight);
+}
+QWidget[settingsPage="true"] QTabBar::tab:hover { color: palette(Highlight); }
+QWidget[settingsPage="true"] QPushButton {
+    background: palette(Button);
+    color: palette(ButtonText);
+    border: 1px solid palette(Mid);
+    border-radius: 6px;
+    min-height: 20px;
+    padding: 6px 12px;
+}
+QWidget[settingsPage="true"] QPushButton:hover { border-color: palette(Highlight); }
+QWidget[settingsPage="true"] QPushButton:pressed { background: palette(AlternateBase); }
+QWidget[settingsPage="true"] QPushButton[primary="true"] {
+    color: @highlightedText@;
+    background: palette(Highlight);
+    border-color: palette(Highlight);
+    font-weight: 600;
+}
+QWidget[settingsPage="true"] QPushButton:disabled {
+    color: @muted@; background: palette(Window); border-color: palette(Midlight);
+}
+QWidget[settingsPage="true"] QPushButton[iconOnly="true"] { padding: 6px; }
+QWidget[settingsPage="true"] QToolButton {
+    background: transparent; color: palette(WindowText);
+    border: 1px solid transparent; border-radius: 6px; padding: 6px;
+}
+QWidget[settingsPage="true"] QToolButton:hover { background: palette(Button); }
+QWidget[settingsPage="true"] QToolButton:checked { background: palette(AlternateBase); border-color: palette(Highlight); }
+QWidget[settingsPage="true"] QToolButton:disabled { color: @muted@; }
+QWidget[settingsPage="true"] QLineEdit,
+QAbstractSpinBox[settingsPage="true"],
+QWidget[settingsPage="true"] QAbstractSpinBox,
+QWidget[settingsPage="true"] QComboBox {
+    background: palette(Base); color: palette(Text);
+    border: 1px solid palette(Midlight); border-radius: 5px;
+    min-height: 22px; padding: 6px 10px;
+    selection-background-color: palette(Highlight); selection-color: @highlightedText@;
+}
+QWidget[settingsPage="true"] QComboBox { padding-right: 8px; combobox-popup: 0; }
+QWidget[settingsPage="true"] QComboBox::drop-down { border: none; width: 24px; }
+QWidget[settingsPage="true"] QComboBox::down-arrow { image: url(:/core/images/firmware-chevron.svg); width: 14px; height: 14px; }
+QWidget[settingsPage="true"] QComboBox QAbstractItemView {
+    background: palette(Base); color: palette(Text); border: 1px solid palette(Mid);
+    padding: 4px; selection-background-color: palette(Highlight); selection-color: @highlightedText@;
+}
+QWidget[settingsPage="true"] QComboBox QAbstractItemView::item { min-height: 26px; padding: 4px 8px; }
+QAbstractSpinBox[settingsPage="true"],
+QWidget[settingsPage="true"] QAbstractSpinBox { padding-right: 20px; }
+/* The spin box owns the input frame; its internal editor supplies text insets. */
+QAbstractSpinBox[settingsPage="true"] QLineEdit,
+QWidget[settingsPage="true"] QAbstractSpinBox QLineEdit {
+    border: none; border-radius: 0; background: transparent; padding: 0; min-height: 0;
+}
+QAbstractSpinBox[settingsPage="true"]::up-button,
+QAbstractSpinBox[settingsPage="true"]::down-button,
+QWidget[settingsPage="true"] QAbstractSpinBox::up-button,
+QWidget[settingsPage="true"] QAbstractSpinBox::down-button { background: transparent; border: none; width: 18px; }
+QAbstractSpinBox[settingsPage="true"]::up-button:hover,
+QAbstractSpinBox[settingsPage="true"]::down-button:hover,
+QWidget[settingsPage="true"] QAbstractSpinBox::up-button:hover,
+QWidget[settingsPage="true"] QAbstractSpinBox::down-button:hover { background: palette(Button); }
+QAbstractSpinBox[settingsPage="true"]::up-arrow,
+QWidget[settingsPage="true"] QAbstractSpinBox::up-arrow { image: url(:/utils/images/spin-up.svg); width: 10px; height: 6px; }
+QAbstractSpinBox[settingsPage="true"]::down-arrow,
+QWidget[settingsPage="true"] QAbstractSpinBox::down-arrow { image: url(:/utils/images/spin-down.svg); width: 10px; height: 6px; }
+QWidget[settingsPage="true"] QAbstractSpinBox[spinButtons="false"] { padding-right: 8px; }
+/* Qt 6.12.0 clips NoButtons editors when the unused arrow subcontrols align right. */
+QWidget[settingsPage="true"] QAbstractSpinBox[spinButtons="false"]::up-button,
+QWidget[settingsPage="true"] QAbstractSpinBox[spinButtons="false"]::down-button { subcontrol-position: center; }
+QWidget[settingsPage="true"] QLineEdit:focus,
+QAbstractSpinBox[settingsPage="true"]:focus,
+QWidget[settingsPage="true"] QAbstractSpinBox:focus,
+QWidget[settingsPage="true"] QComboBox:focus { border-color: palette(Highlight); }
+QWidget[settingsPage="true"] QLineEdit:disabled,
+QAbstractSpinBox[settingsPage="true"]:disabled,
+QWidget[settingsPage="true"] QAbstractSpinBox:disabled,
+QWidget[settingsPage="true"] QComboBox:disabled { color: @muted@; background: palette(AlternateBase); }
+QWidget[settingsPage="true"] QCheckBox,
+QWidget[settingsPage="true"] QRadioButton { spacing: 8px; min-height: 24px; background: transparent; }
+QWidget[settingsPage="true"] QCheckBox::indicator,
+QWidget[settingsPage="true"] QRadioButton::indicator,
+QWidget[settingsPage="true"] QGroupBox::indicator {
+    width: 16px; height: 16px;
+    border: 1px solid palette(Mid); border-radius: 4px; background: palette(Base);
+}
+QWidget[settingsPage="true"] QRadioButton::indicator { border-radius: 8px; }
+QWidget[settingsPage="true"] QCheckBox::indicator:hover,
+QWidget[settingsPage="true"] QRadioButton::indicator:hover { border-color: palette(Highlight); }
+QWidget[settingsPage="true"] QCheckBox::indicator:checked {
+    background: palette(Highlight); border-color: palette(Highlight); image: url(:/utils/images/check.svg);
+}
+QWidget[settingsPage="true"] QGroupBox::indicator:checked {
+    background: palette(Highlight); border-color: palette(Highlight); image: url(:/utils/images/check.svg);
+}
+QWidget[settingsPage="true"] QRadioButton::indicator:checked {
+    width: 10px; height: 10px; border-radius: 9px;
+    background: palette(Highlight); border: 4px solid palette(Base);
+}
+QWidget[settingsPage="true"] QCheckBox::indicator:disabled,
+QWidget[settingsPage="true"] QRadioButton::indicator:disabled { border-color: palette(Midlight); }
+QWidget[settingsPage="true"] QCheckBox::indicator:checked:disabled,
+QWidget[settingsPage="true"] QRadioButton::indicator:checked:disabled { background: palette(Mid); }
+QWidget[settingsPage="true"] QSlider { min-height: 32px; }
+QWidget[settingsPage="true"] QSlider::groove:horizontal { height: 3px; border: none; border-radius: 1px; background: palette(Mid); }
+QWidget[settingsPage="true"] QSlider::sub-page:horizontal { background: palette(Highlight); border-radius: 1px; }
+QWidget[settingsPage="true"] QSlider::handle:horizontal {
+    width: 18px; margin: -8px 0; background: palette(Highlight); border: 1px solid palette(Highlight); border-radius: 9px;
+}
+QWidget[settingsPage="true"] QSlider::groove:vertical { width: 3px; border: none; background: palette(Mid); }
+QWidget[settingsPage="true"] QSlider::handle:vertical {
+    height: 18px; margin: 0 -8px; background: palette(Highlight); border: 1px solid palette(Highlight); border-radius: 9px;
+}
+QWidget[settingsPage="true"] QSlider::handle:disabled { background: palette(Mid); border-color: palette(Mid); }
+QWidget[settingsPage="true"] QSlider::sub-page:horizontal:disabled { background: palette(Mid); }
+QWidget[settingsPage="true"] QSlider::add-page:horizontal[state="inverted"] { background: @warning@; }
+QWidget[settingsPage="true"] TextBubbleSlider::groove:horizontal { height: 4px; }
+QWidget[settingsPage="true"] TextBubbleSlider::handle:horizontal { margin: -10px 0; border-radius: 5px; background: palette(Button); border-color: palette(Mid); }
+QWidget[settingsPage="true"] QProgressBar {
+    background: palette(Base); border: none; border-radius: 4px; min-height: 8px;
+    color: @muted@; text-align: center;
+}
+QWidget[settingsPage="true"] QProgressBar::chunk { background: palette(Highlight); border-radius: 4px; }
+QWidget[settingsPage="true"] QProgressBar[percentVisible="true"] { min-height: 22px; }
+QWidget[settingsPage="true"] QScrollArea,
+QWidget[settingsPage="true"] QGraphicsView { border: none; background: transparent; }
+QWidget[settingsPage="true"] QTextEdit,
+QWidget[settingsPage="true"] QPlainTextEdit {
+    background: palette(Base); color: palette(Text); border: 1px solid palette(Midlight);
+    border-radius: 6px; padding: 10px; selection-background-color: palette(Highlight); selection-color: @highlightedText@;
+}
+QWidget[settingsPage="true"] QAbstractItemView {
+    background: palette(Base); alternate-background-color: palette(AlternateBase);
+    color: palette(Text); border: none; outline: none;
+    selection-background-color: palette(Highlight); selection-color: @highlightedText@;
+}
+QWidget[settingsPage="true"] QHeaderView::section {
+    background: palette(Window); color: @muted@;
+    border: none; border-bottom: 1px solid palette(Midlight); padding: 8px;
+    font-weight: 500;
+}
+QWidget[settingsPage="true"] QTreeView::item { min-height: 30px; }
+QWidget[settingsPage="true"] QTableView::item { padding: 4px 8px; border-bottom: 1px solid palette(AlternateBase); }
+QWidget[settingsPage="true"] QScrollBar:vertical { background: transparent; width: 8px; margin: 0; }
+QWidget[settingsPage="true"] QScrollBar:horizontal { background: transparent; height: 8px; margin: 0; }
+QWidget[settingsPage="true"] QScrollBar::handle { background: palette(Mid); border-radius: 4px; min-width: 24px; min-height: 24px; }
+QWidget[settingsPage="true"] QScrollBar::handle:hover { background: palette(Light); }
+QWidget[settingsPage="true"] QScrollBar::add-line,
+QWidget[settingsPage="true"] QScrollBar::sub-line { width: 0; height: 0; }
+QWidget[settingsPage="true"] QScrollBar::add-page,
+QWidget[settingsPage="true"] QScrollBar::sub-page { background: transparent; }
+QWidget[settingsPage="true"] QPushButton:focus,
+QWidget[settingsPage="true"] QToolButton:focus { border-color: palette(Highlight); }
+#settingsNavigation {
+    background: palette(Base); border: none; border-right: 1px solid palette(Midlight);
+    padding: 8px 6px; outline: none;
+    selection-color: @text@; selection-background-color: palette(AlternateBase);
+}
+#settingsNavigation::item { padding: 8px; border-radius: 6px; border: 1px solid transparent; }
+#settingsNavigation::item:hover { background: palette(Button); }
+#settingsNavigation::item:selected { color: @text@; background: palette(AlternateBase); border-color: palette(Mid); }

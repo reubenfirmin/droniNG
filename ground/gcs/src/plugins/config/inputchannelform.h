@@ -32,6 +32,9 @@ private slots:
     void reverseChannel();
 
 private:
+    bool event(QEvent *event) override;
+    void alignFields();
+    bool alignmentPending = false;
     Ui::InputChannelForm *ui;
     ChannelFunc m_chanType;
     QSpinBox *sbChannelCurrent;

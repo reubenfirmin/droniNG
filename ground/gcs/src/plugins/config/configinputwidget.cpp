@@ -35,6 +35,7 @@
 #include "uavtalk/telemetrymanager.h"
 
 #include <QDebug>
+#include <utils/settingsstyle.h>
 #include <QStringList>
 #include <QWidget>
 #include <QTextEdit>
@@ -103,6 +104,15 @@ ConfigInputWidget::ConfigInputWidget(QWidget *parent)
     receiverActivityObj = ReceiverActivity::GetInstance(getObjectManager());
     m_config = new Ui_InputWidget();
     m_config->setupUi(this);
+
+    // Arming settings follow the same left edge as the other input tabs.
+    for (auto *row : m_config->saArmingSettings->widget()->findChildren<QHBoxLayout *>()) {
+        for (int index = row->count() - 1; index >= 0; --index)
+            if (row->itemAt(index)->spacerItem()) delete row->takeAt(index);
+        for (int index = 0; index < row->count(); ++index) row->setStretch(index, 0);
+        row->addStretch(1);
+        row->setProperty("settingsTrailingSpace", true);
+    }
 
     ExtensionSystem::PluginManager *pm = ExtensionSystem::PluginManager::instance();
     Q_ASSERT(pm);
@@ -226,7 +236,7 @@ ConfigInputWidget::ConfigInputWidget(QWidget *parent)
     m_renderer = new QSvgRenderer();
     QGraphicsScene *l_scene = m_config->graphicsView->scene();
     if (QFile::exists(":/configgadget/images/TX2.svg")
-        && m_renderer->load(QString(":/configgadget/images/TX2.svg")) && m_renderer->isValid()) {
+        && m_renderer->load(Utils::flatSvgDiagram(":/configgadget/images/TX2.svg")) && m_renderer->isValid()) {
         l_scene->clear(); // Deletes all items contained in the scene as well.
 
         m_txBackground = new QGraphicsSvgItem();
