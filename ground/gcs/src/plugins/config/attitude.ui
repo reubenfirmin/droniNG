@@ -1418,7 +1418,7 @@ new home location unless it is in indoor mode.</string>
        <property name="objrelation" stdset="0">
         <stringlist>
          <string>button:help</string>
-         <string>url:https://github.com/reubenfirmin/droniNG/wiki/OnlineHelp:-Attitude</string>
+         <string>url:https://reubenfirmin.github.io/droniNG/OnlineHelp:-Attitude.html</string>
         </stringlist>
        </property>
       </widget>

@@ -168,7 +168,7 @@ Rectangle {
                 WelcomeLink {
                     text: qsTr("Documentation ↗")
                     accent: page.muted
-                    onClicked: Qt.openUrlExternally("https://github.com/reubenfirmin/droniNG/wiki")
+                    onClicked: Qt.openUrlExternally("https://reubenfirmin.github.io/droniNG/")
                 }
                 WelcomeLink {
                     id: communityToggle
