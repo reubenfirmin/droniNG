@@ -79,7 +79,7 @@ QIODevice *LoggingConnection::openDevice(IDevice *deviceName)
 
     QString fileName = QFileDialog::getOpenFileName(
         dynamic_cast<QWidget *>(Core::ICore::instance()->mainWindow()), tr("Open file"),
-        QString(""), tr("dRonin Log Files (*.drlog *.tll)"));
+        QString(""), tr("droniNG Log Files (*.drlog *.tll)"));
 
     if (!fileName.isNull()) {
         startReplay(fileName);
@@ -368,9 +368,9 @@ void LoggingPlugin::toggleLogging()
         QString fileName = QFileDialog::getSaveFileName(
             dynamic_cast<QWidget *>(Core::ICore::instance()->mainWindow()), tr("Start Log"),
             QDir::homePath() + QDir::separator()
-                + tr("dRonin-%0.drlog")
+                + tr("droniNG-%0.drlog")
                       .arg(QDateTime::currentDateTime().toString("yyyy-MM-dd_hh-mm-ss")),
-            tr("dRonin Log (*.drlog)"));
+            tr("droniNG Log (*.drlog)"));
 
         if (fileName.isEmpty())
             return;

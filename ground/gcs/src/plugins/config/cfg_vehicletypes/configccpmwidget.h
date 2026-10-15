@@ -33,7 +33,7 @@
 #include "uavobjects/uavobjectmanager.h"
 #include "uavobjects/uavobject.h"
 #include <QtSvg/QSvgRenderer>
-#include <QtSvg/QGraphicsSvgItem>
+#include <QGraphicsSvgItem>
 #include <QGraphicsEllipseItem>
 #include <QWidget>
 #include <QList>
@@ -124,6 +124,7 @@ public slots:
     void saveccpmUpdate();
 
 protected:
+    bool eventFilter(QObject *object, QEvent *event) override;
     void showEvent(QShowEvent *event);
     void resizeEvent(QResizeEvent *event);
 };

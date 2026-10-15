@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "radix",
+  "name": "BrainFPV RADIX",
+  "boardType": 224,
+  "boardRevision": 1,
+  "layoutId": "radix-f446-rom-v1",
+  "supportLevel": "experimental",
+  "sourceLock": "flight/Betaflight/radix.lock.json",
+  "target": "RADIX",
+  "mcu": "STM32F446xx",
+  "hseHz": 16000000,
+  "sysclkHz": 180000000,
+  "flashBytes": 524288,
+  "ramBytes": 131072,
+  "motorCount": 4,
+  "imuOrientation": "PIOS_BMI160_TOP_0DEG",
+  "layout": {
+    "vectors": [0, 16384],
+    "settings": [16384, 32768],
+    "identity": [49152, 16384],
+    "autotune": [65536, 65536],
+    "application": [131072, 393216],
+    "descriptorOffset": 524188
+  },
+  "requiredBackends": ["BMI160", "BMP280_SPI", "BrainFPV_FPGA", "QuadSPI_OSD", "USB_UAVTalk", "GPS", "ExternalTelemetry"],
+  "limitations": ["Hardware and flight validation pending", "Four PWM/OneShot outputs; DShot DMA not yet validated", "SD flight logging and extra motor outputs not implemented", "UART4 GPS excludes ESC telemetry"]
+}

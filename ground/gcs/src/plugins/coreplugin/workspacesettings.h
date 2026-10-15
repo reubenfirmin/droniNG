@@ -68,9 +68,6 @@ namespace Internal {
         QString name(int i) const { return m_names.at(i); }
         QString modeName(int i) const { return m_modeNames.at(i); }
 
-    signals:
-        void tabBarSettingsApplied(QTabWidget::TabPosition pos, bool movable);
-
     public slots:
         void selectWorkspace(int index, bool store = false);
         void numberOfWorkspacesChanged(int value);
@@ -86,8 +83,6 @@ namespace Internal {
         int m_currentIndex;
         int m_previousNumberOfWorkspaces;
         int m_numberOfWorkspaces;
-        int m_tabBarPlacementIndex;
-        bool m_allowTabBarMovement;
         static const int MAX_WORKSPACES;
     };
 

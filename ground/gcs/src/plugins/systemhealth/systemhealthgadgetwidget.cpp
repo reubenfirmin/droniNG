@@ -113,7 +113,7 @@ void SystemHealthGadgetWidget::updateAlarms(UAVObject *systemAlarm)
         QString element = field->getElementNames()[i];
         QString value = field->getValue(i).toString();
         if (m_renderer->elementExists(element)) {
-            QMatrix blockMatrix = m_renderer->matrixForElement(element);
+            QTransform blockMatrix = m_renderer->transformForElement(element);
             qreal startX = blockMatrix.mapRect(m_renderer->boundsOnElement(element)).x();
             qreal startY = blockMatrix.mapRect(m_renderer->boundsOnElement(element)).y();
             QString element2 = element + "-" + value;

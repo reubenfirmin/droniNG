@@ -40,20 +40,33 @@
 #include <coreplugin/iconnection.h>
 #include <QtCore/QVector>
 #include <QtCore/QIODevice>
-#include <QtCore/QLinkedList>
+#include <QtCore/QList>
 #include <QPushButton>
 #include <QComboBox>
 #include <QPointer>
+#include <QSet>
+#include <QHash>
+#include <QStringList>
 #include <QMessageBox>
 
 #include "core_global.h"
 #include <QTimer>
+#include <QJsonArray>
 
 QT_BEGIN_NAMESPACE
 class QTabWidget;
 QT_END_NAMESPACE
 
 namespace Core {
+struct FirmwareBoardProfile;
+struct VerifiedInstallation {
+    QString boardId, usbPath, log;
+    QByteArray descriptor;
+};
+struct ControllerRecovery {
+    QString deviceName, usbPath, boardId;
+    ConnectionError problem;
+};
 
 class IConnection;
 class IDevice;
@@ -83,12 +96,12 @@ public:
         return connection->shortName() + ": " + device->getDisplayName();
     }
 
-    bool operator==(const DevListItem &rhs)
+    bool operator==(const DevListItem &rhs) const
     {
         return connection == rhs.connection && device == rhs.device;
     }
 
-    bool operator!=(const DevListItem &rhs) { return !(this == &rhs); }
+    bool operator!=(const DevListItem &rhs) const { return !(*this == rhs); }
 
     IConnection *connection;
     QPointer<IDevice> device;
@@ -108,16 +121,58 @@ public:
     DevListItem getCurrentDevice() { return m_connectionDevice; }
     DevListItem findDevice(const QString &devName);
 
-    QLinkedList<DevListItem> getAvailableDevices() { return m_devList; }
+    QList<DevListItem> getAvailableDevices() { return m_devList; }
 
     bool isConnected() { return m_ioDev != nullptr; }
+    bool firmwareInstallationActive() const { return m_firmwareInstalling; }
+    bool firmwareDetectionActive() const { return m_firmwareDetecting; }
+    bool flightDataAvailable() const { return m_flightDataAvailable; }
+    bool controllerSetupRequired() const { return m_controllerSetupRequired; }
 
     bool connectDevice(DevListItem device);
+    bool autoConnectDevice(DevListItem device);
+    bool automaticConnectionBlocked(const QString &usbPath) const;
+    void resetAutomaticConnectionFailures(const QString &usbPath);
+    ControllerRecovery controllerRecovery() const { return m_controllerRecovery; }
+    void clearControllerRecovery();
+    void reportControllerProblem(const ConnectionError &error);
     bool disconnectDevice();
     void suspendPolling();
     void resumePolling();
     TelemetryMonitorWidget *getTelemetryMonitorWidget() { return m_monitorWidget; }
     bool getAutoconnect();
+    QString firmwareVariant() const { return m_firmwareVariant; }
+    QString firmwareBoardTarget() const { return m_firmwareBoardTarget; }
+    bool hasMspFirmware() const { return m_mspFirmwareDetected; }
+    QString firmwareVersion() const { return m_firmwareVersion; }
+    QString detectedBoard() const { return m_detectedBoard; }
+    QString hardwareBoardId() const { return m_hardwareBoardId; }
+    QString controllerSerial() const { return m_controllerSerial; }
+    QString detectedFirmware() const { return m_detectedFirmware; }
+    QByteArray firmwareDescription() const { return m_receivedDescriptor; }
+    QString detectedBootloader() const { return m_detectedBootloader; }
+    QString firmwareStatus() const { return m_firmwareStatus; }
+    QString connectionLog() const { return m_connectionLog.join('\n'); }
+    ConnectionError firmwareError() const { return m_firmwareError; }
+    void setFirmwareIdentity(const QString &variant, const QString &boardTarget,
+                             bool mspDetected = false, const QString &version = {});
+    void setNativeFirmwareIdentity(const QString &board, const QString &firmware,
+                                   const QString &bootloader = {});
+    void setControllerSerial(const QString &serial);
+    bool confirmHardwareBoard(const QString &boardId);
+    void setFirmwareStatus(const QString &message);
+    void setFirmwareDetectionActive(bool active);
+    void beginFirmwareInstallation();
+    void endFirmwareInstallation();
+    VerifiedInstallation verifiedInstallation() const;
+    void recordVerifiedInstallation(const QString &boardId, const QString &usbPath,
+                                    const QByteArray &descriptor, const QString &log = {});
+    void clearVerifiedInstallation();
+    void reportFirmwareDescription(const QByteArray &description);
+    void reportFirmwareProfile(int schema, const QString &profile, const QString &layout, const QByteArray &hash);
+    void reportFlightDataReceived();
+    void setControllerSetupRequired(bool required);
+    void requestControllerSetup();
 
 protected:
     void updateConnectionList(IConnection *connection);
@@ -128,12 +183,28 @@ signals:
     void deviceConnected(QIODevice *device);
     void deviceAboutToDisconnect();
     void deviceDisconnected();
-    void availableDevicesChanged(const QLinkedList<Core::DevListItem> devices);
+    void availableDevicesChanged(const QList<Core::DevListItem> devices);
+    void firmwareDescriptionReceived(const QByteArray &description);
+    void firmwareProfileReceived(int schema, const QString &profile, const QString &layout, const QByteArray &hash);
+    void flightDataReady();
+    void boardSettingsRequested(const QJsonArray &settings);
+    void boardSettingsFinished(bool success, const QString &message);
+    void boardSettingsCancelled();
+    void firmwareBootRequested(const QString &usbPath, const QByteArray &descriptor);
+    void firmwareBootFinished(bool success, const QString &message);
+    void firmwareBootCancelled();
+    void firmwareStateChanged();
+    void connectionLogChanged();
+    void firmwarePageRequested();
+    void setupWizardRequested();
 
 public slots:
     void telemetryConnected();
     void telemetryDisconnected();
     void telemetryUpdated(double txRate, double rxRate);
+    void telemetryConnectionFailed(const Core::ConnectionError &error);
+    void telemetryHandshakeCompleted();
+    void showFirmwarePage();
 
 private slots:
     void objectAdded(QObject *obj);
@@ -142,7 +213,6 @@ private slots:
     void onConnectClicked();
     void devChanged(IConnection *connection);
 
-    void onConnectionDestroyed(QObject *obj);
     void connectionsCallBack(); // used to call devChange after all the plugins are loaded
     void reconnectSlot();
     void reconnectCheckSlot();
@@ -150,7 +220,7 @@ private slots:
 protected:
     QComboBox *m_availableDevList;
     QPushButton *m_connectBtn;
-    QLinkedList<DevListItem> m_devList;
+    QList<DevListItem> m_devList;
     QList<IConnection *> m_connectionsList;
 
     // tx/rx telemetry monitor
@@ -166,14 +236,41 @@ protected:
     QIODevice *m_ioDev;
 
 private:
+    void confirmVerifiedInstallation();
+    QByteArray m_receivedDescriptor;
+    bool m_receivedMatchingProfile = false;
     bool connectDevice();
     bool polling;
+    bool m_firmwareInstalling = false;
+    bool m_firmwareDetecting = false;
+    bool m_flightDataAvailable = false;
+    bool m_controllerSetupRequired = false;
+    QSet<IConnection *> m_enumeratedConnections;
     Internal::MainWindow *m_mainWindow;
     QList<IConnection *> connectionBackup;
     QTimer *reconnect;
     QTimer *reconnectCheck;
+    ConnectionError m_connectionError;
+    QMetaObject::Connection m_connectionDestroyed;
+    QMetaObject::Connection m_transportDisconnected, m_deviceClosed;
+    quint64 m_connectionGeneration = 0;
+    QSet<QString> m_blockedUsbPaths;
+    QHash<QString, int> m_installationOpenFailures;
+    QString m_startupFailurePath;
+    ControllerRecovery m_controllerRecovery;
+    void rememberController(DevListItem device);
+    QString m_firmwareVariant, m_firmwareBoardTarget;
+    QString m_firmwareVersion, m_detectedBoard, m_detectedFirmware, m_detectedBootloader;
+    QString m_controllerSerial, m_hardwareBoardId;
+    QString m_firmwareStatus;
+    ConnectionError m_firmwareError;
+    QStringList m_connectionLog;
+    bool m_mspFirmwareDetected = false;
 
     void connectDeviceFailed(DevListItem &device);
+    bool connectDeviceInternal(DevListItem device, bool automatic);
+    void transportLost();
+    void appendConnectionLog(const QString &message);
 };
 
 } // namespace Core

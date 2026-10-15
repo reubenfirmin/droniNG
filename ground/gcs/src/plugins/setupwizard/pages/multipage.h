@@ -28,7 +28,7 @@
 #ifndef MULTIPAGE_H
 #define MULTIPAGE_H
 
-#include <QtSvg/QGraphicsSvgItem>
+#include <QGraphicsSvgItem>
 #include <QtSvg/QSvgRenderer>
 #include <QList>
 

@@ -20,8 +20,9 @@ SOURCES += modelviewplugin.cpp \
     modelviewgadgetconfiguration.cpp \
     modelviewgadget.cpp \
     modelviewgadgetfactory.cpp \
-    modelviewgadgetwidget.cpp \
     modelviewgadgetoptionspage.cpp
+
+SOURCES += modelviewgadgetwidgetqt6.cpp
 
 OTHER_FILES += ModelViewGadget.pluginspec
 
@@ -29,9 +30,3 @@ FORMS += modelviewoptionspage.ui
 
 RESOURCES += \
     modelview.qrc
-
-win32-msvc* {
-    LIBS += opengl32.lib
-} else:win32 {
-    LIBS += -lopengl32
-}

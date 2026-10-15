@@ -74,7 +74,7 @@ UAVGadgetView::UAVGadgetView(Core::UAVGadgetManager *uavGadgetManager, IUAVGadge
 
     tl = new QVBoxLayout(this);
     tl->setSpacing(0);
-    tl->setMargin(0);
+    tl->setContentsMargins(0, 0, 0, 0);
     {
         // Ugly hack to bypass Qt's styling antics regarding combobox flyouts.
         m_uavGadgetList->setView(new QListView(m_uavGadgetList));
@@ -114,7 +114,7 @@ UAVGadgetView::UAVGadgetView(Core::UAVGadgetManager *uavGadgetManager, IUAVGadge
         m_activeToolBar = m_defaultToolBar;
 
         QHBoxLayout *toolBarLayout = new QHBoxLayout(m_toolBar);
-        toolBarLayout->setMargin(0);
+        toolBarLayout->setContentsMargins(0, 0, 0, 0);
         toolBarLayout->setSpacing(0);
         toolBarLayout->addWidget(m_defaultToolBar);
 
@@ -135,7 +135,7 @@ UAVGadgetView::UAVGadgetView(Core::UAVGadgetManager *uavGadgetManager, IUAVGadge
 
         QHBoxLayout *toplayout = new QHBoxLayout(m_top);
         toplayout->setSpacing(0);
-        toplayout->setMargin(0);
+        toplayout->setContentsMargins(0, 0, 0, 0);
         toplayout->addWidget(m_uavGadgetList);
         toplayout->addWidget(m_toolBar); // Custom toolbar stretches
         toplayout->addWidget(spacerWidget);

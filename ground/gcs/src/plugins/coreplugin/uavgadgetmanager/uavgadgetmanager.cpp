@@ -112,7 +112,7 @@ UAVGadgetManager::UAVGadgetManager(ICore *core, QString name, QIcon icon, int pr
     setCurrentGadget(m_splitterOrView->view()->gadget());
 
     QHBoxLayout *layout = new QHBoxLayout(m_widget);
-    layout->setMargin(0);
+    layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
     layout->addWidget(m_splitterOrView);
 
@@ -172,7 +172,12 @@ void UAVGadgetManager::setCurrentGadget(IUAVGadget *uavGadget)
         if (view)
             view->update();
     }
-    uavGadget->widget()->setFocus();
+    // Activating a panel through one of its controls must preserve the control's
+    // keyboard focus. Otherwise the first click on an editor focuses its parent.
+    auto *widget = uavGadget->widget();
+    auto *focused = QApplication::focusWidget();
+    if (!focused || (focused != widget && !widget->isAncestorOf(focused)))
+        widget->setFocus();
     emit currentGadgetChanged(uavGadget);
 }
 
@@ -312,6 +317,18 @@ bool UAVGadgetManager::restoreState(QSettings *qSettings)
     m_splitterOrView->restoreState(qSettings);
     qSettings->endGroup();
 
+    // Firmware is a composed workflow page. Retain the saved splitter tree and
+    // gadget state while giving its uploader the entire workspace at runtime.
+    if (m_name == "Firmware") {
+        for (auto *item : m_splitterOrView->gadgets()) {
+            if (item && item->classId() == "Uploader") {
+                m_splitterOrView->showSingleGadget(item);
+                m_currentGadget = item;
+                m_showToolbars = false;
+                break;
+            }
+        }
+    }
     QApplication::restoreOverrideCursor();
     return true;
 }

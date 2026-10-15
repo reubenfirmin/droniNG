@@ -2,6 +2,7 @@ import QtQuick 2.0
 
 Item {
     id: welcomeButton
+    SystemPalette { id: appPalette }
     width: Math.max(116, icon.width)
     height: icon.height
     z: 0
@@ -24,10 +25,14 @@ Item {
         opacity: 0
     }
 
-    Image {
+    Rectangle {
         id: labelImage
         property bool displayBelowButton: false
-        source: displayBelowButton ? "images/button-label-bottom.png" : "images/button-label.png"
+        width: labelText.implicitWidth + 20
+        height: labelText.implicitHeight + 12
+        radius: 4
+        color: appPalette.button
+        border.color: appPalette.mid
         opacity: 0
         visible: labelText.text.length > 0 //don't show label bg without text
 
@@ -37,17 +42,13 @@ Item {
 
         Text {
             id: labelText
-            anchors.baseline: parent.bottom
-            //text baseline depends on label image orientation,
-            //0.3 and 0.55 constants have to be adjusted when button-label.png is modified
-            anchors.baselineOffset: labelImage.displayBelowButton ? -parent.height*0.3 : -parent.height*0.55
-            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.centerIn: parent
 
             font {
                 weight: Font.DemiBold
                 pointSize: 14
             }
-            color: "#272727"
+            color: appPalette.windowText
         }
     }
 

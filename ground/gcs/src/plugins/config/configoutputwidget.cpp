@@ -470,9 +470,18 @@ void ConfigOutputWidget::refreshWidgetsValues(UAVObject *obj)
                 lblList.at(i)->setText(banks.at(i));
                 QComboBox *ccmb = rateList.at(i);
                 ccmb->setEnabled(true);
+                for (const auto rate : {RATE_DSHOT300, RATE_DSHOT600, RATE_DSHOT1200}) {
+                    const QString name = timerFreqToString(rate);
+                    const int index = ccmb->findText(name);
+                    if (!board->supportsDShot() && index >= 0) ccmb->removeItem(index);
+                    else if (board->supportsDShot() && index < 0) ccmb->addItem(name);
+                }
 
                 QString setting = timerFreqToString(actuatorSettingsData.TimerUpdateFreq[i]);
-                if (ccmb->findText(setting) == -1) {
+                const bool supported = board->supportsDShot() || actuatorSettingsData.TimerUpdateFreq[i] < RATE_DSHOT300
+                    || actuatorSettingsData.TimerUpdateFreq[i] > RATE_DSHOT1200;
+                ccmb->setPlaceholderText(tr("Choose PWM or SyncPWM"));
+                if (supported && ccmb->findText(setting) == -1) {
                     ccmb->addItem(setting);
                 }
                 ccmb->setCurrentIndex(ccmb->findText(setting));

@@ -45,9 +45,9 @@
 #include "configattitudewidget.h"
 #include "defaulthwsettingswidget.h"
 #include "uavobjectutil/uavobjectutilmanager.h"
+#include <utils/settingsstyle.h>
 
 #include <QDebug>
-#include <QMessageBox>
 #include <QStringList>
 #include <QWidget>
 #include <QTextEdit>
@@ -60,12 +60,12 @@ ConfigGadgetWidget::ConfigGadgetWidget(QWidget *parent)
 {
     setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
 
-    ftw = new MyTabbedStackWidget(this, true, true);
-    ftw->setIconSize(64);
+    ftw = new MyTabbedStackWidget(this, true, false);
+    ftw->setIconSize(24);
 
-    QVBoxLayout *layout = new QVBoxLayout;
+    QHBoxLayout *layout = new QHBoxLayout;
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->addWidget(ftw);
+    layout->addWidget(ftw, 1);
     setLayout(layout);
 
     help = nullptr;
@@ -77,22 +77,21 @@ ConfigGadgetWidget::ConfigGadgetWidget(QWidget *parent)
 
 void ConfigGadgetWidget::deferredLoader()
 {
-    QIcon *icon;
+    QIcon icon;
     QWidget *qwd;
 
     switch (chunk) {
     case 0:
         // *********************
-        icon = new QIcon();
-        icon->addFile(":/configgadget/images/hardware_normal.png", QSize(), QIcon::Normal,
-                      QIcon::Off);
-        icon->addFile(":/configgadget/images/hardware_selected.png", QSize(), QIcon::Selected,
-                      QIcon::Off);
+        icon = Utils::settingsIcon("hardware");
         qwd = new QLabel(tr("<p>No recognized board detected. Hardware tab will refresh once a "
                             "known board is detected.</p>"),
                          this);
         qobject_cast<QLabel *>(qwd)->setWordWrap(true);
-        ftw->insertTab(ConfigGadgetWidget::hardware, qwd, *icon, QString(tr("Hardware")));
+        qobject_cast<QLabel *>(qwd)->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+        ftw->insertTab(ConfigGadgetWidget::hardware, qwd, icon, QString(tr("Hardware")));
+        qwd->setContentsMargins(24, 24, 24, 24);
+        Utils::styleSettingsPage(qwd);
         break;
 
     case 1:
@@ -100,110 +99,71 @@ void ConfigGadgetWidget::deferredLoader()
         break;
 
     case 2:
-        icon = new QIcon();
-        icon->addFile(":/configgadget/images/vehicle_normal.png", QSize(), QIcon::Normal,
-                      QIcon::Off);
-        icon->addFile(":/configgadget/images/vehicle_selected.png", QSize(), QIcon::Selected,
-                      QIcon::Off);
+        icon = Utils::settingsIcon("vehicle");
         qwd = new ConfigVehicleTypeWidget(this);
-        ftw->insertTab(ConfigGadgetWidget::aircraft, qwd, *icon, QString("Vehicle"));
+        ftw->insertTab(ConfigGadgetWidget::aircraft, qwd, icon, QString("Vehicle"));
         break;
 
     case 3:
-        icon = new QIcon();
-        icon->addFile(":/configgadget/images/input_normal.png", QSize(), QIcon::Normal, QIcon::Off);
-        icon->addFile(":/configgadget/images/input_selected.png", QSize(), QIcon::Selected,
-                      QIcon::Off);
+        icon = Utils::settingsIcon("input");
         qwd = new ConfigInputWidget(this);
-        ftw->insertTab(ConfigGadgetWidget::input, qwd, *icon, QString("Input"));
+        ftw->insertTab(ConfigGadgetWidget::input, qwd, icon, QString("Input"));
         break;
 
     case 4:
-        icon = new QIcon();
-        icon->addFile(":/configgadget/images/output_normal.png", QSize(), QIcon::Normal,
-                      QIcon::Off);
-        icon->addFile(":/configgadget/images/output_selected.png", QSize(), QIcon::Selected,
-                      QIcon::Off);
+        icon = Utils::settingsIcon("output");
         qwd = new ConfigOutputWidget(this);
-        ftw->insertTab(ConfigGadgetWidget::output, qwd, *icon, QString("Output"));
+        ftw->insertTab(ConfigGadgetWidget::output, qwd, icon, QString("Output"));
         break;
 
     case 5:
-        icon = new QIcon();
-        icon->addFile(":/configgadget/images/ins_normal.png", QSize(), QIcon::Normal, QIcon::Off);
-        icon->addFile(":/configgadget/images/ins_selected.png", QSize(), QIcon::Selected,
-                      QIcon::Off);
+        icon = Utils::settingsIcon("attitude");
         qwd = new ConfigAttitudeWidget(this);
-        ftw->insertTab(ConfigGadgetWidget::sensors, qwd, *icon, QString("Attitude"));
+        ftw->insertTab(ConfigGadgetWidget::sensors, qwd, icon, QString("Attitude"));
         break;
 
     case 6:
-        icon = new QIcon();
-        icon->addFile(":/configgadget/images/stabilization_normal.png", QSize(), QIcon::Normal,
-                      QIcon::Off);
-        icon->addFile(":/configgadget/images/stabilization_selected.png", QSize(), QIcon::Selected,
-                      QIcon::Off);
+        icon = Utils::settingsIcon("stabilization");
         qwd = new ConfigStabilizationWidget(this);
-        ftw->insertTab(ConfigGadgetWidget::stabilization, qwd, *icon, QString("Stabilization"));
+        ftw->insertTab(ConfigGadgetWidget::stabilization, qwd, icon, QString("Stabilization"));
         break;
 
     case 7:
-        icon = new QIcon();
-        icon->addFile(":/configgadget/images/modules_normal.png", QSize(), QIcon::Normal,
-                      QIcon::Off);
-        icon->addFile(":/configgadget/images/modules_selected.png", QSize(), QIcon::Selected,
-                      QIcon::Off);
+        icon = Utils::settingsIcon("modules");
         qwd = new ConfigModuleWidget(this);
-        ftw->insertTab(ConfigGadgetWidget::modules, qwd, *icon, QString("Modules"));
+        ftw->insertTab(ConfigGadgetWidget::modules, qwd, icon, QString("Modules"));
         break;
 
     case 8:
-        icon = new QIcon();
-        icon->addFile(":/configgadget/images/autotune_normal.png", QSize(), QIcon::Normal,
-                      QIcon::Off);
-        icon->addFile(":/configgadget/images/autotune_selected.png", QSize(), QIcon::Selected,
-                      QIcon::Off);
+        icon = Utils::settingsIcon("autotune");
         qwd = new ConfigAutotuneWidget(this);
-        ftw->insertTab(ConfigGadgetWidget::autotune, qwd, *icon, QString("Autotune"));
+        ftw->insertTab(ConfigGadgetWidget::autotune, qwd, icon, QString("Autotune"));
         break;
 
     case 9:
-        icon = new QIcon();
-        icon->addFile(":/configgadget/images/camstab_normal.png", QSize(), QIcon::Normal,
-                      QIcon::Off);
-        icon->addFile(":/configgadget/images/camstab_selected.png", QSize(), QIcon::Selected,
-                      QIcon::Off);
+        icon = Utils::settingsIcon("camera");
         qwd = new ConfigCameraStabilizationWidget(this);
-        ftw->insertTab(ConfigGadgetWidget::camerastabilization, qwd, *icon, QString("Camera Stab"));
+        ftw->insertTab(ConfigGadgetWidget::camerastabilization, qwd, icon, QString("Camera Stab"));
         break;
 
     case 10:
-        icon = new QIcon();
-        icon->addFile(":/configgadget/images/txpid_normal.png", QSize(), QIcon::Normal, QIcon::Off);
-        icon->addFile(":/configgadget/images/txpid_selected.png", QSize(), QIcon::Selected,
-                      QIcon::Off);
+        icon = Utils::settingsIcon("txpid");
         qwd = new ConfigTxPIDWidget(this);
-        ftw->insertTab(ConfigGadgetWidget::txpid, qwd, *icon, QString("TxPID"));
+        ftw->insertTab(ConfigGadgetWidget::txpid, qwd, icon, QString("TxPID"));
         break;
 
     case 11:
-        icon = new QIcon();
-        icon->addFile(":/configgadget/images/osd_normal.png", QSize(), QIcon::Normal, QIcon::Off);
-        icon->addFile(":/configgadget/images/osd_selected.png", QSize(), QIcon::Selected,
-                      QIcon::Off);
+        icon = Utils::settingsIcon("osd");
         qwd = new ConfigOsdWidget(this);
-        ftw->insertTab(ConfigGadgetWidget::osd, qwd, *icon, QString("OSD"));
+        ftw->insertTab(ConfigGadgetWidget::osd, qwd, icon, QString("OSD"));
         // Hide OSD if not applicable, else show
         ftw->setHidden(ConfigGadgetWidget::osd, true);
         break;
 
     case 12:
-        icon = new QIcon();
-        icon->addFile(":/configgadget/images/radio_normal.png", QSize(), QIcon::Normal, QIcon::Off);
-        icon->addFile(":/configgadget/images/radio_selected.png", QSize(), QIcon::Selected,
-                      QIcon::Off);
+        icon = Utils::settingsIcon("radio");
         qwd = new ConfigRadioWidget(this);
-        ftw->insertTab(ConfigGadgetWidget::radio, qwd, *icon, QString("Radio"));
+        ftw->insertTab(ConfigGadgetWidget::radio, qwd, icon, QString("Radio"));
         // Hide Radio if not applicable, else show
         ftw->setHidden(ConfigGadgetWidget::radio, true);
         break;
@@ -272,15 +232,15 @@ void ConfigGadgetWidget::onAutopilotDisconnect()
     ftw->setCurrentIndex(ConfigGadgetWidget::hardware);
     ftw->removeTab(ConfigGadgetWidget::hardware);
 
-    QIcon *icon = new QIcon();
-    icon->addFile(":/configgadget/images/hardware_normal.png", QSize(), QIcon::Normal, QIcon::Off);
-    icon->addFile(":/configgadget/images/hardware_selected.png", QSize(), QIcon::Selected,
-                  QIcon::Off);
+    const QIcon icon = Utils::settingsIcon("hardware");
     QLabel *qwd = new QLabel(tr("<p>No recognized board detected. Hardware tab will refresh once a "
                                 "known board is detected.</p>"),
                              this);
     qwd->setWordWrap(true);
-    ftw->insertTab(ConfigGadgetWidget::hardware, qwd, *icon, QString("Hardware"));
+    qwd->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    ftw->insertTab(ConfigGadgetWidget::hardware, qwd, icon, QString("Hardware"));
+    qwd->setContentsMargins(24, 24, 24, 24);
+    Utils::styleSettingsPage(qwd);
     ftw->setCurrentIndex(ConfigGadgetWidget::hardware);
 
     emit autopilotDisconnected();
@@ -288,7 +248,7 @@ void ConfigGadgetWidget::onAutopilotDisconnect()
 
 void ConfigGadgetWidget::onAutopilotConnect()
 {
-    QIcon *icon;
+    QIcon icon;
     QWidget *qwd;
 
     bool hasOSD = false;
@@ -347,22 +307,21 @@ void ConfigGadgetWidget::onAutopilotConnect()
             qwd = txt;
         }
 
-        icon = new QIcon();
-        icon->addFile(":/configgadget/images/hardware_normal.png", QSize(), QIcon::Normal,
-                      QIcon::Off);
-        icon->addFile(":/configgadget/images/hardware_selected.png", QSize(), QIcon::Selected,
-                      QIcon::Off);
-        ftw->insertTab(ConfigGadgetWidget::hardware, qwd, *icon, QString(tr("Hardware")));
+        icon = Utils::settingsIcon("hardware");
+        ftw->insertTab(ConfigGadgetWidget::hardware, qwd, icon, QString(tr("Hardware")));
+        if (auto *message = qobject_cast<QLabel *>(qwd)) {
+            message->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+            message->setContentsMargins(24, 24, 24, 24);
+        }
+        Utils::styleSettingsPage(qwd);
         ftw->setCurrentIndex(ConfigGadgetWidget::hardware);
     }
 
     //! Remove and recreate the attitude widget to refresh board capabilities
     ftw->removeTab(ConfigGadgetWidget::sensors);
-    icon = new QIcon();
-    icon->addFile(":/configgadget/images/ins_normal.png", QSize(), QIcon::Normal, QIcon::Off);
-    icon->addFile(":/configgadget/images/ins_selected.png", QSize(), QIcon::Selected, QIcon::Off);
+    icon = Utils::settingsIcon("attitude");
     qwd = new ConfigAttitudeWidget(this);
-    ftw->insertTab(ConfigGadgetWidget::sensors, qwd, *icon, QString("Attitude"));
+    ftw->insertTab(ConfigGadgetWidget::sensors, qwd, icon, QString("Attitude"));
 
     // Hide OSD if not applicable, else show
     ftw->setHidden(ConfigGadgetWidget::osd, !hasOSD);
@@ -389,17 +348,6 @@ void ConfigGadgetWidget::tabAboutToChange(int i, bool *proceed)
 
     wid->tabSwitchingAway();
 
-    // Check if widget is dirty (i.e. has unsaved changes)
-    if (wid->isDirty() && wid->isAutopilotConnected()) {
-        int ans = QMessageBox::warning(this, tr("Unsaved changes"),
-                                       tr("The tab you are leaving has unsaved changes,"
-                                          "if you proceed they may be lost."
-                                          "Do you still want to proceed?"),
-                                       QMessageBox::Yes, QMessageBox::No);
-        if (ans == QMessageBox::No) {
-            *proceed = false;
-        } else {
-            wid->setDirty(false);
-        }
-    }
+    // Each page keeps its draft until Apply, Save or Discard. Leaving Output
+    // still stops motor testing via tabSwitchingAway(), without blocking navigation.
 }

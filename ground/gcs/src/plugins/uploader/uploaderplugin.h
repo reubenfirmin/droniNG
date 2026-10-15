@@ -47,6 +47,7 @@
 
 namespace uploader {
 class UploaderGadgetFactory;
+class FirmwareBootController;
 }
 
 using namespace uploader;
@@ -54,7 +55,7 @@ using namespace uploader;
 class UPLOADER_EXPORT UploaderPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.Uploader")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.Uploader")
 public:
     UploaderPlugin();
     ~UploaderPlugin();
@@ -65,6 +66,7 @@ public:
 
 private:
     UploaderGadgetFactory *mf;
+    FirmwareBootController *m_firmwareBoot = nullptr;
 private slots:
     void testStuff();
 };

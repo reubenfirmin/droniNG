@@ -23,6 +23,7 @@
  * with this program; if not, see <http://www.gnu.org/licenses/>
  */
 #include "telemetryschedulergadgetwidget.h"
+#include <QRegularExpression>
 #include "metadata_dialog.h"
 #include "ui_telemetryscheduler.h"
 #include "ui_metadata_dialog.h"
@@ -944,7 +945,7 @@ void QFrozenTableViewWithCopyPaste::paste()
     QModelIndexList indexes = selection->selectedIndexes();
 
     QString selected_text = qApp->clipboard()->text();
-    QStringList cells = selected_text.split(QRegExp(QLatin1String("\\n|\\t")));
+    QStringList cells = selected_text.split(QRegularExpression(QLatin1String("\\n|\\t")));
     while (!cells.empty() && cells.back().size() == 0) {
         cells.pop_back(); // strip empty trailing tokens
     }
@@ -1059,12 +1060,9 @@ void QFrozenTableViewWithCopyPaste::init()
 
     viewport()->stackUnder(frozenTableView);
 
-    // Set table color to green background and red text. This is ugly as sin, but functional for the
-    // moment.
     frozenTableView->setStyleSheet("QTableView { border: none;"
-                                   "color: #FF0000;"
-                                   "background-color: #8EDE21;"
-                                   "selection-background-color: #999}"); // for demo purposes
+                                   "color: palette(text);"
+                                   "background-color: palette(alternate-base); }");
     for (int row = 1; row < model()->rowCount(); row++)
         frozenTableView->setRowHidden(row, true);
 

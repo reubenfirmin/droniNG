@@ -43,7 +43,7 @@
         <enum>QLayout::SetNoConstraint</enum>
        </property>
        <item>
-        <widget class="QCommandLinkButton" name="playButton">
+        <widget class="QPushButton" name="playButton">
          <property name="sizePolicy">
           <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
            <horstretch>30</horstretch>
@@ -66,7 +66,7 @@
         </widget>
        </item>
        <item>
-        <widget class="QCommandLinkButton" name="pauseButton">
+        <widget class="QPushButton" name="pauseButton">
          <property name="sizePolicy">
           <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
            <horstretch>30</horstretch>

@@ -2,6 +2,7 @@ import QtQuick 2.0
 
 Item {
     id: container
+    SystemPalette { id: appPalette }
     width: 100
     height: 62
 
@@ -9,9 +10,9 @@ Item {
 
     Text {
         id: header
-        text: "dRonin Links"
+        text: "droniNG Links"
         width: parent.width
-        color: "#44515c"
+        color: appPalette.windowText
         font {
             pointSize: 14
             weight: Font.Bold
@@ -20,12 +21,10 @@ Item {
 
     ListModel {
         id: sitesModel
-        ListElement { title: "Documentation"; link: "http://dronin.readme.io/" }
-        ListElement { title: "Home Page"; link: "http://dronin.org" }
-        ListElement { title: "Forum"; link: "https://forum.dronin.org/forum/" }
-        ListElement { title: "Wiki"; link: "https://github.com/d-ronin/dRonin/wiki" }
-        ListElement { title: "GitHub Repository"; link: "https://github.com/d-ronin/dRonin" }
-        ListElement { title: "dRonin Facebook"; link: "https://www.facebook.com/flydRonin" }
+        ListElement { title: "Documentation"; link: "https://github.com/reubenfirmin/droniNG/wiki" }
+        ListElement { title: "Issue Tracker"; link: "https://github.com/reubenfirmin/droniNG/issues" }
+        ListElement { title: "Releases"; link: "https://github.com/reubenfirmin/droniNG/releases" }
+        ListElement { title: "GitHub Repository"; link: "https://github.com/reubenfirmin/droniNG" }
     }
 
     ListView {
@@ -46,7 +45,7 @@ Item {
                 weight: Font.Bold
             }
 
-            color: mouseArea.containsMouse ? "#224d81" : "black"
+            color: mouseArea.containsMouse ? appPalette.highlight : appPalette.text
 
             MouseArea {
                 id: mouseArea

@@ -29,7 +29,7 @@
 
 #include <QGraphicsView>
 #include <QtSvg/QSvgRenderer>
-#include <QtSvg/QGraphicsSvgItem>
+#include <QGraphicsSvgItem>
 
 class GpsConstellationWidget : public QGraphicsView
 {

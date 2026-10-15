@@ -11,16 +11,26 @@ Item {
     property string source: ""
     property string json: ""
     property string query: ""
+    property string errorString: ""
 
     property ListModel model : ListModel { id: jsonModel }
     property alias count: jsonModel.count
 
     onSourceChanged: {
+        errorString = "";
+        json = "";
+        if (source === "")
+            return;
+        var requestedSource = source;
         var xhr = new XMLHttpRequest;
         xhr.open("GET", source);
         xhr.onreadystatechange = function() {
-            if (xhr.readyState == XMLHttpRequest.DONE)
-                json = xhr.responseText;
+            if (xhr.readyState == XMLHttpRequest.DONE && source === requestedSource) {
+                if (xhr.status >= 200 && xhr.status < 300)
+                    json = xhr.responseText;
+                else
+                    errorString = qsTr("Results unavailable");
+            }
         }
         xhr.send();
     }
@@ -30,14 +40,20 @@ Item {
 
     function updateJSONModel() {
         jsonModel.clear();
+        errorString = "";
 
         if ( json === "" )
             return;
 
-        var objectArray = parseJSONString(json, query);
-        for ( var key in objectArray ) {
-            var jo = objectArray[key];
-            jsonModel.append( jo );
+        try {
+            var objectArray = parseJSONString(json, query);
+            for ( var key in objectArray ) {
+                var jo = objectArray[key];
+                jsonModel.append( jo );
+            }
+        } catch (error) {
+            jsonModel.clear();
+            errorString = qsTr("Results unavailable");
         }
     }
 

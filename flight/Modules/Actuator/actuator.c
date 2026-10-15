@@ -89,6 +89,9 @@ static float hangtime_leakybucket_timeconstant = 0.3f;
 static volatile bool flight_status_updated = true;
 static volatile bool manual_control_cmd_updated = true;
 static volatile bool settings_updated = true;
+#if defined(PIOS_SERVO_DISABLE_DSHOT)
+static bool output_configuration_valid;
+#endif
 
 static MixerSettingsMixer1TypeOptions types_mixer[MAX_MIX_ACTUATORS];
 
@@ -742,10 +745,15 @@ static void actuator_settings_update()
 {
 	ActuatorSettingsGet(&actuatorSettings);
 
-	PIOS_Servo_SetMode(actuatorSettings.TimerUpdateFreq,
+	const int result = PIOS_Servo_SetMode(actuatorSettings.TimerUpdateFreq,
 			ACTUATORSETTINGS_TIMERUPDATEFREQ_NUMELEM,
 			actuatorSettings.ChannelMax,
 			actuatorSettings.ChannelMin);
+#if defined(PIOS_SERVO_DISABLE_DSHOT)
+	output_configuration_valid = result == 0;
+#else
+	(void)result;
+#endif
 
 	desired_3d_mask = 0;
 
@@ -811,6 +819,13 @@ static void actuator_task(void* parameters)
 		}
 
 		PIOS_WDG_UpdateFlag(PIOS_WDG_ACTUATOR);
+#if defined(PIOS_SERVO_DISABLE_DSHOT)
+		if (!output_configuration_valid) {
+			set_failsafe();
+			PIOS_Thread_Sleep(10);
+			continue;
+		}
+#endif
 
 		UAVObjEvent ev;
 

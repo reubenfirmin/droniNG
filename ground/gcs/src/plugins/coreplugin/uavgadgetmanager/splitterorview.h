@@ -60,6 +60,7 @@ namespace Internal {
         inline UAVGadgetView *view() const { return m_view; }
         inline QSplitter *splitter() const { return m_splitter; }
         QList<Core::IUAVGadget *> gadgets();
+        bool showSingleGadget(Core::IUAVGadget *gadget);
         QSplitter *takeSplitter();
         UAVGadgetView *takeView();
 

@@ -80,7 +80,7 @@ void LineardialGadgetWidget::connectInput(QString object1, QString nfield1)
         if (obj1 != NULL) {
             connect(obj1, SIGNAL(objectUpdated(UAVObject *)), this, SLOT(updateIndex(UAVObject *)));
             if (nfield1.contains("-")) {
-                QStringList fieldSubfield = nfield1.split("-", QString::SkipEmptyParts);
+                QStringList fieldSubfield = nfield1.split("-", Qt::SkipEmptyParts);
                 field1 = fieldSubfield.at(0);
                 subfield1 = fieldSubfield.at(1);
                 haveSubField1 = true;
@@ -112,13 +112,12 @@ void LineardialGadgetWidget::updateIndex(UAVObject *object1)
         if (field->isNumeric()) {
             double v;
             if (haveSubField1) {
-                int indexOfSubField = field->getElementNames().indexOf(
-                    QRegExp(subfield1, Qt::CaseSensitive, QRegExp::FixedString));
+                int indexOfSubField = field->getElementNames().indexOf(subfield1);
                 v = field->getDouble(indexOfSubField) * factor;
             } else
                 v = field->getDouble() * factor;
             setIndex(v);
-            s.sprintf("%.*f", places, v);
+            s = QString::asprintf("%.*f", places, v);
         }
         if (field->isText()) {
             s = field->getValue().toString();
@@ -181,7 +180,7 @@ void LineardialGadgetWidget::setDialFile(QString dfn)
             green->setParentItem(background);
             // In order to properly render the Green/Yellow/Red graphs, we need to find out
             // the starting location of the bargraph rendering area:
-            QMatrix textMatrix = m_renderer->matrixForElement("bargraph");
+            QTransform textMatrix = m_renderer->transformForElement("bargraph");
             qreal bgX = textMatrix.mapRect(m_renderer->boundsOnElement("bargraph")).x();
             qreal bgY = textMatrix.mapRect(m_renderer->boundsOnElement("bargraph")).y();
             bargraphSize = textMatrix.mapRect(m_renderer->boundsOnElement("bargraph")).width();
@@ -251,7 +250,7 @@ void LineardialGadgetWidget::setDialFile(QString dfn)
 
         // Check whether the dial wants to display a moving index:
         if (m_renderer->elementExists("needle")) {
-            QMatrix textMatrix = m_renderer->matrixForElement("needle");
+            QTransform textMatrix = m_renderer->transformForElement("needle");
             QRectF nRect = textMatrix.mapRect(m_renderer->boundsOnElement("needle"));
             startX = nRect.x();
             startY = nRect.y();
@@ -268,7 +267,7 @@ void LineardialGadgetWidget::setDialFile(QString dfn)
 
         // Check whether the dial wants display its field name:
         if (m_renderer->elementExists("field")) {
-            QMatrix textMatrix = m_renderer->matrixForElement("field");
+            QTransform textMatrix = m_renderer->transformForElement("field");
             QRectF rect = textMatrix.mapRect(m_renderer->boundsOnElement("field"));
             qreal startX = rect.x();
             qreal startY = rect.y();
@@ -286,7 +285,7 @@ void LineardialGadgetWidget::setDialFile(QString dfn)
 
         // Check whether the dial wants display the numeric value:
         if (m_renderer->elementExists("value")) {
-            QMatrix textMatrix = m_renderer->matrixForElement("value");
+            QTransform textMatrix = m_renderer->transformForElement("value");
             QRectF nRect = textMatrix.mapRect(m_renderer->boundsOnElement("value"));
             qreal startX = nRect.x();
             qreal startY = nRect.y();
@@ -305,7 +304,7 @@ void LineardialGadgetWidget::setDialFile(QString dfn)
         // Check whether the dial wants to display the value as a
         // symbol (only works for text values):
         if (m_renderer->elementExists("symbol")) {
-            QMatrix textMatrix = m_renderer->matrixForElement("symbol");
+            QTransform textMatrix = m_renderer->transformForElement("symbol");
             qreal startX = textMatrix.mapRect(m_renderer->boundsOnElement("symbol")).x();
             qreal startY = textMatrix.mapRect(m_renderer->boundsOnElement("symbol")).y();
             QTransform matrix;

@@ -72,6 +72,7 @@ void StyledBar::paintEvent(QPaintEvent *event)
     QStyleOption option;
     option.rect = rect();
     option.state = QStyle::State_Horizontal;
+    option.palette = palette();
     style()->drawControl(QStyle::CE_ToolBar, &option, &painter, this);
 }
 

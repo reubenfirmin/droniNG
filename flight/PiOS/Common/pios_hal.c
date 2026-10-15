@@ -709,9 +709,9 @@ void PIOS_HAL_ConfigurePort(HwSharedPortTypesOptions port_type,
 		usart_port_params.single_wire = true;
 #endif // STM32F30X
 
-#if defined(USE_STM32F4xx_BRAINFPVRE1)
+#if defined(USE_STM32F4xx_BRAINFPVRE1) || defined(PIOS_INCLUDE_IMPORTED)
 		usart_port_params.single_wire = true;
-#endif // USE_STM32F4xx_BRAINFPVRE1
+#endif
 
 		PIOS_HAL_ConfigureCom(usart_port_cfg, &usart_port_params, PIOS_COM_FRSKYSPORT_RX_BUF_LEN, PIOS_COM_FRSKYSPORT_TX_BUF_LEN, com_driver, &port_driver_id);
 		target = &pios_com_frsky_sport_id;
@@ -1145,7 +1145,7 @@ void PIOS_HAL_ConfigureSerialSpeed(uintptr_t com_id,
 			PIOS_COM_ChangeBaud(com_id, 115200);
 
 			PIOS_Thread_Sleep(BT_COMMAND_QDELAY);
-			PIOS_COM_SendString(com_id,"AT+NAMEdRonin");
+			PIOS_COM_SendString(com_id,"AT+NAMEdroniNG");
 			PIOS_Thread_Sleep(BT_COMMAND_QDELAY);
 			PIOS_COM_SendString(com_id,"AT+PASS000000");
 			PIOS_Thread_Sleep(BT_COMMAND_QDELAY);
@@ -1169,7 +1169,7 @@ void PIOS_HAL_ConfigureSerialSpeed(uintptr_t com_id,
 			PIOS_Thread_Sleep(BT_COMMAND_DELAY);
 
 			PIOS_COM_ChangeBaud(com_id, 115200); 
-			PIOS_COM_SendString(com_id,"AT+NAMEdRonin");
+			PIOS_COM_SendString(com_id,"AT+NAMEdroniNG");
 			PIOS_Thread_Sleep(BT_COMMAND_DELAY);
 			PIOS_COM_SendString(com_id,"AT+PIN0000");
 			PIOS_Thread_Sleep(BT_COMMAND_DELAY);
@@ -1190,7 +1190,7 @@ void PIOS_HAL_ConfigureSerialSpeed(uintptr_t com_id,
 
 			PIOS_COM_ChangeBaud(com_id, 115200);
 
-			PIOS_COM_SendString(com_id,"AT+NAME=dRonin\r\n");
+			PIOS_COM_SendString(com_id,"AT+NAME=droniNG\r\n");
 			PIOS_Thread_Sleep(BT_COMMAND_DELAY/2);
 			PIOS_COM_SendString(com_id,"AT+PSWD=0000\r\n");
 			PIOS_Thread_Sleep(BT_COMMAND_DELAY/2);

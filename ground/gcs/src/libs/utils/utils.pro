@@ -1,8 +1,7 @@
 TEMPLATE = lib
 TARGET = Utils
 
-!win32-msvc*:QMAKE_CXXFLAGS += -Wno-sign-compare
-win32: QMAKE_CXXFLAGS_RELEASE -= -Zc:strictStrings
+QMAKE_CXXFLAGS += -Wno-sign-compare
 
 QT += gui \
     network \
@@ -34,14 +33,7 @@ SOURCES += \
     scaledpixmaplabel.cpp \
     longlongspinbox.cpp
 
-SOURCES += xmlconfig.cpp
-
-win32 {
-    SOURCES += \
-        winutils.cpp
-    HEADERS += winutils.h
-}
-else:SOURCES +=
+SOURCES += xmlconfig.cpp settingsxml.cpp darktheme.cpp qtlogging.cpp settingsstyle.cpp
 
 HEADERS += utils_global.h \
     pathchooser.h \
@@ -62,7 +54,7 @@ HEADERS += utils_global.h \
     longlongspinbox.h
 
 
-HEADERS += xmlconfig.h
+HEADERS += xmlconfig.h settingsxml.h darktheme.h qtlogging.h settingsstyle.h
 
 FORMS +=
 

@@ -1,4 +1,4 @@
-package org.dronin.uavtalk;
+package org.droning.uavtalk;
 /**
  * class with static functions to parse values from the UAVTalk protocol 
  * 

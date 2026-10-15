@@ -5,16 +5,19 @@ import "TitleCase.js" as TitleCase
 
 Item {
     id: container
+    SystemPalette { id: appPalette }
     width: 100
     height: 62
+    property url feedSource: "http://dronin-autotown.appspot.com/api/recentTunes?limit=10"
 
     signal clicked(string url)
 
     Text {
         id: header
-        text: "Recent AutoTune Results"
+        text: "Upstream AutoTune Results"
         width: parent.width
-        color: "#44515c"
+        wrapMode: Text.WordWrap
+        color: appPalette.windowText
         font {
             pointSize: 14
             weight: Font.Bold
@@ -34,9 +37,17 @@ Item {
         flickableItem: view
     }
 
+    Text {
+        anchors { top: header.bottom; topMargin: 14 }
+        text: jsonModel.errorString
+        visible: text !== ""
+        color: appPalette.windowText
+    }
+
     JSONListModel {
         id: jsonModel
-        source: "http://dronin-autotown.appspot.com/api/recentTunes?limit=10"
+        // The existing public tune database is maintained by upstream.
+        source: container.feedSource
         query: "$[*]"
     }
 
@@ -59,20 +70,20 @@ Item {
                         width: view.width
                         font.bold: true
                         elide: Text.ElideRight
-                        color: mouseArea.containsMouse ? "#224d81" : "black"
+                        color: mouseArea.containsMouse ? appPalette.highlight : appPalette.text
                     }
                     Text {
                         text: "Tau: %1 ms".arg(model.Tau * 1000.0)
                         width: view.width
                         elide: Text.ElideRight
-                        color: mouseArea.containsMouse ? "#224d81" : "black"
+                        color: mouseArea.containsMouse ? appPalette.highlight : appPalette.text
                     }
                     Text {
                         text: "%1 in %2, %3".arg(relDate).arg(TitleCase.toTitleCase(model.City)).arg(model.Country)
                         font.italic: true
                         width: view.width
                         elide: Text.ElideRight
-                        color: mouseArea.containsMouse ? "#224d81" : "black"
+                        color: mouseArea.containsMouse ? appPalette.highlight : appPalette.text
                     }
                 }
 

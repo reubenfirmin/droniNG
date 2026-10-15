@@ -26,7 +26,7 @@
 
 #ifdef  USE_SERIAL_4WAY_BLHELI_INTERFACE
 
-#ifndef DRONIN_TARGET
+#ifndef DRONING_TARGET
 #include "drivers/io.h"
 #include "drivers/system.h"
 #include "drivers/serial.h"

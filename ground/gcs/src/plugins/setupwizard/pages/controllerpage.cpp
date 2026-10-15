@@ -120,7 +120,7 @@ void ControllerPage::setControllerType(Core::IBoardType *board)
         ui->boardTypeLabel->setText(board->shortName());
 }
 
-void ControllerPage::devicesChanged(QLinkedList<Core::DevListItem> devices)
+void ControllerPage::devicesChanged(QList<Core::DevListItem> devices)
 {
     // Get the selected item before the update if any
     QString currSelectedDeviceName = ui->deviceCombo->currentIndex() != -1

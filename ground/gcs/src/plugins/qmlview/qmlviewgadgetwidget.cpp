@@ -63,6 +63,7 @@ void QmlViewGadgetWidget::setQmlFile(QString fn)
 {
     m_fn = fn;
 
+    setSource(QUrl());
     engine()->removeImageProvider("svg");
     SvgImageProvider *svgProvider = new SvgImageProvider(fn);
     engine()->addImageProvider("svg", svgProvider);

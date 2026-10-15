@@ -31,7 +31,7 @@
 
 #include "core_global.h"
 
-#include "eventfilteringmainwindow.h"
+#include <QMainWindow>
 
 #include <QtCore/QMap>
 #include <QSettings>
@@ -43,6 +43,7 @@ class QShortcut;
 class QToolButton;
 class MyTabWidget;
 class QFrame;
+class QHBoxLayout;
 QT_END_NAMESPACE
 
 namespace Core {
@@ -63,6 +64,7 @@ class ThreadManager;
 class ViewManagerInterface;
 class UAVGadgetManager;
 class UAVGadgetInstanceManager;
+class IUAVGadget;
 class GlobalMessaging;
 
 namespace Internal {
@@ -75,7 +77,7 @@ namespace Internal {
     class VersionDialog;
     class AuthorsDialog;
 
-    class CORE_EXPORT MainWindow : public EventFilteringMainWindow
+    class CORE_EXPORT MainWindow : public QMainWindow
     {
         Q_OBJECT
 
@@ -153,7 +155,6 @@ namespace Internal {
         void destroyAuthorsDialog();
         void modeChanged(Core::IMode *mode);
         void showUavGadgetMenus(bool show, bool hasSplitter);
-        void applyTabBarSettings(QTabWidget::TabPosition pos, bool movable);
         void showHelp();
 
     private:
@@ -161,8 +162,7 @@ namespace Internal {
         void registerDefaultContainers();
         void registerDefaultActions();
         void createWorkspaces(QSettings *qs, bool diffOnly = false);
-        void readStyleSheet(QFile *file, QString name, QString *style);
-        void loadStyleSheet();
+        void initializeFlightDashboard(QSettings *qs);
 
         CoreImpl *m_coreImpl;
         UniqueIDManager *m_uniqueIDManager;
@@ -171,6 +171,8 @@ namespace Internal {
         QSettings *m_settings;
         QSettings *m_globalSettings;
         QFrame *m_contentFrame;
+        QHBoxLayout *m_telemetryLayout;
+        QList<IUAVGadget *> m_flightGadgets;
         bool
             m_dontSaveSettings; // In case of an Error or if we reset the settings, never save them.
         ActionManagerPrivate *m_actionManager;
@@ -213,10 +215,6 @@ namespace Internal {
 
         QString m_config_description;
         QString m_config_details;
-#ifdef Q_OS_MAC
-        QAction *m_minimizeAction;
-        QAction *m_zoomAction;
-#endif
         QAction *m_toggleFullScreenAction;
     };
 

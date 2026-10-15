@@ -86,6 +86,7 @@ struct max7456_dev_s {
 	uint8_t det_mode_fallback;
 
 	uint32_t next_sync_expected;
+	bool bus_claimed, io_error;
 };
 
 static bool poll_vsync_spi (max7456_dev_t dev);
@@ -94,21 +95,28 @@ static bool poll_vsync_spi (max7456_dev_t dev);
  * some circumstances, so let's not push our luck.
  */
 #define MAX7456_SPI_SPEED 9000000
+#define MAX7456_CHARACTER_BUSY (1u << 5)
 
 static inline void chip_select(max7456_dev_t dev)
 {
-	PIOS_SPI_ClaimBus(dev->spi_id);
-
+	if (PIOS_SPI_ClaimBus(dev->spi_id)) { dev->io_error = true; return; }
+	dev->bus_claimed = true;
+	if (!PIOS_SPI_SetClockSpeed(dev->spi_id, MAX7456_SPI_SPEED)) {
+		dev->io_error = true;
+		PIOS_SPI_ReleaseBus(dev->spi_id);
+		dev->bus_claimed = false;
+		return;
+	}
 	PIOS_SPI_RC_PinSet(dev->spi_id, dev->slave_id, false);
-
-	PIOS_SPI_SetClockSpeed(dev->spi_id, MAX7456_SPI_SPEED);
 }
 
 static inline void chip_unselect(max7456_dev_t dev)
 {
+	if (!dev->bus_claimed) return;
 	PIOS_SPI_RC_PinSet(dev->spi_id, dev->slave_id, true);
 
 	PIOS_SPI_ReleaseBus(dev->spi_id);
+	dev->bus_claimed = false;
 }
 
 // Write VM0[3] = 1 to enable the display of the OSD image.
@@ -120,8 +128,11 @@ static inline void chip_unselect(max7456_dev_t dev)
 // layer.
 static uint8_t read_register(max7456_dev_t dev, uint8_t reg)
 {
-	PIOS_SPI_TransferByte(dev->spi_id, reg | 0x80);
-	return PIOS_SPI_TransferByte(dev->spi_id, 0xff);
+	uint8_t tx[] = { reg | 0x80, 0xff }, rx[2];
+	if (!dev->bus_claimed || PIOS_SPI_TransferBlock(dev->spi_id, tx, rx, sizeof(tx)) < 0) {
+		dev->io_error = true; return 0xff;
+	}
+	return rx[1];
 }
 
 static uint8_t read_register_sel(max7456_dev_t dev, uint8_t reg)
@@ -137,8 +148,9 @@ static uint8_t read_register_sel(max7456_dev_t dev, uint8_t reg)
 
 static void write_register(max7456_dev_t dev, uint8_t reg, uint8_t val)
 {
-	PIOS_SPI_TransferByte(dev->spi_id, reg);
-	PIOS_SPI_TransferByte(dev->spi_id, val);
+	uint8_t tx[] = { reg, val };
+	if (!dev->bus_claimed || PIOS_SPI_TransferBlock(dev->spi_id, tx, NULL, sizeof(tx)) < 0)
+		dev->io_error = true;
 }
 
 static void write_register_sel(max7456_dev_t dev, uint8_t reg, uint8_t val)
@@ -220,16 +232,17 @@ void PIOS_MAX7456_wait_vsync(max7456_dev_t dev)
 	PIOS_Assert(dev->magic == MAX7456_MAGIC);
 
 	uint32_t now = PIOS_DELAY_GetuS();
+	uint32_t start = now;
 	uint32_t sync_interval =
 		(dev->mode == MAX7456_MODE_NTSC) ? SYNC_INTERVAL_NTSC :
 			SYNC_INTERVAL_PAL;
 
-	if (now > dev->next_sync_expected) {
+	if ((int32_t)(now - dev->next_sync_expected) > 0) {
 		// Oh. we maybe missed it.  Update...
 		dev->next_sync_expected += sync_interval;
 	}
 
-	if (now > dev->next_sync_expected) {
+	if ((int32_t)(now - dev->next_sync_expected) > 0) {
 		// We're *REALLY* late
 		dev->next_sync_expected = now + sync_interval;
 	}
@@ -237,7 +250,8 @@ void PIOS_MAX7456_wait_vsync(max7456_dev_t dev)
 	while (!poll_vsync_spi(dev)) {
 		now = PIOS_DELAY_GetuS();
 
-		if (now + 200 > (dev->next_sync_expected + sync_interval)) {
+		if (dev->io_error || (uint32_t)(now - start) >= 2 * sync_interval
+				|| (int32_t)(now + 200 - (dev->next_sync_expected + sync_interval)) > 0) {
 			/* We missed at least one vsync in this loop.
 			 * Draw open-loop, hoping we're at about the right
 			 * time.
@@ -251,15 +265,28 @@ void PIOS_MAX7456_wait_vsync(max7456_dev_t dev)
 	dev->next_sync_expected = now + sync_interval;
 }
 
-static void reset_hard(max7456_dev_t dev)
+static bool wait_register(max7456_dev_t dev, uint8_t reg, uint8_t mask, uint32_t timeout_us)
 {
+	uint32_t start = PIOS_DELAY_GetuS();
+	while (read_register_sel(dev, reg) & mask) {
+		if (dev->io_error || (uint32_t)(PIOS_DELAY_GetuS() - start) >= timeout_us) {
+			dev->io_error = true; return false;
+		}
+		PIOS_Thread_Sleep(1);
+	}
+	return !dev->io_error;
+}
+
+static bool reset_hard(max7456_dev_t dev)
+{
+	dev->io_error = false;
 	dev->next_sync_expected = 0;
 
 	write_register_sel(dev, MAX7456_REG_VM0, MAX7456_VM0_SRB_MASK);
 
 	PIOS_DELAY_WaituS(100);
 
-	while(read_register_sel(dev, MAX7456_REG_VM0) & MAX7456_VM0_SRB_MASK);
+	if (!wait_register(dev, MAX7456_REG_VM0, MAX7456_VM0_SRB_MASK, 200000)) return false;
 
 	// Detect video mode
 	detect_mode(dev);
@@ -273,6 +300,8 @@ static void reset_hard(max7456_dev_t dev)
 	vm1 = MAX7456_VM1_BGMODE_W(vm1, MAX7456_VM1_BGMODE_LOCAL);
 
 	write_register_sel(dev, MAX7456_REG_VM1, vm1);
+	/* Readback distinguishes a fitted device from a floating/shorted SPI bus. */
+	if (read_register_sel(dev, MAX7456_REG_VM1) != vm1 || dev->io_error) return false;
 
 	enable_osd(dev);
 
@@ -284,6 +313,7 @@ static void reset_hard(max7456_dev_t dev)
 	}
 
 	PIOS_MAX7456_clear(dev);
+	return !dev->io_error;
 }
 
 int PIOS_MAX7456_init(max7456_dev_t *dev_out,
@@ -291,6 +321,7 @@ int PIOS_MAX7456_init(max7456_dev_t *dev_out,
 {
 	// Reset
 	max7456_dev_t dev = PIOS_malloc(sizeof(*dev));
+	if (!dev) return -1;
 
 	bzero(dev, sizeof(*dev));
 	dev->magic = MAX7456_MAGIC;
@@ -299,7 +330,7 @@ int PIOS_MAX7456_init(max7456_dev_t *dev_out,
 	dev->force_mode = false;
 	dev->det_mode_fallback = MAX7456_MODE_PAL;
 
-	reset_hard(dev);
+	if (!reset_hard(dev)) { PIOS_free(dev); return -2; }
 
 	*dev_out = dev;
 
@@ -327,9 +358,7 @@ void PIOS_MAX7456_clear(max7456_dev_t dev)
 	write_register_sel(dev, MAX7456_REG_DMM, dmm);
 	PIOS_DELAY_WaituS(30);
 
-	while (MAX7456_DMM_CLR_R(dmm) != MAX7456_DMM_CLR_READY) {
-		dmm = read_register_sel(dev, MAX7456_REG_DMM);
-	}
+	wait_register(dev, MAX7456_REG_DMM, MAX7456_DMM_CLR_MASK, 200000);
 }
 
 void PIOS_MAX7456_upload_char (max7456_dev_t dev, uint8_t char_index,
@@ -359,11 +388,7 @@ void PIOS_MAX7456_upload_char (max7456_dev_t dev, uint8_t char_index,
 	STAT[5] can be read to verify that the NVM writing process is complete.
 	*/
 
-	while (MAX7456_STAT_CHMEM_R(
-				read_register_sel(dev, MAX7456_REG_STAT)) ==
-		       MAX7456_STAT_CHMEM_BUSY)	{
-		PIOS_Thread_Sleep(1);
-	}
+	if (!wait_register(dev, MAX7456_REG_STAT, MAX7456_CHARACTER_BUSY, 200000)) return;
 
 	enable_osd(dev);
 }
@@ -390,11 +415,7 @@ void PIOS_MAX7456_download_char (max7456_dev_t dev, uint8_t char_index,
 	 * note: MPL: I don't see this being required in the datasheet for
 	 * read operations.  But it doesnt hurt.
 	 */
-	while (MAX7456_STAT_CHMEM_R(
-				read_register_sel(dev, MAX7456_REG_STAT)) ==
-		       MAX7456_STAT_CHMEM_BUSY)	{
-		PIOS_Thread_Sleep(1);
-	}
+	if (!wait_register(dev, MAX7456_REG_STAT, MAX7456_CHARACTER_BUSY, 200000)) return;
 
 	for (uint8_t i = 0; i < 54; i ++)
 	{
@@ -522,24 +543,18 @@ int32_t PIOS_MAX7456_reset(max7456_dev_t dev)
 
 	vm0 = MAX7456_VM0_SRB_W(vm0, MAX7456_VM0_SRB_RESET);
 
-	write_register_sel(dev, MAX7456_REG_OSDBL, vm0);
+	write_register_sel(dev, MAX7456_REG_VM0, vm0);
 
 	PIOS_DELAY_WaituS(100);
 
-	while (MAX7456_VM0_SRB_R(vm0) == MAX7456_VM0_SRB_RESET) {
-		PIOS_Thread_Sleep(1);
-
-		vm0 = read_register_sel(dev, MAX7456_REG_VM0);
-	}
-
-	return 0;
+	return wait_register(dev, MAX7456_REG_VM0, MAX7456_VM0_SRB_MASK, 200000) ? 0 : -1;
 }
 
 bool PIOS_MAX7456_stall_detect(max7456_dev_t dev)
 {
 	bool rv = false;
 	uint8_t val = read_register_sel(dev, MAX7456_REG_VM0);
-	if ((MAX7456_VM0_OSD_MASK & val) == 0) {
+	if (dev->io_error || (MAX7456_VM0_OSD_MASK & val) == 0) {
 		reset_hard(dev);
 		rv = true;
 	}

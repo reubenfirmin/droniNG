@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="180" viewBox="0 0 720 180">
+  <title>droniNG</title>
+  <desc>droniNG wordmark with a quadrotor heading symbol.</desc>
+  <g transform="translate(10 14) scale(.6)">
+    <rect x="8" y="8" width="240" height="240" rx="52" fill="#142532"/>
+    <path d="M78 78L178 178M178 78L78 178" fill="none" stroke="#6b8d9c" stroke-width="16" stroke-linecap="round"/>
+    <g fill="#142532" stroke="#20c8b5" stroke-width="13">
+      <circle cx="78" cy="78" r="29"/><circle cx="178" cy="78" r="29"/>
+      <circle cx="78" cy="178" r="29"/><circle cx="178" cy="178" r="29"/>
+    </g>
+    <path d="M128 84L157 150L128 136L99 150Z" fill="#f4bd50" stroke="#142532" stroke-width="7" stroke-linejoin="round"/>
+  </g>
+  <text x="191" y="115" fill="#142532" font-family="DejaVu Sans, sans-serif" font-size="88" font-weight="700" letter-spacing="-3">droni<tspan fill="#159e91">NG</tspan></text>
+</svg>

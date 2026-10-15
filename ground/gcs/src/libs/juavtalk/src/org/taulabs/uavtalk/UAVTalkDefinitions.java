@@ -13,7 +13,7 @@
  * with this program; if not, see <http://www.gnu.org/licenses/>
  */
 
-package org.dronin.uavtalk;
+package org.droning.uavtalk;
 
 /**
  ******************************************************************************

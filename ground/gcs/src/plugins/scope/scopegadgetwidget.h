@@ -69,7 +69,7 @@ public:
     virtual QwtText label(double v) const
     {
         uint seconds = (uint)(v);
-        QDateTime upTime = QDateTime::fromTime_t(seconds);
+        QDateTime upTime = QDateTime::fromSecsSinceEpoch(seconds);
         QTime timePart = upTime.time().addMSecs((v - seconds) * 1000);
         upTime.setTime(timePart);
         return upTime.toLocalTime().toString("hh:mm:ss");

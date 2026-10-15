@@ -33,6 +33,8 @@
 #include <extensionsystem/pluginmanager.h>
 #include "calibration.h"
 #include "objectpersistence.h"
+#include "actuatorsettings.h"
+#include <coreplugin/connectionmanager.h>
 
 ConfigPlugin::ConfigPlugin()
 {
@@ -75,6 +77,10 @@ bool ConfigPlugin::initialize(const QStringList &args, QString *errMsg)
     TelemetryManager *telMngr = pm->getObject<TelemetryManager>();
     connect(telMngr, &TelemetryManager::connected, this, &ConfigPlugin::onAutopilotConnect);
     connect(telMngr, &TelemetryManager::disconnected, this, &ConfigPlugin::onAutopilotDisconnect);
+    connect(Core::ICore::instance()->connectionManager(), &Core::ConnectionManager::flightDataReady,
+            this, &ConfigPlugin::updateControllerSetupState);
+    auto *actuators = ActuatorSettings::GetInstance(getObjectManager());
+    connect(actuators, &UAVObject::objectUpdated, this, &ConfigPlugin::updateControllerSetupState);
 
     cmd->action()->setEnabled(false);
 
@@ -109,20 +115,19 @@ void ConfigPlugin::onAutopilotConnect()
     // erase action
     cmd->action()->setEnabled(true);
 
-    auto pm = ExtensionSystem::PluginManager::instance();
-    auto uavoUtilManager = pm->getObject<UAVObjectUtilManager>();
+    updateControllerSetupState();
+}
 
-    if (uavoUtilManager->firmwareHashMatchesGcs()) {
-        // check if the board has been configured for flight
-        // if not, let's pop setup wizard automatically
-        if (!uavoUtilManager->boardConfigured())
-            Q_EMIT launchSetupWizard();
-    } else {
-        /** @todo upgrade firmware
-         * Currently the uploader plugin does this indepenently
-         * but it needs a big refactor because everything is done
-         * inside a UAVGadget */
-    }
+void ConfigPlugin::updateControllerSetupState()
+{
+    auto *pm = ExtensionSystem::PluginManager::instance();
+    auto *telemetry = pm->getObject<TelemetryManager>();
+    auto *util = pm->getObject<UAVObjectUtilManager>();
+    // Settings are retrieved before telemetry becomes connected. Do not
+    // interpret the local defaults as an unconfigured controller.
+    const bool required = telemetry->isConnected() && util->firmwareHashMatchesGcs()
+        && !util->boardConfigured();
+    Core::ICore::instance()->connectionManager()->setControllerSetupRequired(required);
 }
 
 /**
@@ -131,6 +136,7 @@ void ConfigPlugin::onAutopilotConnect()
 void ConfigPlugin::onAutopilotDisconnect()
 {
     cmd->action()->setEnabled(false);
+    Core::ICore::instance()->connectionManager()->setControllerSetupRequired(false);
 }
 
 /**

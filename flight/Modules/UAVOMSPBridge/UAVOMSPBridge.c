@@ -296,7 +296,7 @@ static msp_state msp_state_fill_buf(struct msp_bridge *m, uint8_t b)
 
 static void msp_send_name(struct msp_bridge *m)
 {
-	const char hardcoded_name[] = "dRonin";
+	const char hardcoded_name[] = "droniNG";
 
 	msp_send(m, MSP_NAME, (uint8_t *) hardcoded_name, strlen(hardcoded_name));
 }
@@ -401,7 +401,7 @@ static void msp_send_board_info(struct msp_bridge *m)
 
 	memset(&data, 0, sizeof(data));
 
-	memcpy(data.board.name, DRONIN_TARGET, MIN(4, strlen(DRONIN_TARGET)));
+	memcpy(data.board.name, DRONING_TARGET, MIN(4, strlen(DRONING_TARGET)));
 
 	msp_send(m, MSP_BOARD_INFO, data.buf, sizeof(data));
 }
@@ -853,7 +853,7 @@ static void msp_send_comp_gps(struct msp_bridge *m)
 		struct {
 			uint16_t distance_to_home;     // meter
 			int16_t  direction_to_home;    // degree [-180:180]
-			uint8_t  home_position_valid;  // 0 = Invalid, Dronin MSP specific
+			uint8_t  home_position_valid;  // 0 = Invalid, Droning MSP specific
 		} __attribute__((packed)) comp_gps;
 	} data;
 	

@@ -25,7 +25,7 @@ product_id 0xFCFC
 product_ver 0x0000
 
 # ASCII vendor string  (max 255 characters)
-vendor "dRonin"
+vendor "droniNG"
 
 # ASCII product string (max 255 characters)
 product "FlyingPi HAT"

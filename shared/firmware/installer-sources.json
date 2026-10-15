@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "components": [
+    {
+      "name": "dfu-util",
+      "version": "0.11",
+      "license": "GPL-2.0-or-later",
+      "url": "https://dfu-util.sourceforge.net/releases/dfu-util-0.11.tar.gz",
+      "sha256": "b4b53ba21a82ef7e3d4c47df2952adf5fa494f499b6b0b57c58c5d04ae8ff19e"
+    },
+    {
+      "name": "libusb",
+      "version": "1.0.29",
+      "license": "LGPL-2.1-or-later",
+      "url": "https://github.com/libusb/libusb/releases/download/v1.0.29/libusb-1.0.29.tar.bz2",
+      "sha256": "5977fc950f8d1395ccea9bd48c06b3f808fd3c2c961b44b0c2e6e29fc3a70a85"
+    }
+  ]
+}

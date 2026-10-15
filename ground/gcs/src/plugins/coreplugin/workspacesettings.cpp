@@ -95,11 +95,6 @@ QWidget *WorkspaceSettings::createPage(QWidget *parent)
     m_currentIndex = 0;
     selectWorkspace(m_currentIndex);
 
-    if (0 <= m_tabBarPlacementIndex
-        && m_tabBarPlacementIndex < m_page->comboBoxTabBarPlacement->count())
-        m_page->comboBoxTabBarPlacement->setCurrentIndex(m_tabBarPlacementIndex);
-    m_page->checkBoxAllowTabMovement->setChecked(m_allowTabBarMovement);
-
     return w;
 }
 
@@ -122,13 +117,7 @@ void WorkspaceSettings::readSettings(QSettings *qs)
         m_iconNames.append(iconName);
         m_modeNames.append(QString("Mode") + QString::number(i));
     }
-    m_tabBarPlacementIndex =
-        qs->value(QLatin1String("TabBarPlacementIndex"), 1).toInt(); // 1 == "Bottom"
-    m_allowTabBarMovement = qs->value(QLatin1String("AllowTabBarMovement"), false).toBool();
     qs->endGroup();
-    QTabWidget::TabPosition pos =
-        m_tabBarPlacementIndex == 0 ? QTabWidget::North : QTabWidget::South;
-    emit tabBarSettingsApplied(pos, m_allowTabBarMovement);
 }
 
 void WorkspaceSettings::saveSettings(QSettings *qs)
@@ -144,8 +133,6 @@ void WorkspaceSettings::saveSettings(QSettings *qs)
         qs->setValue(defaultName, m_names.at(j));
         qs->setValue(defaultIconName, m_iconNames.at(j));
     }
-    qs->setValue(QLatin1String("TabBarPlacementIndex"), m_tabBarPlacementIndex);
-    qs->setValue(QLatin1String("AllowTabBarMovement"), m_allowTabBarMovement);
     qs->endGroup();
 }
 
@@ -168,11 +155,6 @@ void WorkspaceSettings::apply()
             modeManager->updateModeNameIcon(mode, QIcon(iconName(i)), name(i));
         }
     }
-    m_tabBarPlacementIndex = m_page->comboBoxTabBarPlacement->currentIndex();
-    m_allowTabBarMovement = m_page->checkBoxAllowTabMovement->isChecked();
-    QTabWidget::TabPosition pos =
-        m_tabBarPlacementIndex == 0 ? QTabWidget::North : QTabWidget::South;
-    emit tabBarSettingsApplied(pos, m_allowTabBarMovement);
 }
 
 void WorkspaceSettings::finish()
@@ -247,9 +229,9 @@ void WorkspaceSettings::newModeOrder(QVector<IMode *> modes)
             bool nonShowingMode = (p == -1 && q >= 0);
             bool pqBothFound = (p >= 0 && q >= 0);
             if (nonShowingMode || (pqBothFound && (priorities.at(q) > priorities.at(p)))) {
-                m_names.swap(i, j);
-                m_iconNames.swap(i, j);
-                m_modeNames.swap(i, j);
+                m_names.swapItemsAt(i, j);
+                m_iconNames.swapItemsAt(i, j);
+                m_modeNames.swapItemsAt(i, j);
                 swapped = true;
             }
         }

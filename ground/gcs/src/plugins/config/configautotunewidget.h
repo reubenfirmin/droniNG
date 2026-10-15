@@ -42,8 +42,6 @@
 #include <QWizardPage>
 #include <QtNetwork/QNetworkReply>
 
-QT_CHARTS_USE_NAMESPACE
-
 #include "ui_autotune.h"
 #include "ui_autotunebeginning.h"
 #include "ui_autotuneproperties.h"

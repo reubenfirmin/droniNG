@@ -34,6 +34,8 @@
 #include "coreplugin/connectionmanager.h"
 #include "coreplugin/icore.h"
 #include "firmwareiapobj.h"
+#include "boardprofile.h"
+#include "uavobjects/uavobjectfield.h"
 
 // Timeout for the object fetching phase, the system will stop fetching objects and emit connected
 // after this
@@ -100,7 +102,7 @@ TelemetryMonitor::TelemetryMonitor(UAVObjectManager *objMngr, Telemetry *tel)
     , queue(decltype(queue)(queueCompare))
     , requestsInFlight(0)
 {
-    this->connectionTimer = new QTime();
+    connectionTimer.start();
     // Get stats objects
     gcsStatsObj = GCSTelemetryStats::GetInstance(objMngr);
     flightStatsObj = FlightTelemetryStats::GetInstance(objMngr);
@@ -111,13 +113,89 @@ TelemetryMonitor::TelemetryMonitor(UAVObjectManager *objMngr, Telemetry *tel)
     // Start update timer
     statsTimer = new QTimer(this);
     objectRetrieveTimeout = new QTimer(this);
+    handshakeTimeout = new QTimer(this);
+    handshakeTimeout->setSingleShot(true);
+    connect(handshakeTimeout, &QTimer::timeout, this, &TelemetryMonitor::handshakeTimeoutCB);
+    handshakeTimeout->start(CONNECTION_TIMEOUT_MS);
+    firmwareProbeTimeout = new QTimer(this);
+    firmwareProbeTimeout->setSingleShot(true);
+    connect(firmwareProbeTimeout, &QTimer::timeout, this, &TelemetryMonitor::finishFirmwareProbe);
+    liveDataTimeout = new QTimer(this);
+    liveDataTimeout->setSingleShot(true);
+    connect(liveDataTimeout, &QTimer::timeout, this, &TelemetryMonitor::liveDataTimeoutCB);
+    // Give a native UAVTalk board a short opportunity to identify itself, then
+    // probe serial firmware without waiting for the full handshake timeout.
+    QTimer::singleShot(300, this, &TelemetryMonitor::startFirmwareProbe);
     objectRetrieveTimeout->setSingleShot(true);
     connect(statsTimer, &QTimer::timeout, this, &TelemetryMonitor::processStatsUpdates);
     connect(objectRetrieveTimeout, &QTimer::timeout, this,
             &TelemetryMonitor::objectRetrieveTimeoutCB);
     statsTimer->start(STATS_CONNECT_PERIOD_MS);
+    QTimer::singleShot(0, this, &TelemetryMonitor::processStatsUpdates);
 
     Core::ConnectionManager *cm = Core::ICore::instance()->connectionManager();
+    transport = cm->getCurrentConnection();
+    if (auto *alarms = objMngr->getObject(QStringLiteral("SystemAlarms")))
+        connect(alarms, &UAVObject::objectUpdated, this, [this, cm, alarms, previous = QString() ]() mutable {
+            if (cm->getCurrentConnection() != transport || !cm->flightDataAvailable()) return;
+            auto *field = alarms->getField("Alarm");
+            if (!field) return;
+            QStringList active;
+            for (int index = 0; index < field->getNumElements(); ++index) {
+                const QString severity = field->getValue(index).toString();
+                if (severity != "OK" && severity != "Uninitialised")
+                    active.append(field->getElementNames()[index] + "=" + severity);
+            }
+            for (const auto &name : {"ManualControl", "StateEstimation"})
+                if (auto *reason = alarms->getField(name)) {
+                    const auto value = reason->getValue().toString();
+                    if (value != "None") active.append(QString(name) + " reason=" + value);
+                }
+            if (auto *stats = dynamic_cast<UAVDataObject *>(this->objMngr->getObject("SystemStats"));
+                stats && stats->getReceived() && active.contains("EventSystem=Warning")) {
+                for (const auto &name : {"EventSystemWarningID", "ObjectManagerCallbackID", "ObjectManagerQueueID"}) {
+                    const quint32 id = stats->getField(name)->getValue().toUInt();
+                    if (id) {
+                        auto *object = this->objMngr->getObject(id);
+                        active.append(QString(name) + "=" + (object ? object->getName() : QString("0x%1").arg(id, 8, 16, QChar('0'))));
+                    }
+                }
+            }
+            const QString summary = active.isEmpty() ? tr("No active alarms") : active.join("; ");
+            if (summary == previous) return;
+            previous = summary;
+            QStringList readings;
+            for (const auto &entry : {qMakePair("BaroAltitude", QStringList{"Pressure", "Temperature"}),
+                                      qMakePair("GPSPosition", QStringList{"Status", "Satellites"})}) {
+                auto *object = dynamic_cast<UAVDataObject *>(this->objMngr->getObject(entry.first));
+                if (!object || !object->getReceived()) {
+                    readings.append(QString(entry.first) + ": no telemetry samples received");
+                    continue;
+                }
+                for (const auto &name : entry.second)
+                    if (auto *value = object->getField(name))
+                        readings.append(object->getName() + "." + name + "=" + value->getValue().toString());
+            }
+            qInfo().noquote() << "Controller health:" << summary << "|" << readings.join("; ");
+        });
+    if (auto *profile = BoardProfile::GetInstance(objMngr))
+        connect(profile, &UAVObject::objectUpdated, this, [this, cm, profile] {
+            if (cm->getCurrentConnection() != transport || !profile->getIsPresentOnHardware()) return;
+            const auto data = profile->getData();
+            const auto string = [](const quint8 *bytes) {
+                return QString::fromLatin1(QByteArray(reinterpret_cast<const char *>(bytes), 32).split('\0').first());
+            };
+            cm->reportFirmwareProfile(data.SchemaVersion, string(data.ProfileId), string(data.LayoutId),
+                QByteArray(reinterpret_cast<const char *>(data.ProfileHash), 32));
+        });
+    if (auto *attitude = objMngr->getObject(QStringLiteral("AttitudeActual")))
+        connect(attitude, &UAVObject::objectUpdated, this, [this, cm] {
+            if (cm->getCurrentConnection() == transport
+                && gcsStatsObj->getData().Status == GCSTelemetryStats::STATUS_CONNECTED) {
+                liveDataTimeout->stop();
+                cm->reportFlightDataReceived();
+            }
+        });
     connect(this, &TelemetryMonitor::connected, cm, &Core::ConnectionManager::telemetryConnected);
     connect(this, &TelemetryMonitor::disconnected, cm,
             &Core::ConnectionManager::telemetryDisconnected);
@@ -186,6 +264,8 @@ void TelemetryMonitor::retrieveNextObject()
                 .arg(connectionStatus));
         connectionStatus = CON_CONNECTED_MANAGED;
         emit connected();
+        if (!Core::ICore::instance()->connectionManager()->flightDataAvailable())
+            liveDataTimeout->start(CONNECTION_TIMEOUT_MS);
         objectRetrieveTimeout->stop();
         return;
     }
@@ -193,11 +273,7 @@ void TelemetryMonitor::retrieveNextObject()
     objectRetrieveTimeout->stop();
     objectRetrieveTimeout->start(OBJECT_RETRIEVE_TIMEOUT);
 
-    while (requestsInFlight < MAX_REQUESTS_IN_FLIGHT) {
-        if (queue.empty()) {
-            return;
-        }
-
+    while (!queue.empty() && requestsInFlight < MAX_REQUESTS_IN_FLIGHT) {
         // Get next object from the queue
         UAVObject *obj = queue.top();
         queue.pop();
@@ -245,6 +321,10 @@ void TelemetryMonitor::retrieveNextObject()
         // Request update
         obj->requestUpdate();
     }
+
+    // The last queued objects may already have arrived as live telemetry.
+    // Finish immediately when skipping them leaves no outstanding requests.
+    if (queue.empty() && requestsInFlight == 0) retrieveNextObject();
 }
 
 /**
@@ -252,6 +332,16 @@ void TelemetryMonitor::retrieveNextObject()
  */
 void TelemetryMonitor::transactionCompleted(UAVObject *obj, bool success, bool nacked)
 {
+    if (success && !nacked && obj == FirmwareIAPObj::GetInstance(objMngr)) {
+        auto *cm = Core::ICore::instance()->connectionManager();
+        if (cm->getCurrentConnection() == transport) {
+            const auto fields = FirmwareIAPObj::GetInstance(objMngr)->getData();
+            cm->setControllerSerial(QByteArray(reinterpret_cast<const char *>(fields.CPUSerial),
+                                              FirmwareIAPObj::CPUSERIAL_NUMELEM).toHex());
+            cm->reportFirmwareDescription(QByteArray(reinterpret_cast<const char *>(fields.Description),
+                                                    FirmwareIAPObj::DESCRIPTION_NUMELEM));
+        }
+    }
     TELEMETRYMONITOR_QXTLOG_DEBUG(QString("%0 received %1 OBJID:%2 result:%3")
                                       .arg(Q_FUNC_INFO)
                                       .arg(obj->getName())
@@ -316,7 +406,8 @@ void TelemetryMonitor::transactionCompleted(UAVObject *obj, bool success, bool n
 
     // Disconnect from sending object
     requestsInFlight--;
-    obj->disconnect(this);
+    disconnect(obj, QOverload<UAVObject *, bool, bool>::of(&UAVObject::transactionCompleted),
+               this, &TelemetryMonitor::transactionCompleted);
 
     // Process next object if telemetry is still available
     GCSTelemetryStats::DataFields gcsStats = gcsStatsObj->getData();
@@ -354,12 +445,134 @@ void TelemetryMonitor::flightStatsUpdated(UAVObject *obj)
 
 void TelemetryMonitor::objectRetrieveTimeoutCB()
 {
-    qInfo() <<
+    qWarning() <<
         QString("%0 reached timeout for object retrieval, clearing queue")
         .arg(Q_FUNC_INFO);
 
     /* Clear the queue */
     queue = decltype(queue)(queueCompare);
+}
+
+void TelemetryMonitor::liveDataTimeoutCB()
+{
+    auto *cm = Core::ICore::instance()->connectionManager();
+    if (cm->getCurrentConnection() != transport || cm->flightDataAvailable()
+        || gcsStatsObj->getData().Status != GCSTelemetryStats::STATUS_CONNECTED) return;
+    cm->telemetryConnectionFailed({
+        tr("The controller connected, but isn't sending live flight data. Disconnect and reconnect it. "
+           "Retry the connection; if startup still fails, reinstall the firmware."), {},
+        tr("UAVTalk handshake and object retrieval completed, but no AttitudeActual data arrived.")});
+}
+
+void TelemetryMonitor::handshakeTimeoutCB()
+{
+    if (mspPortIdentified) return;
+    // Include the final partial stats interval in the diagnostic counters.
+    processStatsUpdates();
+    if (gcsStatsObj->getData().Status == GCSTelemetryStats::STATUS_CONNECTED)
+        return;
+
+    auto device = Core::ICore::instance()->connectionManager()->getCurrentDevice();
+    handshakeDiagnostic = QString("UAVTalk handshake timed out after %1 ms on %2: "
+                   "txBytes=%3, rxBytes=%4, validRxObjects=%5, rxErrors=%6, "
+                   "txErrors=%7, txRetries=%8, GCS state=%9, flight state=%10. "
+                   "The connection remains open and the GCS is still retrying. "
+                   "Check the serial settings and firmware: this GCS requires compatible dRonin UAVTalk firmware.")
+               .arg(CONNECTION_TIMEOUT_MS).arg(device.getConName())
+               .arg(handshakeStats.txBytes).arg(handshakeStats.rxBytes)
+               .arg(handshakeStats.rxObjects).arg(handshakeStats.rxErrors)
+               .arg(handshakeStats.txErrors).arg(handshakeStats.txRetries)
+               .arg(gcsStatsObj->getData().Status).arg(flightStatsObj->getData().Status);
+    qWarning().noquote() << handshakeDiagnostic;
+
+    startFirmwareProbe();
+    if (!tel->protocol()->firmwareIdentity().active()) reportHandshakeFailure();
+}
+
+void TelemetryMonitor::startFirmwareProbe()
+{
+    if (firmwareProbeAttempted) return;
+    firmwareProbeAttempted = true;
+    processStatsUpdates();
+    auto *cm = Core::ICore::instance()->connectionManager();
+    const auto device = cm->getCurrentDevice();
+    if (!transport || cm->getCurrentConnection() != transport
+        || gcsStatsObj->getData().Status == GCSTelemetryStats::STATUS_CONNECTED
+        || !device.connection || device.connection->shortName() != "Serial"
+        || handshakeStats.rxObjects > 0 || handshakeStats.txErrors > 0) return;
+    tel->protocol()->probeFirmware();
+    firmwareProbeTimeout->start(1200);
+}
+
+void TelemetryMonitor::finishFirmwareProbe()
+{
+    firmwareProbeTimeout->stop();
+    tel->protocol()->stopFirmwareProbe();
+    auto *cm = Core::ICore::instance()->connectionManager();
+    if (!transport || cm->getCurrentConnection() != transport
+        || gcsStatsObj->getData().Status == GCSTelemetryStats::STATUS_CONNECTED
+        || handshakeStats.rxObjects > 0) return;
+    if (tel->protocol()->firmwareIdentity().responded()) {
+        // An MSP port cannot answer a UAVTalk handshake. Keep the reader open
+        // for a possible native stream, but stop sending futile requests.
+        mspPortIdentified = true;
+        tel->setConnectionRequestsEnabled(false);
+        handshakeTimeout->stop();
+        liveDataTimeout->stop();
+        handshakeDiagnostic = tr("MSP firmware identified after %1 ms. UAVTalk connection requests stopped.")
+            .arg(connectionTimer.elapsed());
+        reportHandshakeFailure();
+    } else if (!handshakeDiagnostic.isEmpty()) {
+        reportHandshakeFailure();
+    }
+}
+
+void TelemetryMonitor::reportHandshakeFailure()
+{
+    auto *cm = Core::ICore::instance()->connectionManager();
+    tel->protocol()->stopFirmwareProbe();
+    if (!transport || cm->getCurrentConnection() != transport
+        || gcsStatsObj->getData().Status == GCSTelemetryStats::STATUS_CONNECTED)
+        return;
+    processStatsUpdates();
+    if (gcsStatsObj->getData().Status == GCSTelemetryStats::STATUS_CONNECTED)
+        return;
+
+    const auto &identity = tel->protocol()->firmwareIdentity();
+    cm->setFirmwareIdentity(identity.variant(), identity.boardTarget(), identity.responded(), identity.version());
+    QString message;
+    if (handshakeStats.txErrors > 0) {
+        message = tr("The port opened, but DroniNG couldn't send connection requests. "
+                     "Close other apps using the controller, unplug and reconnect it, then try again.");
+    } else if (identity.variant() == "BTFL") {
+        message = tr("This controller answered as Betaflight%1, which uses MSP. "
+                     "DroniNG needs compatible dRonin UAVTalk firmware, so flight data can't load. "
+                     "Install the recommended firmware below.")
+            .arg(identity.version().isEmpty() ? QString() : QString(" %1").arg(identity.version()));
+    } else if (identity.variant() == "DRON") {
+        message = tr("The controller answered as dRonin on an MSP port. "
+                     "Select its UAVTalk USB interface or an existing UAVTalk telemetry port "
+                     "to load flight data.");
+    } else if (identity.responded()) {
+        message = tr("The controller answered using MSP, but DroniNG needs compatible dRonin "
+                     "UAVTalk firmware. Select your board below to install its recommended firmware.");
+    } else if (handshakeStats.rxObjects > 0) {
+        message = tr("The controller answered, but the connection could not finish. "
+                     "Retry the connection; if this repeats, reinstall the firmware.");
+    } else if (handshakeStats.rxBytes > 0) {
+        message = tr("The controller connected, but its data could not be read. "
+                     "Retry the connection; if this repeats, reinstall the firmware. "
+                     "For a UART connection, check the port and baud rate in the controller's settings.");
+    } else {
+        message = tr("The controller sent no data. Disconnect USB and the flight battery, then reconnect USB. "
+                     "Retry the connection; if startup still fails, reinstall the firmware.");
+    }
+    QString details = handshakeDiagnostic;
+    if (identity.responded()) {
+        details += tr("\nRead-only firmware probe: %1").arg(identity.description());
+        qInfo().noquote() << "Read-only firmware probe:" << identity.description();
+    }
+    cm->telemetryConnectionFailed({message, {}, details});
 }
 
 void TelemetryMonitor::newInstanceSlot(UAVObject *obj)
@@ -379,6 +592,12 @@ void TelemetryMonitor::processStatsUpdates()
     GCSTelemetryStats::DataFields gcsStats = gcsStatsObj->getData();
     FlightTelemetryStats::DataFields flightStats = flightStatsObj->getData();
     Telemetry::TelemetryStats telStats = tel->getStats();
+    handshakeStats.txBytes += telStats.txBytes;
+    handshakeStats.rxBytes += telStats.rxBytes;
+    handshakeStats.rxObjects += telStats.rxObjects;
+    handshakeStats.rxErrors += telStats.rxErrors;
+    handshakeStats.txErrors += telStats.txErrors;
+    handshakeStats.txRetries += telStats.txRetries;
 
     // Update stats object
     gcsStats.RxDataRate = (float)telStats.rxBytes / ((float)statsTimer->interval() / 1000.0);
@@ -390,9 +609,18 @@ void TelemetryMonitor::processStatsUpdates()
     // Check for a connection timeout
     bool connectionTimeout;
     if (telStats.rxObjects > 0) {
-        connectionTimer->start();
+        connectionTimer.start();
+        if (mspPortIdentified) {
+            mspPortIdentified = false;
+            tel->setConnectionRequestsEnabled(true);
+            auto *cm = Core::ICore::instance()->connectionManager();
+            cm->setFirmwareDetectionActive(true);
+            cm->setFirmwareIdentity({}, {});
+            cm->setFirmwareStatus(tr("Reading controller data…"));
+            handshakeTimeout->start(CONNECTION_TIMEOUT_MS);
+        }
     }
-    if (connectionTimer->elapsed() > CONNECTION_TIMEOUT_MS) {
+    if (connectionTimer.elapsed() > CONNECTION_TIMEOUT_MS) {
         connectionTimeout = true;
     } else {
         connectionTimeout = false;
@@ -421,18 +649,30 @@ void TelemetryMonitor::processStatsUpdates()
     gcsStatsObj->setData(gcsStats);
 
     // Force telemetry update if not yet connected
-    if (gcsStats.Status != GCSTelemetryStats::STATUS_CONNECTED
-        || flightStats.Status != FlightTelemetryStats::STATUS_CONNECTED) {
+    if (!mspPortIdentified && (gcsStats.Status != GCSTelemetryStats::STATUS_CONNECTED
+        || flightStats.Status != FlightTelemetryStats::STATUS_CONNECTED)) {
         gcsStatsObj->updated();
     }
 
     // Act on new connections or disconnections
     if (gcsStats.Status == GCSTelemetryStats::STATUS_CONNECTED && gcsStats.Status != oldStatus) {
+        handshakeTimeout->stop();
+        firmwareProbeTimeout->stop();
+        mspPortIdentified = false;
+        tel->protocol()->stopFirmwareProbe();
+        Core::ICore::instance()->connectionManager()->telemetryHandshakeCompleted();
         statsTimer->setInterval(STATS_UPDATE_PERIOD_MS);
-        qDebug() << "Connection with the autopilot established";
+        qInfo() << "UAVTalk handshake completed; retrieving objects from the autopilot";
         connectionStatus = CON_INITIALIZING;
         startRetrievingObjects();
     } else if (gcsStats.Status == GCSTelemetryStats::STATUS_DISCONNECTED && gcsStats.Status != oldStatus) {
+        auto device = Core::ICore::instance()->connectionManager()->getCurrentDevice();
+        qWarning().noquote() << "Telemetry disconnected from" << device.getConName() << ":"
+                            << (connectionTimeout ? "no valid UAVTalk objects received for 8 seconds"
+                                                  : "the autopilot reported a disconnected state");
+        handshakeStats = {};
+        liveDataTimeout->stop();
+        handshakeTimeout->start(CONNECTION_TIMEOUT_MS);
         statsTimer->setInterval(STATS_CONNECT_PERIOD_MS);
         connectionStatus = CON_DISCONNECTED;
         foreach (UAVObjectManager::ObjectMap map, objMngr->getObjects()) {
@@ -445,4 +685,7 @@ void TelemetryMonitor::processStatsUpdates()
 
         emit disconnected();
     }
+    if (tel->protocol()->firmwareIdentity().active()
+        && (tel->protocol()->firmwareIdentity().complete() || handshakeStats.rxObjects > 0))
+        finishFirmwareProbe();
 }

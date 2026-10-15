@@ -27,20 +27,23 @@
 #ifndef MODELVIEWGADGETWIDGET_H_
 #define MODELVIEWGADGETWIDGET_H_
 
-#include <QGLWidget>
+#include <QtGlobal>
+#include <QOpenGLWidget>
+#include <memory>
+using ModelViewWidgetBase = QOpenGLWidget;
 #include <QTimer>
 
-#include "glc_lib/glc_factory.h"
-#include "glc_lib/viewport/glc_viewport.h"
-#include "glc_lib/viewport/glc_movercontroller.h"
-#include "glc_lib/shading/glc_light.h"
-#include "glc_lib/sceneGraph/glc_world.h"
-#include "glc_lib/glc_exception.h"
+#include <glc_factory.h>
+#include <viewport/glc_viewport.h>
+#include <viewport/glc_movercontroller.h>
+#include <shading/glc_light.h>
+#include <sceneGraph/glc_world.h>
+#include <glc_exception.h>
 
 #include "uavobjects/uavobjectmanager.h"
 #include "attitudeactual.h"
 
-class ModelViewGadgetWidget : public QGLWidget
+class ModelViewGadgetWidget : public ModelViewWidgetBase
 {
     Q_OBJECT
 
@@ -75,11 +78,11 @@ private slots:
     void updateAttitude();
 
 private:
-    GLC_Factory *m_pFactory;
-    GLC_Light m_Light;
-    GLC_World m_World;
-    GLC_Viewport m_GlView;
-    GLC_MoverController m_MoverController;
+    void cleanupGL();
+    std::unique_ptr<GLC_Light> m_Light;
+    std::unique_ptr<GLC_World> m_World;
+    std::unique_ptr<GLC_Viewport> m_GlView;
+    std::unique_ptr<GLC_MoverController> m_MoverController;
     GLC_BoundingBox m_ModelBoundingBox;
     // ! The timer used for motion
     QTimer m_MotionTimer;

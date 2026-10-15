@@ -16,10 +16,6 @@
 #include <qpainter.h>
 #include <qmath.h>
 
-#if QT_VERSION < 0x040601
-#define qFastSin(x) qSin(x)
-#define qFastCos(x) qCos(x)
-#endif
 
 class QwtScaleDraw::PrivateData
 {

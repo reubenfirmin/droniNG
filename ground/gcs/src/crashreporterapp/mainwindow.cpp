@@ -25,7 +25,7 @@
 
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
-#include <QDesktopWidget>
+#include <QScreen>
 #include <QDesktopServices>
 #include <QDir>
 #include <QDebug>
@@ -48,10 +48,8 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    QRect screenGeometry = QApplication::desktop()->screenGeometry();
-    int x = (screenGeometry.width() - width()) / 2;
-    int y = (screenGeometry.height() - height()) / 2;
-    move(x, y);
+    if (screen())
+        move(screen()->availableGeometry().center() - rect().center());
     connect(ui->textBrowser, SIGNAL(anchorClicked(QUrl)), this, SLOT(onShowReport()));
     connect(ui->pb_Save, SIGNAL(clicked(bool)), this, SLOT(onSaveReport()));
     connect(ui->pb_Cancel, SIGNAL(clicked(bool)), this, SLOT(close()));

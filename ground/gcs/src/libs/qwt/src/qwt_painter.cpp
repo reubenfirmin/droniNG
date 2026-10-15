@@ -8,6 +8,7 @@
  *****************************************************************************/
 
 #include "qwt_painter.h"
+#include <qpainterpath.h>
 #include "qwt_math.h"
 #include "qwt_clipper.h"
 #include "qwt_color_map.h"
@@ -26,19 +27,9 @@
 #include <qstyleoption.h>
 #include <qpaintengine.h>
 #include <qapplication.h>
-#include <qdesktopwidget.h>
+#include <QScreen>
 
-#if QT_VERSION >= 0x050000
 #include <qwindow.h>
-#endif
-
-#if QT_VERSION < 0x050000 
-
-#ifdef Q_WS_X11
-#include <qx11info_x11.h>
-#endif
-
-#endif
 
 bool QwtPainter::d_polylineSplitting = true;
 bool QwtPainter::d_roundingAlignment = true;
@@ -103,11 +94,11 @@ static inline QSize qwtScreenResolution()
     static QSize screenResolution;
     if ( !screenResolution.isValid() )
     {
-        QDesktopWidget *desktop = QApplication::desktop();
+        QScreen *desktop = QApplication::primaryScreen();
         if ( desktop )
         {
-            screenResolution.setWidth( desktop->logicalDpiX() );
-            screenResolution.setHeight( desktop->logicalDpiY() );
+            screenResolution.setWidth( qRound( desktop->logicalDotsPerInchX() ) );
+            screenResolution.setHeight( qRound( desktop->logicalDotsPerInchY() ) );
         }
     }
 
@@ -125,7 +116,7 @@ static inline void qwtUnscaleFont( QPainter *painter )
     if ( pd->logicalDpiX() != screenResolution.width() ||
         pd->logicalDpiY() != screenResolution.height() )
     {
-        QFont pixelFont( painter->font(), QApplication::desktop() );
+        QFont pixelFont( painter->font() );
         pixelFont.setPixelSize( QFontInfo( pixelFont ).pixelSize() );
 
         painter->setFont( pixelFont );
@@ -686,7 +677,7 @@ void QwtPainter::drawFocusRect( QPainter *painter, const QWidget *widget,
     const QRect &rect )
 {
     QStyleOptionFocusRect opt;
-    opt.init( widget );
+    opt.initFrom( widget );
     opt.rect = rect;
     opt.state |= QStyle::State_HasFocus;
 
@@ -1257,9 +1248,6 @@ QPixmap QwtPainter::backingStore( QWidget *widget, const QSize &size )
 {
     QPixmap pm;
 
-#define QWT_HIGH_DPI 1
-
-#if QT_VERSION >= 0x050000 && QWT_HIGH_DPI
     qreal pixelRatio = 1.0;
 
     if ( widget && widget->windowHandle() )
@@ -1274,20 +1262,6 @@ QPixmap QwtPainter::backingStore( QWidget *widget, const QSize &size )
 
     pm = QPixmap( size * pixelRatio );
     pm.setDevicePixelRatio( pixelRatio );
-#else
-    Q_UNUSED( widget )
-    pm = QPixmap( size );
-#endif
-
-#if QT_VERSION < 0x050000 
-#ifdef Q_WS_X11
-    if ( widget && isX11GraphicsSystem() )
-    {
-        if ( pm.x11Info().screen() != widget->x11Info().screen() )
-            pm.x11SetScreen( widget->x11Info().screen() );
-    }
-#endif
-#endif
 
     return pm;
 }

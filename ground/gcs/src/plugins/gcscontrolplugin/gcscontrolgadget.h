@@ -30,7 +30,7 @@
 #include <coreplugin/iuavgadget.h>
 #include "gcscontrolgadgetconfiguration.h"
 #include <QTimer>
-#include <QTime>
+#include <QElapsedTimer>
 #include <QHostAddress>
 #include <gcscontrolplugin/gcscontrol.h>
 
@@ -75,7 +75,7 @@ private:
     //! Set the UAVTalkReceiver object
     void setGcsReceiver(double leftX, double leftY, double rightX, double rightY, double arming);
 
-    QTime joystickTime;
+    QElapsedTimer joystickTime;
     GCSControlGadgetWidget *m_widget;
     QList<int> m_context;
     UAVObject::Metadata mccInitialData;

@@ -46,14 +46,18 @@
 #include "shortcutsettings.h"
 #include "uavgadgetmanager.h"
 #include "uavgadgetinstancemanager.h"
+#include "iuavgadget.h"
+#include "iuavgadgetconfiguration.h"
 #include "workspacesettings.h"
+#include "workspacenavigation.h"
+#include "workspacelayout.h"
+#include "firmwarepage.h"
 #include "globalmessaging.h"
 #include "authorsdialog.h"
 #include "baseview.h"
 #include "ioutputpane.h"
 #include "icorelistener.h"
 #include "iconfigurableplugin.h"
-#include <QStyleFactory>
 #include "settingsdialog.h"
 #include "uniqueidmanager.h"
 #include "versiondialog.h"
@@ -80,6 +84,7 @@
 #include <QStatusBar>
 #include <QWizard>
 #include <QToolButton>
+#include <QTabBar>
 #include <QMessageBox>
 #include <QDesktopServices>
 #include "dialogs/importsettings.h"
@@ -96,7 +101,7 @@ static const char *uriListMimeFormatC = "text/uri-list";
 enum { debugMainWindow = 0 };
 
 MainWindow::MainWindow()
-    : EventFilteringMainWindow()
+    : QMainWindow()
     , m_coreImpl(new CoreImpl(this))
     , m_uniqueIDManager(new UniqueIDManager())
     , m_globalContext(QList<int>() << Constants::C_GLOBAL_ID)
@@ -119,13 +124,7 @@ MainWindow::MainWindow()
     , m_saveAllAction(nullptr)
     , m_exitAction(nullptr)
     , m_optionsAction(nullptr)
-    ,
-#ifdef Q_OS_MAC
-    m_minimizeAction(0)
-    , m_zoomAction(0)
-    ,
-#endif /* Q_OS_MAC */
-    m_toggleFullScreenAction(nullptr)
+    , m_toggleFullScreenAction(nullptr)
 {
     // keep this in sync with main() in app/main.cpp
     m_settings = new QSettings(QDir::tempPath() + QDir::separator() + GCS_PROJECT_BRANDING
@@ -156,33 +155,12 @@ MainWindow::MainWindow()
     }
 
     setWindowTitle(QLatin1String(Core::Constants::GCS_NAME));
-    if (!Utils::HostOsInfo::isMacHost())
-        QApplication::setWindowIcon(QIcon(Core::Constants::ICON_GCS));
+    QApplication::setWindowIcon(QIcon(Core::Constants::ICON_GCS));
     QCoreApplication::setApplicationName(QLatin1String(Core::Constants::GCS_NAME));
     QCoreApplication::setApplicationVersion(QLatin1String(Core::Constants::GCS_VERSION_LONG));
     QCoreApplication::setOrganizationName(QLatin1String(Core::Constants::GCS_AUTHOR));
     QCoreApplication::setOrganizationDomain(QLatin1String(GCS_PROJECT_BRANDING_HELP));
     QSettings::setDefaultFormat(XmlConfig::XmlSettingsFormat);
-    QString baseName = QApplication::style()->objectName();
-
-    qDebug() << baseName;
-    if (Utils::HostOsInfo::isAnyUnixHost() && !Utils::HostOsInfo::isMacHost()) {
-        if (baseName == QLatin1String("windows")) {
-            // Sometimes we get the standard windows 95 style as a fallback
-            if (QStyleFactory::keys().contains(QLatin1String("Fusion"))) {
-                baseName = QLatin1String("fusion"); // Qt5
-            } else { // Qt4
-                // e.g. if we are running on a KDE4 desktop
-                QByteArray desktopEnvironment = qgetenv("DESKTOP_SESSION");
-                if (desktopEnvironment == "kde")
-                    baseName = QLatin1String("plastique");
-                else
-                    baseName = QLatin1String("cleanlooks");
-            }
-        }
-    }
-    qApp->setStyle(QStyleFactory::create(baseName));
-
     setDockNestingEnabled(true);
 
     setCorner(Qt::BottomLeftCorner, Qt::LeftDockWidgetArea);
@@ -191,17 +169,17 @@ MainWindow::MainWindow()
     registerDefaultContainers();
     registerDefaultActions();
 
-    QGridLayout *gridLayout = new QGridLayout();
-    gridLayout->setSizeConstraint(QLayout::SetNoConstraint);
+    QHBoxLayout *contentLayout = new QHBoxLayout();
+    contentLayout->setSizeConstraint(QLayout::SetNoConstraint);
 
     m_contentFrame = new QFrame(this);
     m_contentFrame->setObjectName(QString("MainContentFrame"));
-    m_contentFrame->setLayout(gridLayout);
+    m_contentFrame->setLayout(contentLayout);
 
     m_modeStack = new MyTabWidget(m_contentFrame);
     m_modeStack->setIconSize(QSize(24, 24));
-    m_modeStack->setTabPosition(QTabWidget::South);
     m_modeStack->setMovable(false);
+    m_modeStack->tabBar()->hide();
     m_modeStack->setMinimumWidth(512);
     m_modeStack->setMinimumHeight(384);
     m_modeStack->setMaximumWidth(16777215);
@@ -209,8 +187,8 @@ MainWindow::MainWindow()
     m_modeStack->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
     m_modeStack->setElideMode(Qt::ElideRight);
 
-    gridLayout->addWidget(m_modeStack, 0, 0);
-    gridLayout->setContentsMargins(0, 0, 0, 0);
+    contentLayout->setContentsMargins(0, 0, 0, 0);
+    contentLayout->setSpacing(0);
 
     m_globalMessaging = new GlobalMessaging(this);
 
@@ -218,14 +196,42 @@ MainWindow::MainWindow()
 
     m_connectionManager = new ConnectionManager(this, m_modeStack);
 
+    auto *navigation = new WorkspaceNavigation(m_modeManager, m_contentFrame);
+    navigation->setAdvancedMenuBar(menuBar());
+    connect(navigation, &WorkspaceNavigation::exitRequested, this, &MainWindow::exit);
+    contentLayout->addWidget(navigation);
+    auto *workspace = new QWidget(m_contentFrame);
+    auto *workspaceLayout = new QVBoxLayout(workspace);
+    workspaceLayout->setContentsMargins(0, 0, 0, 0); workspaceLayout->setSpacing(0);
+    auto *header = new QWidget(workspace);
+    header->setObjectName("workspaceHeader");
+    auto *headerLayout = new QHBoxLayout(header);
+    headerLayout->setContentsMargins(20, 8, 20, 8);
+    headerLayout->addWidget(navigation->systemTools());
+    headerLayout->addStretch();
+    header->hide();
+    connect(m_modeManager, &ModeManager::currentModeChanged, header, [header, navigation](IMode *) {
+        header->setVisible(!navigation->systemTools()->isHidden());
+    });
+    workspaceLayout->addWidget(header); workspaceLayout->addWidget(m_modeStack, 1);
+    auto *footer = new QFrame(workspace);
+    footer->setObjectName("applicationTelemetryFooter");
+    footer->setAccessibleName(tr("Flight status"));
+    m_telemetryLayout = new QHBoxLayout(footer);
+    m_telemetryLayout->setContentsMargins(16, 6, 16, 6);
+    m_telemetryLayout->setSpacing(12);
+    m_telemetryLayout->addStretch();
+    m_telemetryLayout->addWidget(m_connectionManager);
+    m_connectionManager->show();
+    workspaceLayout->addWidget(footer);
+    contentLayout->addWidget(workspace, 1);
+
     m_boardManager = new BoardManager();
 
     setCentralWidget(m_contentFrame);
 
     connect(QApplication::instance(), SIGNAL(focusChanged(QWidget *, QWidget *)), this,
             SLOT(updateFocusWidget(QWidget *, QWidget *)));
-    connect(m_workspaceSettings, SIGNAL(tabBarSettingsApplied(QTabWidget::TabPosition, bool)), this,
-            SLOT(applyTabBarSettings(QTabWidget::TabPosition, bool)));
     connect(m_modeManager, SIGNAL(newModeOrder(QVector<IMode *>)), m_workspaceSettings,
             SLOT(newModeOrder(QVector<IMode *>)));
     statusBar()->setProperty("p_styled", true);
@@ -330,13 +336,8 @@ void MainWindow::extensionsInitialized()
             }
         }
         QDir directory(QCoreApplication::applicationDirPath());
-#ifdef Q_OS_MAC
-        directory.cdUp();
-        directory.cd("Resources");
-#else
         directory.cdUp();
         directory.cd("share");
-#endif
         directory.cd("default_configurations");
 
         qDebug() << "Looking for default config files in: " + directory.absolutePath();
@@ -373,7 +374,6 @@ void MainWindow::extensionsInitialized()
     qs->beginGroup("General");
     m_config_description = qs->value("Description", "none").toString();
     m_config_details = qs->value("Details", "none").toString();
-    loadStyleSheet();
     qs->endGroup();
     m_uavGadgetInstanceManager = new UAVGadgetInstanceManager(this);
     connect(m_uavGadgetInstanceManager, SIGNAL(splashMessages(QString)), this,
@@ -381,6 +381,7 @@ void MainWindow::extensionsInitialized()
     m_uavGadgetInstanceManager->readSettings(qs);
 
     readSettings(qs);
+    m_modeManager->activateModeByWorkspaceName("Welcome");
     updateContext();
     emit splashMessages(tr("Preparing to open core"));
 
@@ -395,56 +396,6 @@ void MainWindow::extensionsInitialized()
     emit m_coreImpl->coreAboutToOpen();
     show();
     emit m_coreImpl->coreOpened();
-}
-
-void MainWindow::readStyleSheet(QFile *file, QString name, QString *style)
-{
-    QString tmp;
-    if (file->open(QFile::ReadOnly)) {
-        /* QTextStream... */
-        QTextStream styleIn(file);
-        /* ...read file to a string. */
-        tmp = styleIn.readAll();
-        file->close();
-        style->append(tmp);
-        emit splashMessages(QString(tr("Loading stylesheet %1")).arg(name));
-        qDebug() << "Loaded stylesheet:" << name;
-    } else {
-        qDebug() << "Failed to openstylesheet file" << name;
-    }
-}
-
-void MainWindow::loadStyleSheet()
-{
-    /* Let's use QFile and point to a resource... */
-    QDir directory(QCoreApplication::applicationDirPath());
-#ifdef Q_OS_MAC
-    directory.cdUp();
-    directory.cd("Resources");
-#else
-    directory.cdUp();
-    directory.cd("share");
-#endif
-    directory.cd("stylesheets");
-    QFile global(directory.absolutePath() + QDir::separator() + "global.qss");
-#ifdef Q_OS_MAC
-    QFile data(directory.absolutePath() + QDir::separator() + "macos.qss");
-#elif defined(Q_OS_LINUX)
-    QFile data(directory.absolutePath() + QDir::separator() + "linux.qss");
-#else
-    QFile data(directory.absolutePath() + QDir::separator() + "windows.qss");
-#endif
-    QString style;
-    /* ...to open the file */
-
-    readStyleSheet(&global, "Global", &style);
-    readStyleSheet(&data, "OS", &style);
-
-    if (style.length() > 0) {
-        qApp->setStyleSheet(style);
-    } else {
-        qDebug() << "No stylesheets loaded.";
-    }
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
@@ -542,9 +493,7 @@ void MainWindow::registerDefaultContainers()
 
     ActionContainer *menubar = am->createMenuBar(Constants::MENU_BAR);
 
-#ifndef Q_OS_MAC // System menu bar on Mac
     setMenuBar(menubar->menuBar());
-#endif /* Q_OS_MAC */
     menubar->appendGroup(Constants::G_FILE);
     menubar->appendGroup(Constants::G_EDIT);
     menubar->appendGroup(Constants::G_VIEW);
@@ -657,9 +606,7 @@ void MainWindow::registerDefaultActions()
     // SaveAll Action
     m_saveAllAction = new QAction(tr("Save &GCS Default Settings"), this);
     cmd = am->registerAction(m_saveAllAction, Constants::SAVEALL, m_globalContext);
-#ifndef Q_OS_MAC
     cmd->setDefaultKeySequence(QKeySequence(tr("Ctrl+Shift+S")));
-#endif
     mfile->addAction(cmd, Constants::G_FILE_SAVE);
     connect(m_saveAllAction, SIGNAL(triggered()), this, SLOT(saveAll()));
 
@@ -719,33 +666,9 @@ void MainWindow::registerDefaultActions()
     // Options Action
     m_optionsAction = new QAction(QIcon(Constants::ICON_OPTIONS), tr("&Options..."), this);
     cmd = am->registerAction(m_optionsAction, Constants::OPTIONS, m_globalContext);
-#ifdef Q_OS_MAC
-    cmd->setDefaultKeySequence(QKeySequence("Ctrl+,"));
-    cmd->action()->setMenuRole(QAction::PreferencesRole);
-#endif
     mtools->addAction(cmd, Constants::G_DEFAULT_THREE);
     connect(m_optionsAction, SIGNAL(triggered()), this, SLOT(showOptionsDialog()));
 
-#ifdef Q_OS_MAC
-    // Minimize Action
-    m_minimizeAction = new QAction(tr("Minimize"), this);
-    cmd = am->registerAction(m_minimizeAction, Constants::MINIMIZE_WINDOW, m_globalContext);
-    cmd->setDefaultKeySequence(QKeySequence("Ctrl+M"));
-    mwindow->addAction(cmd, Constants::G_WINDOW_SIZE);
-    connect(m_minimizeAction, SIGNAL(triggered()), this, SLOT(showMinimized()));
-
-    // Zoom Action
-    m_zoomAction = new QAction(tr("Zoom"), this);
-    cmd = am->registerAction(m_zoomAction, Constants::ZOOM_WINDOW, m_globalContext);
-    mwindow->addAction(cmd, Constants::G_WINDOW_SIZE);
-    connect(m_zoomAction, SIGNAL(triggered()), this, SLOT(showMaximized()));
-
-    // Window separator
-    cmd = createSeparator(am, this, QLatin1String("QtCreator.Window.Sep.Size"), m_globalContext);
-    mwindow->addAction(cmd, Constants::G_WINDOW_SIZE);
-#endif
-
-#ifndef Q_OS_MAC
     // Full Screen Action
     m_toggleFullScreenAction = new QAction(tr("Full Screen"), this);
     m_toggleFullScreenAction->setCheckable(true);
@@ -754,7 +677,6 @@ void MainWindow::registerDefaultActions()
     cmd->setDefaultKeySequence(QKeySequence("Ctrl+Shift+F11"));
     mwindow->addAction(cmd, Constants::G_WINDOW_SIZE);
     connect(m_toggleFullScreenAction, SIGNAL(triggered(bool)), this, SLOT(setFullScreen(bool)));
-#endif
 
     /*
      * UavGadgetManager Actions
@@ -782,11 +704,7 @@ void MainWindow::registerDefaultActions()
                              uavGadgetManagerContext);
     mwindow->addAction(cmd, Constants::G_WINDOW_SPLIT);
 
-#ifdef Q_OS_MAC
-    QString prefix = tr("Meta+Shift");
-#else
     QString prefix = tr("Ctrl+Shift");
-#endif
 
     m_splitAction = new QAction(tr("Split"), this);
     cmd = am->registerAction(m_splitAction, Constants::SPLIT, uavGadgetManagerContext);
@@ -825,36 +743,23 @@ void MainWindow::registerDefaultActions()
     connect(tmpaction, SIGNAL(triggered()), this, SLOT(showHelp()));
 
 // About sep
-#ifndef Q_OS_MAC // doesn't have the "About" actions in the Help menu
     tmpaction = new QAction(this);
     tmpaction->setSeparator(true);
     cmd = am->registerAction(tmpaction, QLatin1String("QtCreator.Help.Sep.About"), m_globalContext);
     mhelp->addAction(cmd, Constants::G_HELP_ABOUT);
-#endif
 
     // About Plugins Action
     tmpaction = new QAction(QIcon(Constants::ICON_PLUGIN), tr("About &Plugins..."), this);
     cmd = am->registerAction(tmpaction, Constants::ABOUT_PLUGINS, m_globalContext);
     mhelp->addAction(cmd, Constants::G_HELP_ABOUT);
     tmpaction->setEnabled(true);
-#ifdef Q_OS_MAC
-    cmd->action()->setMenuRole(QAction::ApplicationSpecificRole);
-#endif
     connect(tmpaction, SIGNAL(triggered()), this, SLOT(aboutPlugins()));
 
 // About GCS Action
-#ifdef Q_OS_MAC
-    tmpaction = new QAction(QIcon(Constants::ICON_GCS), tr("About &GCS"),
-                            this); // it's convention not to add dots to the about menu
-#else
     tmpaction = new QAction(QIcon(Constants::ICON_GCS), tr("About &GCS..."), this);
-#endif
     cmd = am->registerAction(tmpaction, Constants::ABOUT_GCS, m_globalContext);
     mhelp->addAction(cmd, Constants::G_HELP_ABOUT);
     tmpaction->setEnabled(true);
-#ifdef Q_OS_MAC
-    cmd->action()->setMenuRole(QAction::ApplicationSpecificRole);
-#endif
     connect(tmpaction, SIGNAL(triggered()), this, SLOT(aboutGCS()));
 
     // Credits Action
@@ -862,9 +767,6 @@ void MainWindow::registerDefaultActions()
     cmd = am->registerAction(tmpaction, Constants::ABOUT_AUTHORS, m_globalContext);
     mhelp->addAction(cmd, Constants::G_HELP_ABOUT);
     tmpaction->setEnabled(true);
-#ifdef Q_OS_MAC
-    cmd->action()->setMenuRole(QAction::ApplicationSpecificRole);
-#endif
     connect(tmpaction, SIGNAL(triggered()), this, SLOT(aboutAuthors()));
 }
 
@@ -910,13 +812,6 @@ void MainWindow::exit()
 
 void MainWindow::openFileWith()
 {
-}
-
-void MainWindow::applyTabBarSettings(QTabWidget::TabPosition pos, bool movable)
-{
-    if (m_modeStack->tabPosition() != pos)
-        m_modeStack->setTabPosition(pos);
-    m_modeStack->setMovable(movable);
 }
 
 void MainWindow::showHelp()
@@ -1017,16 +912,8 @@ void MainWindow::changeEvent(QEvent *e)
             emit windowActivated();
         }
     } else if (e->type() == QEvent::WindowStateChange) {
-#ifdef Q_OS_MAC
-        bool minimized = isMinimized();
-        if (debugMainWindow)
-            qDebug() << "main window state changed to minimized=" << minimized;
-        m_minimizeAction->setEnabled(!minimized);
-        m_zoomAction->setEnabled(!minimized);
-#else
         bool isFullScreen = (windowState() & Qt::WindowFullScreen) != 0;
         m_toggleFullScreenAction->setChecked(isFullScreen);
-#endif
     }
 }
 
@@ -1080,6 +967,11 @@ void MainWindow::shutdown()
     disconnect(QApplication::instance(), SIGNAL(focusChanged(QWidget *, QWidget *)), this,
                SLOT(updateFocusWidget(QWidget *, QWidget *)));
     m_activeContext = nullptr;
+
+    // The dashboard widgets live inside the uploader. Release their gadgets
+    // before the uploader destroys those widget parents.
+    while (!m_flightGadgets.isEmpty())
+        uavGadgetInstanceManager()->removeGadget(m_flightGadgets.takeLast());
 
     // We have to remove all the existing gagdets at his point, not
     // later!
@@ -1192,6 +1084,9 @@ void MainWindow::readSettings(QSettings *qs, bool workspaceDiffOnly)
         return;
     }
 
+    while (!m_flightGadgets.isEmpty())
+        uavGadgetInstanceManager()->removeGadget(m_flightGadgets.takeLast());
+    migrateFlightWorkspace(qs);
     m_generalSettings->readSettings(qs);
     QNetworkProxy::setApplicationProxy(m_generalSettings->getNetworkProxy());
     m_actionManager->readSettings(qs);
@@ -1224,6 +1119,46 @@ void MainWindow::readSettings(QSettings *qs, bool workspaceDiffOnly)
     m_modeManager->reorderModes(map);
 
     qs->endGroup();
+    initializeFlightDashboard(qs);
+}
+
+void MainWindow::initializeFlightDashboard(QSettings *qs)
+{
+    auto *page = m_modeStack->findChild<FirmwarePage *>();
+    const QStringList types{"PfdQmlGadget", "ModelViewGadget", "SystemHealthGadget"};
+    const QStringList defaults{"NoTerrain", "Quadx", "default"};
+    for (int index = 0; page && index < types.size(); ++index) {
+        const QString key = "FlightDashboard/" + types[index] + "/configuration";
+        const QString configuration = qs->value(key, defaults[index]).toString();
+        auto *gadget = m_uavGadgetInstanceManager->createGadget(types[index], page, true, configuration);
+        if (!gadget) continue;
+        gadget->setParent(m_uavGadgetInstanceManager);
+        m_flightGadgets.append(gadget);
+        page->setFlightPanel(index, gadget->widget());
+        m_settings->setValue(key, configuration);
+    }
+    const QStringList configurations{"Flight Time", "Arm Status", "Flight mode"};
+    const QStringList names{tr("Flight time"), tr("Arm status"), tr("Flight mode and failsafe")};
+    for (int index = 0; index < configurations.size(); ++index) {
+        auto *gadget = m_uavGadgetInstanceManager->createGadget("LineardialGadget", m_contentFrame,
+                                                              true, configurations[index]);
+        if (!gadget) continue;
+        gadget->setParent(m_uavGadgetInstanceManager);
+        m_flightGadgets.append(gadget);
+        auto *widget = gadget->widget();
+        widget->setAccessibleName(names[index]);
+        widget->setFixedHeight(42);
+        widget->setMinimumWidth(80);
+        widget->setMaximumWidth(index == 0 ? 130 : index == 1 ? 100 : 150);
+        widget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+        m_telemetryLayout->insertWidget(index, widget);
+        const auto refresh = [this, widget] {
+            widget->setEnabled(m_connectionManager->flightDataAvailable());
+        };
+        connect(m_connectionManager, &ConnectionManager::firmwareStateChanged, widget, refresh);
+        refresh();
+    }
+    m_settings->setValue("Workspace/FlightDashboardVersion", 1);
 }
 
 void MainWindow::saveSettings(QSettings *qs)
@@ -1233,6 +1168,13 @@ void MainWindow::saveSettings(QSettings *qs)
 
     if (!qs) {
         qs = m_settings;
+    }
+
+    qs->setValue("Workspace/FlightDashboardVersion", 1);
+    for (auto *gadget : m_flightGadgets) {
+        if (gadget->classId() != "LineardialGadget" && gadget->activeConfiguration())
+            qs->setValue("FlightDashboard/" + gadget->classId() + "/configuration",
+                         gadget->activeConfiguration()->name());
     }
 
     m_workspaceSettings->saveSettings(qs);

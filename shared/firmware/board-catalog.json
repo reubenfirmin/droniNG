@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "catalogVersion": "2026-10-11",
+  "boards": [
+    {
+      "id": "aq32", "name": "AeroQuad AQ32", "target": "aq32",
+      "boardType": 148, "boardRevision": 1, "mapping": "native",
+      "aliases": ["AQ32"], "evidence": "flight/targets/aq32/board-info/board-info.mk"
+    },
+    {
+      "id": "brain", "name": "BrainFPV Brain", "target": "brain",
+      "boardType": 138, "boardRevision": 1, "mapping": "native",
+      "aliases": ["Brain"], "evidence": "flight/targets/brain/board-info/board-info.mk"
+    },
+    {
+      "id": "brainre1", "name": "BrainFPV RE1", "target": "brainre1",
+      "boardType": 139, "boardRevision": 1, "mapping": "native",
+      "aliases": ["BrainRE1"], "evidence": "flight/targets/brainre1/board-info/board-info.mk"
+    },
+    {
+      "id": "dtfc", "name": "DTFc", "target": "dtfc",
+      "boardType": 215, "boardRevision": 1, "mapping": "native",
+      "evidence": "flight/targets/dtfc/board-info/board-info.mk"
+    },
+    {
+      "id": "flyingpio", "name": "FlyingPIO", "target": "flyingpio",
+      "boardType": 136, "boardRevision": 1, "mapping": "native",
+      "notes": "Peripheral firmware, not a flight controller.",
+      "evidence": "flight/targets/flyingpio/board-info/board-info.mk"
+    },
+    {
+      "id": "lux", "name": "Brotronics Lux", "target": "lux",
+      "boardType": 202, "boardRevision": 2, "mapping": "native",
+      "aliases": ["Lux"], "evidence": "flight/targets/lux/board-info/board-info.mk"
+    },
+    {
+      "id": "matek405", "name": "Matek F405", "target": "matek405",
+      "boardType": 149, "boardRevision": 1, "mapping": "native",
+      "aliases": ["MATEK405"], "evidence": "flight/targets/matek405/board-info/board-info.mk"
+    },
+    {
+      "id": "omnibusf3", "name": "Omnibus F3", "target": "omnibusf3",
+      "boardType": 206, "boardRevision": 1, "mapping": "native",
+      "aliases": ["OmnibusF3"], "evidence": "flight/targets/omnibusf3/board-info/board-info.mk"
+    },
+    {
+      "id": "pikoblx", "name": "Piko BLX", "target": "pikoblx",
+      "boardType": 162, "boardRevision": 1, "mapping": "native",
+      "evidence": "flight/targets/pikoblx/board-info/board-info.mk"
+    },
+    {
+      "id": "pipxtreme", "name": "PipXtreme / TauLink", "target": "pipxtreme",
+      "boardType": 3, "boardRevision": 2, "mapping": "native",
+      "aliases": ["PipXtreme", "TauLink", "OpLink"],
+      "notes": "Radio modem firmware, not a flight controller.",
+      "evidence": "flight/targets/pipxtreme/board-info/board-info.mk"
+    },
+    {
+      "id": "playuavosd", "name": "PlayUAVOSD", "target": "playuavosd",
+      "boardType": 203, "boardRevision": 1, "mapping": "native",
+      "notes": "OSD firmware, not a flight controller.",
+      "evidence": "flight/targets/playuavosd/board-info/board-info.mk"
+    },
+    {
+      "id": "quanton", "name": "Quantec Quanton", "target": "quanton",
+      "boardType": 134, "boardRevision": 1, "mapping": "native",
+      "aliases": ["Quanton"], "evidence": "flight/targets/quanton/board-info/board-info.mk"
+    },
+    {
+      "id": "radix", "name": "BrainFPV RADIX", "target": "radix",
+      "boardType": 224, "boardRevision": 1, "mapping": "native",
+      "layoutId": "radix-f446-rom-v1", "supportLevel": "experimental",
+      "systemBootloader": "STM32 system bootloader (USB DFU)",
+      "bootInstructions": "Disconnect USB and the flight battery.\nTemporarily bridge the BOOT pad on the bottom side to the 3.3V pad directly opposite it on the top side of the original RADIX. Keep this connection in place while reconnecting USB to the same port.\nAfter installation, disconnect USB, remove the BOOT connection, and reconnect USB.",
+      "manualUrl": "https://www.brainfpv.com/knowledgebase/betaflight-quick-start-guide/",
+      "mspTargets": ["RADIX", "RADI"],
+      "notes": "For the original RADIX. Includes four PWM/OneShot motor outputs, BMI160 motion sensors, BMP280 barometer, GPS and FPGA OSD. DShot and SD logging are not available.",
+      "evidence": "shared/firmware/profiles/radix.json"
+    },
+    {
+      "id": "omnibusf4sd", "name": "Omnibus F4 SD", "target": "omnibusf4sd",
+      "boardType": 225, "boardRevision": 1, "mapping": "native",
+      "layoutId": "omnibusf4sd-f405-rom-v1", "supportLevel": "experimental",
+      "systemBootloader": "STM32 system bootloader (USB DFU)",
+      "bootInstructions": "Disconnect USB and the flight battery.\nHold the board's BOOT button while reconnecting USB to the same port, then release it.\nAfter installation, disconnect and reconnect USB with the BOOT button released.",
+      "mspTargets": ["OMNIBUSF4SD", "OBSD"],
+      "notes": "Includes four PWM/OneShot motor outputs, motion sensors, BMP280 barometer, GPS and analog OSD. Receiver uses UART6 and GPS uses UART3; these can be swapped in controller settings. External telemetry uses UART1. DShot and SD logging are not available.",
+      "evidence": "shared/firmware/profiles/omnibusf4sd.json"
+    },
+    {
+      "id": "revolution", "name": "OpenPilot Revolution", "target": "revolution",
+      "boardType": 9, "boardRevision": 3, "mapping": "native",
+      "aliases": ["Revolution"], "evidence": "flight/targets/revolution/board-info/board-info.mk"
+    },
+    {
+      "id": "seppuku", "name": "Seppuku", "target": "seppuku",
+      "boardType": 161, "boardRevision": 1, "mapping": "native",
+      "evidence": "flight/targets/seppuku/board-info/board-info.mk"
+    },
+    {
+      "id": "sparky", "name": "Tau Labs Sparky", "target": "sparky",
+      "boardType": 136, "boardRevision": 2, "mapping": "native",
+      "aliases": ["Sparky"], "evidence": "flight/targets/sparky/board-info/board-info.mk"
+    },
+    {
+      "id": "sparky2", "name": "Tau Labs Sparky 2", "target": "sparky2",
+      "boardType": 146, "boardRevision": 1, "mapping": "native",
+      "aliases": ["Sparky2"], "evidence": "flight/targets/sparky2/board-info/board-info.mk"
+    },
+    {
+      "id": "sprf3e", "name": "SP Racing F3 Evo", "target": "sprf3e",
+      "boardType": 207, "boardRevision": 2, "mapping": "native",
+      "aliases": ["Sprf3e"], "evidence": "flight/targets/sprf3e/board-info/board-info.mk"
+    },
+    {
+      "id": "hglrc-f4-v6pro", "name": "HGLRC F4 V6PRO", "target": "revolution",
+      "boardType": 9, "boardRevision": 3, "mapping": "compatible",
+      "systemBootloader": "STM32 system bootloader (USB DFU)",
+      "bootInstructions": "Disconnect USB and the flight battery.\nHold the BOOT button beside the USB socket and reconnect USB to the same port.\nRelease BOOT.",
+      "manualUrl": "https://cdn.shopify.com/s/files/1/2672/8290/files/HGLRC_F4V6PRO-manual.pdf?9860837140640360721=",
+      "aliases": ["HGLRC F4V6PRO"], "mspTargets": ["OBF4", "OMNIBUSF4"],
+      "notes": "Recommended firmware: Revolution. Installation configures the board's sensor orientation and onboard OSD automatically.",
+      "settings": [
+        {"object": "AttitudeSettings", "field": "BoardRotation", "element": "Roll", "value": 0},
+        {"object": "AttitudeSettings", "field": "BoardRotation", "element": "Pitch", "value": 0},
+        {"object": "AttitudeSettings", "field": "BoardRotation", "element": "Yaw", "value": -9000},
+        {"object": "HwRevolution", "field": "SPIPeripheral", "value": "MAX7456 OSD"},
+        {"object": "HwRevolution", "field": "Magnetometer", "value": "None"}
+      ],
+      "evidence": "shared/firmware/compatibility/hglrc-f4-v6pro.json"
+    }
+  ]
+}

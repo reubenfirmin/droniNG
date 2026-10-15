@@ -12,10 +12,13 @@
 from __future__ import print_function
 
 from codecs import open
-from cgi import escape
+from html import escape
 from datetime import datetime
+import builtins
 import hashlib
 import argparse
+import json
+from pathlib import Path
 import re
 from string import Template
 from subprocess import Popen, PIPE
@@ -116,7 +119,7 @@ class Repo:
         """Get list of authors since the last full release tag (.n are ignored)"""
         self._authors_since_release = []
         self._exec('show-ref --tags')
-        pat = re.compile('^refs/tags/(?P<type>[A-Za-z]*)\-(?P<rel>(?P<date>[0-9]{8})(\.(?P<suffix>[0-9]*))?)$')
+        pat = re.compile(r'^refs/tags/(?P<type>[A-Za-z]*)\-(?P<rel>(?P<date>[0-9]{8})(\.(?P<suffix>[0-9]*))?)$')
         tags = []
         if self._rc == 0:
             for l in self._out.splitlines():
@@ -245,6 +248,47 @@ class Repo:
     def authors_since_last_release(self):
         return self._authors_since_release
 
+    def metadata(self):
+        """Return portable Git inputs, without paths or a checkout requirement."""
+        return {name: getattr(self, '_' + name) for name in (
+            'origin', 'hash', 'time', 'tag', 'branch', 'dirty', 'ancestor',
+            'authors', 'authors_since_release')}
+
+    @classmethod
+    def from_metadata(cls, path, metadata):
+        expected = {'origin', 'hash', 'time', 'tag', 'branch', 'dirty', 'ancestor',
+                    'authors', 'authors_since_release'}
+        if not isinstance(metadata, dict) or set(metadata) != expected:
+            raise ValueError('Invalid preserved repository metadata fields')
+        for name in ('hash', 'ancestor'):
+            value = metadata[name]
+            if value is not None and (not isinstance(value, str)
+                                      or not re.fullmatch('[0-9a-f]{40}', value)):
+                raise ValueError('Invalid preserved repository ' + name)
+        for name in ('origin', 'tag', 'branch'):
+            value = metadata[name]
+            if value is not None and (not isinstance(value, str) or '\0' in value
+                                      or '\n' in value or '\r' in value):
+                raise ValueError('Invalid preserved repository ' + name)
+            if name != 'origin' and value is not None and ('"' in value or '\\' in value):
+                raise ValueError('Unsafe preserved repository ' + name)
+        timestamp = metadata['time']
+        if timestamp is not None:
+            if not isinstance(timestamp, str) or not re.fullmatch('-?[0-9]+', timestamp):
+                raise ValueError('Invalid preserved repository time')
+            datetime.utcfromtimestamp(int(timestamp))
+        if metadata['dirty'] is not None and type(metadata['dirty']) is not bool:
+            raise ValueError('Invalid preserved repository dirty state')
+        for name in ('authors', 'authors_since_release'):
+            if not isinstance(metadata[name], list) or any(
+                    not isinstance(author, str) or '\0' in author for author in metadata[name]):
+                raise ValueError('Invalid preserved repository ' + name)
+        repo = cls.__new__(cls)
+        repo._path = path
+        for name, value in metadata.items():
+            setattr(repo, '_' + name, value)
+        return repo
+
     def info(self):
         """Print some repository info"""
         print("path:       ", self.path())
@@ -338,60 +382,55 @@ def xtrim(string, suffix, length):
         assert n > 0, "length of truncated string+suffix exceeds maximum length"
         return ''.join([string[:n], '+', suffix])
 
+def product_version(path):
+    """Read the product release independently of Git build provenance."""
+    if not path.is_file():
+        return None
+    product = json.loads(path.read_text(encoding='utf-8'))
+    if (not isinstance(product, dict) or product.get('schemaVersion') != 1
+            or product.get('name') != 'DroniNG'
+            or not isinstance(product.get('version'), str)
+            or not re.fullmatch(r'[0-9]+\.[0-9]+(?:\.[0-9]+)?', product['version'])
+            or len(product['name'] + ' ' + product['version']) > 25):
+        raise ValueError('Invalid product version')
+    return product
+
 def GetHashofDirs(directory, verbose=0, raw=0, what_to_hash='..*.xml$'):
-  import hashlib, os, re
-  SHAhash = hashlib.sha1()
-  if not os.path.exists (directory):
-    return -1
-    
-  try:
-    for root, dirs, files in os.walk(directory):
-      # os.walk() is unsorted.  Must make sure we process files in sorted order so
-      # that the hash is stable across invocations and across OSes.
-      if files:
-          files.sort()
+    import os
+    if not os.path.isdir(directory):
+        raise FileNotFoundError("UAVObject definitions directory not found: " + directory)
 
-      regexp = re.compile(what_to_hash)
-      
-      for names in [f for f in files if regexp.match(f)]:
-        if verbose == 1:
-          print('Hashing', names)
-        filepath = os.path.join(root,names)
-        try:
-          f1 = open(filepath, 'rU')
-        except:
-          # You can't open the file for some reason
-          continue
+    cumulative = hashlib.sha1()
+    regexp = re.compile(what_to_hash)
+    count = 0
 
-        # Compute file hash.  Same as running "sha1sum <file>".
-        f1hash = hashlib.sha1()
-        while 1:
-          # Read file in as little chunks
-          buf = f1.read(4096).encode('utf-8')
-          if not buf : break
-          f1hash.update(buf)
-        f1.close()
+    def walk_error(error):
+        raise error
 
-        if verbose == 1:
-          print('Hash is', f1hash.hexdigest())
+    for root, dirs, files in os.walk(directory, onerror=walk_error):
+        dirs.sort()
+        for name in sorted(files):
+            if not regexp.match(name):
+                continue
+            filepath = os.path.join(root, name)
+            file_hash = hashlib.sha1()
+            # Preserve the legacy universal-newline hash, including UTF-8 bytes.
+            # Read errors must fail the build instead of hashing a partial tree.
+            with builtins.open(filepath, 'r', encoding='utf-8', newline=None) as source:
+                for chunk in iter(lambda: source.read(4096), ''):
+                    file_hash.update(chunk.encode('utf-8'))
+            cumulative.update(file_hash.hexdigest().encode('ascii'))
+            count += 1
+            if verbose == 1:
+                print('Hashing', name, 'Hash is', file_hash.hexdigest())
 
-        # Append the hex representation of the current file's hash into the cumulative hash
-        SHAhash.update(f1hash.hexdigest().encode('ascii'))
-
-  except:
-    import traceback
-    # Print the stack traceback
-    traceback.print_exc()
-    return -2
-
-  if verbose == 1:
-      print('Final hash is', SHAhash.hexdigest())
-
-  if raw == 1:
-      return SHAhash.hexdigest()
-  else:
-      hex_stream = lambda s:",".join(['0x'+hex(c)[2:].zfill(2) for c in s])
-      return hex_stream(SHAhash.digest())
+    if count == 0:
+        raise ValueError("No UAVObject definition files found in: " + directory)
+    if verbose == 1:
+        print('Final hash is', cumulative.hexdigest())
+    if raw == 1:
+        return cumulative.hexdigest()
+    return ','.join('0x%02x' % value for value in cumulative.digest())
 
 def main():
     """This utility uses git repository in the current working directory
@@ -447,6 +486,13 @@ string given.
                         help='uav object definition directory')
     parser.add_argument('--htmlsafe', action='store_true',
                         help='make substituted values html safe')
+    parser.add_argument('--metadata', type=Path,
+                        help='use preserved repository inputs for a source-archive build')
+    parser.add_argument('--write-metadata', type=Path,
+                        help='preserve repository inputs and hashes of generated outputs')
+    parser.add_argument('--product', type=Path,
+                        default=Path(__file__).resolve().parents[2] / 'shared/product-version.json',
+                        help='product release definition, separate from Git revision metadata')
     parser.add_argument('pos', metavar='a=b', nargs='*',
                         help='Additional predefined words for template subst')
     args = parser.parse_args()
@@ -454,8 +500,21 @@ string given.
     # Process arguments.  No advanced error handling is here.
     # Any error will raise an exception and terminate process
     # with non-zero exit code.
-    r = Repo(args.path)
+    uavo_hash = GetHashofDirs(args.uavodir, raw=1) if args.uavodir else None
+    if args.metadata:
+        preserved = json.loads(args.metadata.read_text(encoding='utf-8'))
+        if not isinstance(preserved, dict) or preserved.get('schema') != 1:
+            raise ValueError('Unsupported preserved version metadata schema')
+        if preserved.get('uavo_sha1') != uavo_hash:
+            raise ValueError('Preserved version metadata does not match UAVObject definitions')
+        r = Repo.from_metadata(args.path, preserved['repository'])
+    else:
+        r = Repo(args.path)
+    if args.write_metadata and len({Path(name).name for name in args.outfile}) != len(args.outfile):
+        raise ValueError('Preserved output names must be unique')
 
+    product = product_version(args.product)
+    product_label = product['name'] + ' ' + product['version'] if product else ''
     dictionary = dict(
         TEMPLATE = args.template,
         OUTFILENAME = args.outfile,
@@ -468,22 +527,26 @@ string given.
         TAG_OR_BRANCH = r.tag(r.branch('unreleased')),
         TAG_OR_HASH8 = r.tag(r.hash(8, 'untagged')),
         DIRTY = r.dirty(),
-        FWTAG = xtrim(r.tag(r.branch('unreleased')), r.dirty(), 25),
+        FWTAG = product_label or xtrim(r.tag(r.branch('unreleased')), r.dirty(), 25),
+        PRODUCT_NAME = product['name'] if product else '',
+        PRODUCT_VERSION = product['version'] if product else '',
+        PRODUCT_LABEL = product_label,
         UNIXTIME = r.time(),
         DATE = r.time('%Y%m%d'),
         DATETIME = r.time('%Y%m%d %H:%M'),
         BOARD_TYPE = args.type,
         BOARD_REVISION = args.revision,
         SHA1 = sha1(args.image),
-        UAVOSHA1TXT = GetHashofDirs(args.uavodir,verbose=0,raw=1),
-        UAVOSHA1 = GetHashofDirs(args.uavodir,verbose=0,raw=0),
+        UAVOSHA1TXT = uavo_hash if uavo_hash is not None else -1,
+        UAVOSHA1 = ','.join('0x' + uavo_hash[i:i + 2] for i in range(0, 40, 2))
+                  if uavo_hash is not None else -1,
         AUTHORS = ' \n'.join(r.authors()),
         AUTHORS_SINCE_LAST_REL = ' \n'.join(r.authors_since_last_release())
     )
 
     if args.htmlsafe:
         for k in dictionary:
-            dictionary[k] = escape(dictionary[k]).encode('ascii', 'xmlcharrefreplace')
+            dictionary[k] = escape(dictionary[k], quote=False).encode('ascii', 'xmlcharrefreplace')
 
     # Process positional arguments in the form of:
     #   VAR1=str1 VAR2="string 2"
@@ -499,6 +562,17 @@ string given.
 
     for i in range(len(args.outfile)):
         file_from_template(args.template[i], args.outfile[i], dictionary)
+
+    if args.write_metadata:
+        metadata = dict(schema=1, repository=r.metadata(), uavo_sha1=uavo_hash,
+                        generated_files_sha256={Path(name).name:
+                            hashlib.sha256(Path(name).read_bytes()).hexdigest()
+                            for name in args.outfile})
+        if product:
+            metadata['product'] = product
+        contents = json.dumps(metadata, indent=2, ensure_ascii=False) + '\n'
+        if not args.write_metadata.exists() or args.write_metadata.read_text(encoding='utf-8') != contents:
+            args.write_metadata.write_text(contents, encoding='utf-8')
 
     return 0
 

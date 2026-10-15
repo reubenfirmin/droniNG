@@ -40,10 +40,10 @@ public:
     ~OutputChannelForm();
     friend class ConfigOnputWidget;
 
-    void setAssignment(const QString &assignment);
     int index() const;
 
 public slots:
+    void setAssignment(const QString &assignment);
     void setMax(int maximum);
     int max() const;
     void setMin(int minimum);
@@ -67,8 +67,12 @@ private:
     bool minMaxFixed;
 
     bool inhibitRangeChanges;
+    bool alignmentPending = false;
 
     void alignFields();
+
+protected:
+    bool event(QEvent *event) override;
 
 private slots:
     void linkToggled(bool state);

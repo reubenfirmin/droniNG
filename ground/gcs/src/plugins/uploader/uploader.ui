@@ -25,13 +25,10 @@
         </size>
        </property>
        <property name="toolTip">
-        <string>Start a guided procedure to manually
-recover a system which does not boot.
-
-Rescue is possible in USB mode only.</string>
+        <string>Reconnect a controller with an existing dRonin USB bootloader to recover its firmware. Use the BOOT-mode installer for a first installation.</string>
        </property>
        <property name="text">
-        <string>Rescue</string>
+        <string>Recover DroniNG firmware</string>
        </property>
       </widget>
      </item>

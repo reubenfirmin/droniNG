@@ -2,7 +2,8 @@ TEMPLATE = lib
 TARGET = Core
 DEFINES += CORE_LIBRARY
 
-QT += widgets
+QT += widgets serialport
+QT += svgwidgets
 QT += xml \
     network \
     svg \
@@ -24,6 +25,8 @@ DEPENDPATH += dialogs \
     actionmanager
 
 SOURCES += mainwindow.cpp \
+    workspacenavigation.cpp \
+    workspacelayout.cpp \
     generalsettings.cpp \
     uniqueidmanager.cpp \
     versiondialog.cpp \
@@ -48,8 +51,14 @@ SOURCES += mainwindow.cpp \
     icore.cpp \
     dialogs/ioptionspage.cpp \
     dialogs/iwizard.cpp \
-    eventfilteringmainwindow.cpp \
     connectionmanager.cpp \
+    firmwarecatalog.cpp \
+    firmwarepage.cpp \
+    firmwareinstallimage.cpp \
+    dfuinstaller.cpp \
+    betaflightbootcontroller.cpp \
+    firmwareinstallwidget.cpp \
+    usbaccesssetup.cpp \
     iconnection.cpp \
     iuavgadgetconfiguration.cpp \
     uavgadgetinstancemanager.cpp \
@@ -67,6 +76,7 @@ SOURCES += mainwindow.cpp \
     alarmsmonitorwidget.cpp
 
 HEADERS += mainwindow.h \
+    firmwareuicomponents.h \
     generalsettings.h \
     uniqueidmanager.h \
     iuavgadget.h \
@@ -103,14 +113,22 @@ HEADERS += mainwindow.h \
     plugindialog.h \
     styleanimator.h \
     minisplitter.h \
-    eventfilteringmainwindow.h \
     connectionmanager.h \
+    firmwarecatalog.h \
+    firmwarepage.h \
+    firmwareinstallimage.h \
+    dfuinstaller.h \
+    betaflightbootcontroller.h \
+    firmwareinstallwidget.h \
+    usbaccesssetup.h \
     iconnection.h \
     iuavgadgetconfiguration.h \
     uavgadgetinstancemanager.h \
     uavgadgetoptionspagedecorator.h \
     uavgadgetdecorator.h \
     workspacesettings.h \
+    workspacenavigation.h \
+    workspacelayout.h \
     uavconfiginfo.h \
     authorsdialog.h \
     iconfigurableplugin.h \
@@ -131,9 +149,8 @@ FORMS += dialogs/settingsdialog.ui \
 
 RESOURCES += core.qrc
 
-unix:!macx { 
-    images.files = $${GCS_PROJECT_BRANDING_PRETTY}/gcs_logo_*.png
-    images.files = images/qtcreator_logo_*.png
+linux {
+    images.files = $$BRANDING_PATH/gcs_logo_*.png
     images.path = /share/pixmaps
     INSTALLS += images
 }

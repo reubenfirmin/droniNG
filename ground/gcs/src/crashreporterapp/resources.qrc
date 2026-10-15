@@ -3,6 +3,6 @@
         <file>resources/SadPenguin.PNG</file>
     </qresource>
     <qresource prefix="/">
-        <file>../../../../branding/gcs.ico</file>
+        <file alias="gcs_logo_256.png">../../../../branding/gcs_logo_256.png</file>
     </qresource>
 </RCC>

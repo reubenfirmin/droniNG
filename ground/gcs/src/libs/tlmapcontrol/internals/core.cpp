@@ -26,6 +26,7 @@
 * with this program; if not, see <http://www.gnu.org/licenses/>
 */
 #include "core.h"
+#include <algorithm>
 
 #ifdef DEBUG_CORE
 qlonglong internals::Core::debugcounter=0;
@@ -35,12 +36,12 @@ using namespace projections;
 
 namespace internals {
     Core::Core():started(false),MouseWheelZooming(false),currentPosition(0,0),currentPositionPixel(0,0),LastLocationInBounds(-1,-1),sizeOfMapArea(0,0)
-            ,minOfTiles(0,0),maxOfTiles(0,0),zoom(0),isDragging(false),TooltipTextPadding(10,10),mapType(MapType::None),loaderLimit(5),maxzoom(21),runningThreads(0)
+            ,minOfTiles(0,0),maxOfTiles(0,0),zoom(0),isDragging(false),TooltipTextPadding(10,10),mapType(MapType::None),loaderLimit(8),maxzoom(21),runningThreads(0)
     {
         mousewheelzoomtype=MouseWheelZoomType::MousePositionAndCenter;
         SetProjection(new MercatorProjection());
         this->setAutoDelete(false);
-        ProcessLoadTaskCallback.setMaxThreadCount(10);
+        ProcessLoadTaskCallback.setMaxThreadCount(8);
         renderOffset=Point(0,0);
         dragPoint=Point(0,0);
         CanDragMap=true;
@@ -64,8 +65,6 @@ namespace internals {
         Mdebug.unlock();
         qDebug()<<"core:run"<<" ID="<<debug;
 #endif //DEBUG_CORE
-        bool last = false;
-
         LoadTask task;
 
         MtileLoadQueue.lock();
@@ -73,9 +72,9 @@ namespace internals {
             if(tileLoadQueue.count() > 0)
             {
                 task = tileLoadQueue.dequeue();
+                tasksInProgress.append(task);
                 {
 
-                    last = (tileLoadQueue.count() == 0);
 #ifdef DEBUG_CORE
                     qDebug()<<"TileLoadQueue: " << tileLoadQueue.count()<<" Point:"<<task.Pos.ToString()<<" ID="<<debug;;
 #endif //DEBUG_CORE
@@ -163,7 +162,9 @@ namespace internals {
                             while(++retry < TLMaps::Instance()->RetryLoadTile);
                         }
 
-                        if(t->Overlays.count() > 0)
+                        MtileDrawingList.lock();
+                        const bool stillVisible = task.Zoom == Zoom() && tileDrawingList.contains(task.Pos);
+                        if(t->Overlays.count() > 0 && stillVisible)
                         {
                             Matrix.SetTileAt(task.Pos,t);
                             emit OnNeedInvalidation();
@@ -181,43 +182,35 @@ namespace internals {
                             t = nullptr;
                             emit OnNeedInvalidation();
                         }
+                        MtileDrawingList.unlock();
 
                         // layers = null;
                     }
                 }
 
 
-                {
-                    // last buddy cleans stuff ;}
-                    if(last)
-                    {
-                        TLMaps::Instance()->kiberCacheLock.lockForWrite();
-                        TLMaps::Instance()->TilesInMemory.RemoveMemoryOverload();
-                        TLMaps::Instance()->kiberCacheLock.unlock();
-
-                        MtileDrawingList.lock();
-                        {
-                            Matrix.ClearPointsNotIn(tileDrawingList);
-                        }
-                        MtileDrawingList.unlock();
-
-
-                        emit OnTileLoadComplete();
-
-
-                        emit OnNeedInvalidation();
-
-                    }
-                }
-
-
-
             }
 #ifdef DEBUG_CORE
             qDebug()<<"loaderLimit release:"+loaderLimit.available()<<" ID="<<debug;
 #endif
-            emit OnTilesStillToLoad(tilesToload<0? 0:tilesToload);
             loaderLimit.release();
+        }
+        MtileLoadQueue.lock();
+        tasksInProgress.removeAll(task);
+        const int remaining = tileLoadQueue.size() + tasksInProgress.size();
+        MtileLoadQueue.unlock();
+        if (task.HasValue()) {
+            emit OnTilesStillToLoad(remaining);
+            if (!remaining) {
+                TLMaps::Instance()->kiberCacheLock.lockForWrite();
+                TLMaps::Instance()->TilesInMemory.RemoveMemoryOverload();
+                TLMaps::Instance()->kiberCacheLock.unlock();
+                MtileDrawingList.lock();
+                Matrix.ClearPointsNotIn(tileDrawingList);
+                MtileDrawingList.unlock();
+                emit OnTileLoadComplete();
+                emit OnNeedInvalidation();
+            }
         }
         MrunningThreads.lock();
         --runningThreads;
@@ -655,6 +648,28 @@ namespace internals {
         MtileDrawingList.lock();
         {
             FindTilesAround(tileDrawingList);
+            // Loading an old center delays the first useful imagery after a
+            // location fix or a pan. Keep only work for the current view.
+            MtileLoadQueue.lock();
+            int removed = 0;
+            for (int i = tileLoadQueue.size() - 1; i >= 0; --i) {
+                if (tileLoadQueue.at(i).Zoom != Zoom() || !tileDrawingList.contains(tileLoadQueue.at(i).Pos)) {
+                    tileLoadQueue.removeAt(i);
+                    ++removed;
+                }
+            }
+            MtileToload.lock();
+            tilesToload = qMax(0, tilesToload - removed);
+            MtileToload.unlock();
+            MtileLoadQueue.unlock();
+            const Point center = centerTileXYLocation;
+            std::stable_sort(tileDrawingList.begin(), tileDrawingList.end(), [center](const Point &a, const Point &b) {
+                const auto distance = [center](const Point &p) {
+                    const qint64 x = p.X() - center.X(), y = p.Y() - center.Y();
+                    return x * x + y * y;
+                };
+                return distance(a) < distance(b);
+            });
 
 #ifdef DEBUG_CORE
             qDebug()<<"OnTileLoadStart: " << tileDrawingList.count() << " tiles to load at zoom " << Zoom() << ", time: " << QDateTime::currentDateTime().date();
@@ -669,7 +684,7 @@ namespace internals {
                 {
                     MtileLoadQueue.lock();
                     {
-                        if(!tileLoadQueue.contains(task))
+                        if(!tileLoadQueue.contains(task) && !tasksInProgress.contains(task))
                         {
                             MtileToload.lock();
                             ++tilesToload;
@@ -691,7 +706,14 @@ namespace internals {
     }
     void Core::FindTilesAround(QList<Point> &list)
     {
-        list.clear();;
+        list.clear();
+        // Fractional zoom scales the map about its center. Only request tiles
+        // that intersect the part visible after that transform.
+        const double left = Width * (1.0 - 1.0 / viewScale) / 2.0;
+        const double top = Height * (1.0 - 1.0 / viewScale) / 2.0;
+        const double right = left + Width / viewScale;
+        const double bottom = top + Height / viewScale;
+        const Size tileSize = Projection()->TileSize();
         for(int i = -sizeOfMapArea.Width(); i <= sizeOfMapArea.Width(); i++)
         {
             for(int j = -sizeOfMapArea.Height(); j <= sizeOfMapArea.Height(); j++)
@@ -712,7 +734,10 @@ namespace internals {
 
                 if(p.X() >= minOfTiles.Width() && p.Y() >= minOfTiles.Height() && p.X() <= maxOfTiles.Width() && p.Y() <= maxOfTiles.Height())
                 {
-                    if(!list.contains(p))
+                    const qint64 x = p.X() * tileSize.Width() + renderOffset.X();
+                    const qint64 y = p.Y() * tileSize.Height() + renderOffset.Y();
+                    if(x < right && x + tileSize.Width() > left
+                            && y < bottom && y + tileSize.Height() > top)
                     {
                         list.append(p);
                     }

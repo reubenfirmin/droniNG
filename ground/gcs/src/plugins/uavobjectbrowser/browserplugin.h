@@ -34,7 +34,7 @@ class UAVObjectBrowserFactory;
 class BrowserPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.UAVObjectBrowser")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.UAVObjectBrowser")
 public:
     BrowserPlugin();
     ~BrowserPlugin();

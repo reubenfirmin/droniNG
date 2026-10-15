@@ -13,12 +13,7 @@ message(Beside the Qwt license you also have to take care of its license. )
 include( $${PWD}/../textengines.pri )
 
 TARGET    = $$qwtLibraryTarget(qwtmathml)
-QT       += xml
-
-greaterThan(QT_MAJOR_VERSION, 4) {
-
-    QT       += widgets
-}
+QT       += xml widgets
 
 HEADERS = \
     qwt_mathml_text_engine.h
@@ -64,14 +59,7 @@ contains(QWT_CONFIG, QwtPkgConfig) {
     # QMAKE_PKGCONFIG_DESTDIR is buggy, in combination
     # with including pri files: better don't use it
 
-    greaterThan(QT_MAJOR_VERSION, 4) {
-
-        QMAKE_PKGCONFIG_REQUIRES = Qt5Gui Qt5Widgets Qt5Xml
-    }
-    else {
-
-        QMAKE_PKGCONFIG_REQUIRES = QtGui QtXml
-    }
+    QMAKE_PKGCONFIG_REQUIRES = Qt6Gui Qt6Widgets Qt6Xml
 
     QMAKE_DISTCLEAN += $${DESTDIR}/$${QMAKE_PKGCONFIG_NAME}.pc
     QMAKE_DISTCLEAN += $${DESTDIR}/libqwtmathml.prl

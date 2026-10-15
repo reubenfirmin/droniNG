@@ -84,6 +84,8 @@ public:
     Telemetry(UAVTalk *utalk, UAVObjectManager *objMngr);
     ~Telemetry();
     TelemetryStats getStats();
+    UAVTalk *protocol() const { return utalk; }
+    void setConnectionRequestsEnabled(bool enabled) { connectionRequestsEnabled = enabled; }
     QByteArray *downloadFile(quint32 fileId, quint32 maxSize,
             std::function<void(quint32)>progressCb = nullptr);
 
@@ -142,6 +144,7 @@ private:
     qint32 timeToNextUpdateMs;
     quint32 txErrors;
     quint32 txRetries;
+    bool connectionRequestsEnabled = true;
 
     // Methods
     void registerObject(UAVObject *obj);

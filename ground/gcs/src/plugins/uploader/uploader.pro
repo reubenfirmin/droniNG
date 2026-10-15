@@ -1,7 +1,7 @@
 TEMPLATE = lib
 TARGET = Uploader
 DEFINES += UPLOADER_LIBRARY
-QT += svg widgets
+QT += svg widgets xml
 QT += testlib
 QT += network
 
@@ -17,6 +17,9 @@ include(../../plugins/uavsettingsimportexport/uavsettingsimportexport.pri)
 include(../../plugins/uavtalk/uavtalk.pri)
 
 HEADERS += uploadergadget.h \
+    firmwarebootcontroller.h \
+    firmwareupgradecontroller.h \
+    firmwaresettingsbackup.h \
     uploadergadgetfactory.h \
     uploadergadgetwidget.h \
     uploaderplugin.h \
@@ -26,6 +29,9 @@ HEADERS += uploadergadget.h \
     upgradeassistantdialog.h
 
 SOURCES += uploadergadget.cpp \
+    firmwarebootcontroller.cpp \
+    firmwareupgradecontroller.cpp \
+    firmwaresettingsbackup.cpp \
     uploadergadgetfactory.cpp \
     uploadergadgetwidget.cpp \
     uploaderplugin.cpp \
@@ -34,9 +40,7 @@ SOURCES += uploadergadget.cpp \
 
 OTHER_FILES += Uploader.pluginspec
 
-FORMS += \
-    uploader.ui \
-    upgradeassistant.ui
+FORMS += uploader.ui
 
 RESOURCES += \
     uploader.qrc

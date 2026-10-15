@@ -43,11 +43,7 @@
 
 #include <actuatordesired.h>
 
-#if defined(_WIN32) || defined(WIN32) || defined(__MINGW32__)
-#   include <Winsock2.h>
-#else
 #   include <sys/select.h>
-#endif
 
 #ifndef INVALID_SOCKET
 #define INVALID_SOCKET (-1)
@@ -167,14 +163,7 @@ int32_t PIOS_FLIGHTGEAR_Init(flightgear_dev_t *dev, uint16_t port)
 	/* assign socket */
 	fg_dev->socket = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
-#if defined(_WIN32) || defined(WIN32) || defined(__MINGW32__)
-	char optval = 1;
-	/* char optoff = 0;
-
-	setsockopt(fg_dev->socket, IPPROTO_IPV6, IPV6_V6ONLY, &optoff, sizeof(optoff));*/
-#else
 	int optval = 1;
-#endif
 
         /* Allow reuse of address if you restart. */
         setsockopt(fg_dev->socket, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));

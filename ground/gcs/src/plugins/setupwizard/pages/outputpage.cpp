@@ -43,6 +43,18 @@ OutputPage::~OutputPage()
     delete ui;
 }
 
+void OutputPage::initializePage()
+{
+    auto *board = getControllerType();
+    const bool supported = !board || board->supportsDShot();
+    for (auto *button : {ui->dshot300Button, ui->dshot600Button, ui->dshot1200Button}) {
+        if (!supported && button->isChecked()) ui->oneShot125Button->setChecked(true);
+        button->setEnabled(supported);
+        button->setToolTip(supported ? QString()
+            : tr("This controller's firmware supports PWM and OneShot. DShot is unavailable."));
+    }
+}
+
 //! Set output ranges
 void OutputPage::setOutputRanges(quint16 minPulse, quint16 neutralPulse, quint16 maxPulse)
 {
@@ -65,6 +77,9 @@ bool OutputPage::validatePage()
         qCritical() << "No wizard!";
         return false;
     }
+    if (auto *board = getControllerType(); board && !board->supportsDShot()
+        && (ui->dshot300Button->isChecked() || ui->dshot600Button->isChecked() || ui->dshot1200Button->isChecked()))
+        return false;
 
     if (ui->oneShot125Button->isChecked()) {
         wizard->setESCType(SetupWizard::ESC_ONESHOT125);

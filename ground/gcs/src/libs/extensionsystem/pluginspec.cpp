@@ -35,7 +35,7 @@
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
 #include <QtCore/QXmlStreamReader>
-#include <QtCore/QRegExp>
+#include <QtCore/QRegularExpression>
 #include <QtCore/QCoreApplication>
 #include <QtDebug>
 
@@ -662,12 +662,13 @@ bool PluginSpecPrivate::provides(const QString &pluginName, const QString &plugi
 }
 
 /*!
-    \fn QRegExp &PluginSpecPrivate::versionRegExp()
+    \fn const QRegularExpression &PluginSpecPrivate::versionRegExp()
     \internal
 */
-QRegExp &PluginSpecPrivate::versionRegExp()
+const QRegularExpression &PluginSpecPrivate::versionRegExp()
 {
-    static QRegExp reg("([0-9]+)(?:[.]([0-9]+))?(?:[.]([0-9]+))?(?:_([0-9]+))?");
+    static const QRegularExpression reg(QStringLiteral(
+        "\\A([0-9]+)(?:[.]([0-9]+))?(?:[.]([0-9]+))?(?:_([0-9]+))?\\z"));
     return reg;
 }
 /*!
@@ -676,7 +677,7 @@ QRegExp &PluginSpecPrivate::versionRegExp()
 */
 bool PluginSpecPrivate::isValidVersion(const QString &version)
 {
-    return versionRegExp().exactMatch(version);
+    return versionRegExp().match(version).hasMatch();
 }
 
 /*!
@@ -685,17 +686,17 @@ bool PluginSpecPrivate::isValidVersion(const QString &version)
 */
 int PluginSpecPrivate::versionCompare(const QString &version1, const QString &version2)
 {
-    QRegExp reg1 = versionRegExp();
-    QRegExp reg2 = versionRegExp();
-    if (!reg1.exactMatch(version1))
+    const auto match1 = versionRegExp().match(version1);
+    const auto match2 = versionRegExp().match(version2);
+    if (!match1.hasMatch())
         return 0;
-    if (!reg2.exactMatch(version2))
+    if (!match2.hasMatch())
         return 0;
     int number1;
     int number2;
     for (int i = 0; i < 4; ++i) {
-        number1 = reg1.cap(i+1).toInt();
-        number2 = reg2.cap(i+1).toInt();
+        number1 = match1.captured(i+1).toInt();
+        number2 = match2.captured(i+1).toInt();
         if (number1 < number2)
             return -1;
         if (number1 > number2)
@@ -760,27 +761,7 @@ bool PluginSpecPrivate::loadLibrary()
         hasError = true;
         return false;
     }
-#ifdef QT_NO_DEBUG
-
-#ifdef Q_OS_WIN
-    QString libName = QString("%1/%2.dll").arg(location).arg(name);
-#elif defined(Q_OS_MAC)
-    QString libName = QString("%1/lib%2.dylib").arg(location).arg(name);
-#else
     QString libName = QString("%1/lib%2.so").arg(location).arg(name);
-#endif
-
-#else //Q_NO_DEBUG
-
-#ifdef Q_OS_WIN
-    QString libName = QString("%1/%2d.dll").arg(location).arg(name);
-#elif defined(Q_OS_MAC)
-    QString libName = QString("%1/lib%2_debug.dylib").arg(location).arg(name);
-#else
-    QString libName = QString("%1/lib%2.so").arg(location).arg(name);
-#endif
-
-#endif
 
     PluginLoader loader(libName);
     if (!loader.load()) {

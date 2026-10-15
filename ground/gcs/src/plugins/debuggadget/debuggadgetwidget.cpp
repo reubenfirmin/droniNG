@@ -31,7 +31,9 @@
 #include <QWidget>
 #include <QTextEdit>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QPushButton>
+#include <utils/settingsstyle.h>
 #include "debugengine.h"
 #include <QFile>
 #include <QFileDialog>
@@ -44,6 +46,14 @@ DebugGadgetWidget::DebugGadgetWidget(QWidget *parent)
 {
     m_config = new Ui_Form();
     m_config->setupUi(this);
+    auto *actions = new QHBoxLayout();
+    m_config->verticalLayout->removeWidget(m_config->saveToFile);
+    m_config->verticalLayout->removeWidget(m_config->clearLog);
+    actions->addWidget(m_config->saveToFile);
+    actions->addWidget(m_config->clearLog);
+    actions->addStretch();
+    m_config->verticalLayout->insertLayout(0, actions);
+    Utils::styleSettingsPage(this);
     DebugEngine *de = DebugEngine::getInstance();
     connect(de, &DebugEngine::message, this, &DebugGadgetWidget::message, Qt::QueuedConnection);
     connect(m_config->saveToFile, &QAbstractButton::clicked, this, &DebugGadgetWidget::saveLog);

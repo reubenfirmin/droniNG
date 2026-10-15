@@ -31,6 +31,7 @@
 #include "pluginspec.h"
 
 #include <QtCore/QObject>
+#include <QtCore/QRegularExpression>
 #include <QtCore/QStringList>
 #include <QtCore/QXmlStreamReader>
 
@@ -92,7 +93,7 @@ private:
     void readArgumentDescriptions(QXmlStreamReader &reader);
     void readArgumentDescription(QXmlStreamReader &reader);
 
-    static QRegExp &versionRegExp();
+    static const QRegularExpression &versionRegExp();
 };
 
 } // namespace Internal

@@ -1,6 +1,7 @@
 TEMPLATE = lib
 TARGET = LineardialGadget
 QT += svg
+QT += svgwidgets
 
 include(../../gcsplugin.pri)
 

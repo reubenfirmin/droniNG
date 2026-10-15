@@ -1,0 +1,256 @@
+{
+  "schema_version": 1,
+  "repositories": {
+    "brainfpv": {
+      "repository": "BrainFPV/betaflight",
+      "commit": "d966f1f3a12df8446a623110d753b8dd72ebeaa4"
+    }
+  },
+  "files": [
+    {
+      "repository": "brainfpv",
+      "path": "LICENSE",
+      "git_blob_sha1": "f288702d2fa16d3cdf0035b15a9fcbc552cd88e7",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "bytes": 35149
+    },
+    {
+      "repository": "brainfpv",
+      "path": "Makefile",
+      "git_blob_sha1": "fb4b38264b2e8e4cd37166566fdca2cc1d97f736",
+      "sha256": "c6deb43a2b30602ae249fa0eac3912aaede2320a87dbf39e1d7756e3518f69f1",
+      "bytes": 23645
+    },
+    {
+      "repository": "brainfpv",
+      "path": ".gitmodules",
+      "git_blob_sha1": "e9146746f849e38b216c5ab1a3650111512fe34e",
+      "sha256": "e96d6b2695aaf51b22dba5bbe34a7609eb2e638a0e92cc6deb1a318d02aa3b13",
+      "bytes": 118
+    },
+    {
+      "repository": "brainfpv",
+      "path": "mk/source.mk",
+      "git_blob_sha1": "3e7cea8c89333f264e565ed1dd17ab1b2f8167d7",
+      "sha256": "d1590b7295dae1ec9be03e28bb19c5597478feafad122110f969cfb2f2e1acf9",
+      "bytes": 19767
+    },
+    {
+      "repository": "brainfpv",
+      "path": "mk/mcu/STM32F4.mk",
+      "git_blob_sha1": "5ad80d37edd5698a2aadf795516db1a629ed98a3",
+      "sha256": "df91581c4ce52df04142094fd84c2567c15395220a34967ae2fc0aeec10a82e5",
+      "bytes": 8355
+    },
+    {
+      "repository": "brainfpv",
+      "path": "mk/config.mk",
+      "git_blob_sha1": "b5171869be168e92f159ce0f763a94ac80b56a4a",
+      "sha256": "a7ba1a3203a5df1db5ee7568d66f9d248fb2632ffcc8746b9c4aa9409329d566",
+      "bytes": 2180
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/target/RADIX/target.h",
+      "git_blob_sha1": "25eb0e3d9f958530c8d6375c62354482140896d2",
+      "sha256": "8afa67673e4ec46a1395f5229bcc1dea2b48569e6bd3639c4dadefceedc9cb82",
+      "bytes": 6574
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/target/RADIX/target.mk",
+      "git_blob_sha1": "3955492a9b626e596a16225060e30f33190e0ddf",
+      "sha256": "714bc569049487bff01b7b9842ee697c43044d3a15a600a3c6bba3cb4a872a4b",
+      "bytes": 390
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/target/RADIX/target.c",
+      "git_blob_sha1": "4095613f7e1cf230687a79bd9fc168379d0f7d26",
+      "sha256": "97f513e8fbe40c58ae68dc634d9e5f7d3cacf86290bc128523f9a5a643e8e416",
+      "bytes": 2300
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/target/RADIX/config.c",
+      "git_blob_sha1": "c5ce09873474ead0959c8bce2493d4338ec75202",
+      "sha256": "e4e87e75461122d1e201137033403d4110f41450a71ccab085ff4be2ecf077d1",
+      "bytes": 1142
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/target/RADIX/fpga_drv.c",
+      "git_blob_sha1": "2b0813b916f62fbdf2608e126eae3427ac643ec8",
+      "sha256": "25af29119852353cd90b0d5904517af0c5b6eb3ff597b0e053cfa85493226f99",
+      "bytes": 18001
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/target/RADIX/fpga_drv.h",
+      "git_blob_sha1": "306a901996647156adb53fd9811dfda57e920b63",
+      "sha256": "13b79ae0c8249e9474b52283472a2d26cf8254f1245dbfbeb37fbd7f3de159d8",
+      "bytes": 2922
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/target/STM32F446/target.h",
+      "git_blob_sha1": "994da622ba193d98440d54e18ee7da295a0d6f60",
+      "sha256": "5e8ff55b3240234b3b2227ac8db9da2672515de2bbafc6dfc886420261c11d8b",
+      "bytes": 2086
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/target/STM32F446/target.mk",
+      "git_blob_sha1": "004e43c5d3126e9d03041db0e932b716f08b67cc",
+      "sha256": "fd3cb180ec298b99e9792065c732ff171180ad9acba3d50502bfe44a6064f314",
+      "bytes": 566
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/target/BRAINRE1/fpga_drv.c",
+      "git_blob_sha1": "fc7960a51c05538dc2e2f4d80eb3d58aa918f15e",
+      "sha256": "b935b138525ad1a3f00afc0bc7eb4e6855522c87ea861063f925b385f5a84c46",
+      "bytes": 14505
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/target/BRAINRE1/fpga_drv.h",
+      "git_blob_sha1": "3172c929b346f985d64219786284effba6c3169d",
+      "sha256": "8c3b1e72fe5805f4dcd6d08f118da5098e8bcf00f6271f4680e4999fb2b5ec75",
+      "bytes": 2835
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/brainfpv/brainfpv_features.h",
+      "git_blob_sha1": "187ef1d8fe0f7e87e9c4b2d4228805bf19b65c97",
+      "sha256": "7152ee50e3f2e70dc760b49f7017b26e7fef721ac14a15c3998ac77545de79e6",
+      "bytes": 2501
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/brainfpv/brainfpv_system.c",
+      "git_blob_sha1": "8da1a823b11ae560ca474c0b8b62fc22f0e64eb2",
+      "sha256": "f7e7348f4fdedf167ddf5c665e3aa0cc8209dcda6ab25a26f04341e0186423e6",
+      "bytes": 6558
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/brainfpv/brainfpv_system.h",
+      "git_blob_sha1": "548f662e9a8bd127d846a3de1df14ad328c0ff8c",
+      "sha256": "ef56ddfddab7f110b86c22ddd8fd5e59b087b7fe7b728c834af84e0603870279",
+      "bytes": 1585
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/brainfpv/video.h",
+      "git_blob_sha1": "583239bb654f48bb93d81f7a4d7b2bc95cfb2c06",
+      "sha256": "24fc20d82c18e6a709d9c488b8d75d3abde95951a7aca410630b9e3040d73118",
+      "bytes": 3496
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/brainfpv/video_quadspi.c",
+      "git_blob_sha1": "52b0ddb259399417b27aa2a0257e06be1cd2928a",
+      "sha256": "7e451a449240fc986a85b6b65835dda9a9f8250679155bf7d602b5609ed9954d",
+      "bytes": 17861
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/brainfpv/brainfpv_osd.c",
+      "git_blob_sha1": "bf4fbfb56cc28dedc9fa4aeed5858f2212a33905",
+      "sha256": "587f9c4d2083a9b50478211b60f132fc4d8661677c82a5e8f13b907583f40841",
+      "bytes": 30847
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/brainfpv/brainfpv_osd.h",
+      "git_blob_sha1": "8fc108e2e65e7adee055fa6a71137979ff360481",
+      "sha256": "26dc1e98cdf4a937b856ff736f4da153e2c51d9740eb42a3965d9f30cb341eba",
+      "bytes": 2080
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/brainfpv/auto_sync_threshold.c",
+      "git_blob_sha1": "2e7e918d9dc6c97b923821cc67275ad546e98f30",
+      "sha256": "53ab4fb8ffc156d853ec1832e4edc78bcf6683e9f2d8bbdcd3acafd86cb684e2",
+      "bytes": 6125
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/brainfpv/hal.h",
+      "git_blob_sha1": "a39bc8c2316038bc1f2b814d47f92cd8ef48350e",
+      "sha256": "b1adfa7ec9b60f0432fc12fcd5eb74cb7dbeb38bf1adad5051029e9e0dbdb809",
+      "bytes": 156
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/drivers/accgyro/accgyro_spi_bmi160.c",
+      "git_blob_sha1": "a48c94180447f036df6e4b799a34cc21ca3072af",
+      "sha256": "51bc20488354418a66c757d99a2bc51d4847c8ad7b538e29186693a632197588",
+      "bytes": 14432
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/drivers/accgyro/accgyro_spi_bmi160.h",
+      "git_blob_sha1": "705c77754e016761f6be0e9160ae82d1472564c9",
+      "sha256": "50a3d45ec6d24906744d16795b476e0f4e9d42ca6e81dbcfe597535d640ff611",
+      "bytes": 2412
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/drivers/stm32/timer_stm32f4xx.c",
+      "git_blob_sha1": "5e4ac9338b9fac18780c77f6724783aac85b95fc",
+      "sha256": "da0d9fc5b81a6b3d0f79bff9869dd978c961054e8572e051fdf0ca28feeacc77",
+      "bytes": 7933
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/drivers/stm32/timer_def.h",
+      "git_blob_sha1": "3dee43e29660224238e3326c58f9dde7c5d6e4b3",
+      "sha256": "24742b2a127ff5b1b685271e171b2408a97e6df08d6c74837f2427d623a92c69",
+      "bytes": 49765
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/drivers/stm32/system_stm32f4xx.c",
+      "git_blob_sha1": "60e8acb0e7d2e81afd2f304221cac1c284b78cbe",
+      "sha256": "90bb8512c5a318065954d9b6d02cc9904b850110436f9cd75a4f093d8112a40e",
+      "bytes": 4625
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/drivers/timer_common.c",
+      "git_blob_sha1": "eaac9b3ef28f1df73d1cbe8bef42acfbe66e786c",
+      "sha256": "7f9abb042717100000b99d6107f69b7b899e371f5323409f875b613f6fa49285",
+      "bytes": 4281
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/fc/init.c",
+      "git_blob_sha1": "889d413959d089f37deabab0a09a121f8fa0ae3c",
+      "sha256": "6a9aa9d61d55d9cb7260524ffba48e52f45d8c840cab4679c8a1b57058b86e98",
+      "bytes": 28280
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/startup/system_stm32f4xx.c",
+      "git_blob_sha1": "8090f803101a7a38a8fa75f2d881e76309ac5040",
+      "sha256": "23367f578e4c98eabc95c7b46acd88a141447247831b13724aacc31bf799e289",
+      "bytes": 50861
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/main/startup/startup_stm32f446xx_brainfpv.s",
+      "git_blob_sha1": "65a00cc8b4477c810b08281c1fd39afeed7eb4b6",
+      "sha256": "e5ae207163f611014cb6395cd1a558879246dcfaa13681558d5eda14962bcd1b",
+      "bytes": 23315
+    },
+    {
+      "repository": "brainfpv",
+      "path": "src/link/stm32_flash_f446_brainfpv.ld",
+      "git_blob_sha1": "768014d5f7ecf3b054f7e018681a67c4f87766f5",
+      "sha256": "8139ad0b3769842a27c1f72380cec6d930a52b33b6d45678fd520f31296aee14",
+      "bytes": 8265
+    }
+  ]
+}

@@ -41,7 +41,7 @@ class ConfigGadgetFactory;
 class CONFIG_EXPORT ConfigPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.Config")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.Config")
 
 public:
     ConfigPlugin();
@@ -52,13 +52,11 @@ public:
     bool initialize(const QStringList &arguments, QString *errorString);
     void shutdown();
 
-signals:
-    void launchSetupWizard();
-
 private slots:
     void eraseAllSettings();
     void onAutopilotConnect();
     void onAutopilotDisconnect();
+    void updateControllerSetupState();
     void eraseDone(UAVObject *);
     void eraseFailed();
 

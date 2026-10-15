@@ -38,7 +38,7 @@
 class DTFPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.DTF")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.DTF")
 
 public:
     DTFPlugin();

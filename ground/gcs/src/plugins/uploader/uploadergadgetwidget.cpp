@@ -30,19 +30,22 @@
  */
 
 #include <QFileDialog>
-#include <QMessageBox>
+#include <QVBoxLayout>
+#include <QGridLayout>
+#include <QResizeEvent>
+#include <QToolButton>
+#include <coreplugin/firmwarepage.h>
 #include <QDesktopServices>
-#include <QHttpPart>
-#include <QHttpMultiPart>
-#include <QNetworkAccessManager>
-#include <QNetworkRequest>
-#include <QNetworkReply>
+#include <QStandardPaths>
+#include <QRegularExpression>
 #include <QUrl>
 
 #include "uploadergadgetwidget.h"
 #include "firmwareiapobj.h"
 #include <coreplugin/coreconstants.h>
 #include <coreplugin/icore.h>
+#include <coreplugin/firmwarecatalog.h>
+#include <coreplugin/firmwareinstallimage.h>
 #include <coreplugin/modemanager.h>
 #include <coreplugin/actionmanager/actionmanager.h>
 #include "rawhid/rawhidplugin.h"
@@ -96,10 +99,6 @@ UploaderGadgetWidget::UploaderGadgetWidget(QWidget *parent)
     pm = ExtensionSystem::PluginManager::instance();
     telMngr = pm->getObject<TelemetryManager>();
     utilMngr = pm->getObject<UAVObjectUtilManager>();
-    importMngr = pm->getObject<UAVSettingsImportExportManager>();
-
-    netMngr = new QNetworkAccessManager(this);
-
     UAVObjectManager *obm = pm->getObject<UAVObjectManager>();
 
     /* These (and firmwareIAP) are queued connections.  We may do things
@@ -152,6 +151,139 @@ UploaderGadgetWidget::UploaderGadgetWidget(QWidget *parent)
             &UploaderGadgetWidget::onStatusUpdate);
 
     conMngr = Core::ICore::instance()->connectionManager();
+    m_firmwarePage = new Core::FirmwarePage(conMngr, this);
+    m_widget->verticalLayout->insertWidget(0, m_firmwarePage, 1);
+    m_dialog.hide();
+    m_firmwarePage->addOperationWidget(&m_dialog);
+    m_upgrade = new FirmwareUpgradeController(obm, this);
+    m_dialog.bind(m_upgrade);
+    connect(m_upgrade, &FirmwareUpgradeController::readSettingsRequested, this, [this](int size) {
+        m_upgradeBuffer.clear(); m_upgradeTransferSuccess = false;
+        m_upgradeTransfer = BackupTransfer;
+        setUploaderStatus(uploader::BL_BUSY);
+        if (!dfu.DownloadPartitionThreaded(&m_upgradeBuffer, DFU_PARTITION_SETTINGS, size)) {
+            m_upgradeTransfer = NoUpgradeTransfer; m_upgrade->settingsRead({}, false);
+        }
+    });
+    connect(m_upgrade, &FirmwareUpgradeController::cancelReadRequested, this, [this] { dfu.requestInterruption(); });
+    connect(m_upgrade, &FirmwareUpgradeController::writeRequested, this, [this](const QByteArray &image) {
+        m_upgradeBuffer = image; m_upgradeMetadata = image.right(100);
+        m_upgradeTransferSuccess = false; m_upgradeTransfer = FirmwareTransfer;
+        setUploaderStatus(uploader::BL_BUSY);
+        if (!dfu.UploadPartitionThreaded(m_upgradeBuffer, DFU_PARTITION_FW, m_upgrade->context().codeSize)) {
+            m_upgradeTransfer = NoUpgradeTransfer; m_upgrade->writeFinished(false);
+        }
+    });
+    connect(m_upgrade, &FirmwareUpgradeController::eraseSettingsRequested, this, [this] {
+        m_upgradeBuffer.clear(); m_upgradeTransferSuccess = false; m_upgradeTransfer = ResetTransfer;
+        setUploaderStatus(uploader::BL_BUSY);
+        if (!dfu.WipePartitionThreaded(&m_upgradeBuffer, DFU_PARTITION_SETTINGS, m_upgrade->context().settingsSize)) {
+            m_upgradeTransfer = NoUpgradeTransfer; m_upgrade->settingsErased(false);
+        }
+    });
+    connect(m_upgrade, &FirmwareUpgradeController::writeSettingsRequested, this, [this](const QByteArray &partition) {
+        m_upgradeBuffer = partition; m_upgradeTransferSuccess = false; m_upgradeTransfer = SettingsConversionTransfer;
+        setUploaderStatus(uploader::BL_BUSY);
+        if (!dfu.UploadPartitionThreaded(m_upgradeBuffer, DFU_PARTITION_SETTINGS, m_upgrade->context().settingsSize)) {
+            m_upgradeTransfer = NoUpgradeTransfer; m_upgrade->convertedSettingsWritten(false);
+        }
+    });
+    connect(m_upgrade, &FirmwareUpgradeController::readConvertedSettingsRequested, this, [this](int size) {
+        m_upgradeBuffer.clear(); m_upgradeTransferSuccess = false; m_upgradeTransfer = SettingsConversionReadbackTransfer;
+        setUploaderStatus(uploader::BL_BUSY);
+        if (!dfu.DownloadPartitionThreaded(&m_upgradeBuffer, DFU_PARTITION_SETTINGS, size)) {
+            m_upgradeTransfer = NoUpgradeTransfer; m_upgrade->convertedSettingsRead({}, false);
+        }
+    });
+    connect(&dfu, &DFUObject::downloadFinished, this, [this](bool success) {
+        if (m_upgradeTransfer != NoUpgradeTransfer) m_upgradeTransferSuccess = success;
+    });
+    connect(&dfu, &DFUObject::uploadFinished, this, [this](tl_dfu::Status status) {
+        if (m_upgradeTransfer != NoUpgradeTransfer) m_upgradeTransferSuccess = status == Last_operation_Success;
+    });
+    // Completion signals emitted from run() precede QThread::finished. Start the next job only here.
+    connect(&dfu, &QThread::finished, this, &UploaderGadgetWidget::finishUpgradeTransfer);
+    connect(m_upgrade, &FirmwareUpgradeController::bootRequested, this, [this](bool loader) {
+        setUploaderStatus(loader ? uploader::UPGRADING_CATCHLOADER : uploader::DISCONNECTED);
+        const bool started = dfu.JumpToApp(false) > 0;
+        dfu.CloseBootloaderComs();
+        if (!started) { m_upgrade->fail(tr("The controller could not start after the write. Disconnect external power and USB, reconnect USB, then reopen Firmware maintenance.")); return; }
+        if (!loader) conMngr->resumePolling();
+    });
+    connect(m_upgrade, &FirmwareUpgradeController::verifySettingsRequested, this, &UploaderGadgetWidget::verifyUpgradeSettings);
+    m_upgradeReadbackTimer.setSingleShot(true);
+    connect(&m_upgradeReadbackTimer, &QTimer::timeout, this, [this] {
+        disconnect(m_upgradeReadbackConnection);
+        m_upgrade->settingsVerified(false, tr("The controller did not return the requested setting."));
+    });
+    connect(m_upgrade, &FirmwareUpgradeController::connectionCheckRequested, this, [this] {
+        conMngr->resumePolling();
+        if (telemetryConnected) onAutopilotReady();
+        else onBootloaderDetected();
+    });
+    connect(m_upgrade, &FirmwareUpgradeController::retryRequested, this, [this] {
+        if (dfu.isRunning()) return;
+        if (uploaderStatus != uploader::BL_SITTING) {
+            setUploaderStatus(uploader::ENTERING_LOADER);
+            onBootloaderDetected();
+        }
+        if (uploaderStatus != uploader::BL_SITTING) {
+            m_upgrade->fail(tr("Reconnect USB with the controller in its native bootloader, then choose Retry preparation.")); return;
+        }
+        if (!FirmwareUpgradeController::sameControllerSerial(currentBoard.cpu_serial, m_upgrade->context().serial)) {
+            m_upgrade->fail(tr("Connect the controller you were updating before retrying.")); return;
+        }
+        auto capabilities = dfu.findCapabilities();
+        if (m_upgrade->canRetrySettingsConversion()) {
+            upgraderActive = true;
+            m_firmwarePage->setOperationActive(true);
+            m_upgrade->retrySettingsConversion(capabilities.ID, currentBoard.cpu_serial,
+                capabilities.SizeOfCode, capabilities.PartitionSizes.value(DFU_PARTITION_SETTINGS, 0),
+                dfu.DownloadDescriptionAsByteArray(capabilities.SizeOfDesc));
+            return;
+        }
+        doUpgradeOperation(!m_bootloaderFirmwareValid, capabilities);
+    });
+    connect(m_upgrade, &FirmwareUpgradeController::settled, this, [this] {
+        upgraderActive = false;
+        m_upgradeReadbackTimer.stop(); disconnect(m_upgradeReadbackConnection);
+        if (m_upgrade->state() == FirmwareUpgradeController::Complete && m_upgrade->setupRequired())
+            conMngr->setControllerSetupRequired(true);
+        m_advancedTools->setEnabled(!conMngr->firmwareInstallationActive());
+        setUploaderStatus(uploaderStatus == uploader::BL_BUSY ? uploader::BL_SITTING : uploaderStatus);
+    });
+    connect(&m_dialog, &UpgradeAssistantDialog::configureRequested, this, [this] {
+        m_dialog.hide();
+        if (conMngr->controllerSetupRequired()) conMngr->requestControllerSetup();
+        else Core::ModeManager::instance()->activateModeByWorkspaceName("Configuration");
+    });
+    connect(m_firmwarePage, &Core::FirmwarePage::legacyFirmwareUpdateRequested,
+            this, &UploaderGadgetWidget::onFirmwareUpdateRequested);
+    connect(m_firmwarePage, &Core::FirmwarePage::legacyFirmwareBootRequested,
+            this, &UploaderGadgetWidget::onFirmwareBootRequested);
+    auto *advanced = new QWidget(this);
+    m_advancedTools = advanced;
+    auto *advancedLayout = new QVBoxLayout(advanced);
+    advancedLayout->setContentsMargins(0, 0, 0, 0);
+    while (m_widget->verticalLayout->count() > 1) {
+        auto *item = m_widget->verticalLayout->takeAt(1);
+        if (auto *widget = item->widget()) { advancedLayout->addWidget(widget); delete item; }
+        else if (auto *childLayout = item->layout()) { childLayout->setParent(nullptr); advancedLayout->addLayout(childLayout); }
+        else advancedLayout->addItem(item);
+    }
+    m_recoveryActions = new QGridLayout;
+    while (auto *item = m_widget->bootloaderButtons->takeAt(0)) {
+        if (auto *button = item->widget()) m_recoveryButtons.append(button);
+        delete item;
+    }
+    advancedLayout->removeItem(m_widget->bootloaderButtons);
+    delete m_widget->bootloaderButtons;
+    advancedLayout->insertLayout(0, m_recoveryActions);
+    advanced->installEventFilter(this);
+    m_firmwarePage->setRecoveryTools(advanced);
+    connect(conMngr, &Core::ConnectionManager::firmwareStateChanged, advanced, [this, advanced] {
+        advanced->setEnabled(!conMngr->firmwareInstallationActive() && !m_promptActive && !upgraderActive);
+    });
 
     /* Enter the loader if it's available */
     setUploaderStatus(uploader::ENTERING_LOADER);
@@ -162,6 +294,24 @@ UploaderGadgetWidget::UploaderGadgetWidget(QWidget *parent)
         setUploaderStatus(uploader::DISCONNECTED);
         setStatusInfo(tr("GCS ready for flight board connection..."), uploader::STATUSICON_OK);
     }
+}
+
+bool UploaderGadgetWidget::eventFilter(QObject *object, QEvent *event)
+{
+    if (object == m_advancedTools && event->type() == QEvent::Resize) {
+        const int available = static_cast<QResizeEvent *>(event)->size().width();
+        for (auto *button : m_recoveryButtons) m_recoveryActions->removeWidget(button);
+        int row = 0, column = 0, used = 0;
+        for (auto *button : m_recoveryButtons) {
+            const int required = qMax(button->minimumWidth(), button->sizeHint().width());
+            if (column > 0 && used + required + m_recoveryActions->horizontalSpacing() > available) {
+                ++row; column = 0; used = 0;
+            }
+            m_recoveryActions->addWidget(button, row, column++, Qt::AlignLeft);
+            used += required + m_recoveryActions->horizontalSpacing();
+        }
+    }
+    return QWidget::eventFilter(object, event);
 }
 
 /**
@@ -180,8 +330,7 @@ UploaderGadgetWidget::~UploaderGadgetWidget()
  */
 void UploaderGadgetWidget::FirmwareOnDeviceClear(bool clear)
 {
-    QRegExp rx("*OD_lbl");
-    rx.setPatternSyntax(QRegExp::Wildcard);
+    const QRegularExpression rx(QRegularExpression::wildcardToRegularExpression("*OD_lbl"));
     foreach (QLabel *l, findChildren<QLabel *>(rx)) {
         if (clear)
             l->clear();
@@ -199,8 +348,7 @@ void UploaderGadgetWidget::FirmwareOnDeviceClear(bool clear)
  */
 void UploaderGadgetWidget::FirmwareLoadedClear(bool clear)
 {
-    QRegExp rx("*LD_lbl");
-    rx.setPatternSyntax(QRegExp::Wildcard);
+    const QRegularExpression rx(QRegularExpression::wildcardToRegularExpression("*LD_lbl"));
     foreach (QLabel *l, findChildren<QLabel *>(rx)) {
         if (clear)
             l->clear();
@@ -239,16 +387,21 @@ void UploaderGadgetWidget::DeviceInformationUpdate(deviceInfo board)
 {
     if (!board.board)
         return;
+    conMngr->setControllerSerial(board.cpu_serial);
     currentBoard = board;
     m_widget->boardName_lbl->setText(board.board->boardDescription());
     m_widget->devName_lbl->setText(
         board.board->getBoardNameFromID(board.board->getBoardType() << 8));
     m_widget->hwRev_lbl->setText(board.hw_revision);
-    m_widget->blVer_lbl->setText(board.bl_version);
+    const bool imported = !Core::FirmwareCatalog::instance().board(board.board->shortName()).layoutId.isEmpty();
+    m_widget->blVer_lbl->setText(imported ? tr("STM32 ROM") : board.bl_version);
     bool bl_version_ok;
     int bl_version = board.bl_version.toInt(&bl_version_ok, 16);
+    conMngr->setNativeFirmwareIdentity(board.board->shortName(), {},
+        imported ? tr("STM32 system bootloader")
+            : bl_version_ok ? tr("dRonin %1").arg(board.bl_version) : QString());
     m_widget->blVer_lbl->setStyleSheet(
-        bl_version_ok && bl_version < board.board->minBootLoaderVersion() ? "color: red;" : "");
+        !imported && bl_version_ok && bl_version < board.board->minBootLoaderVersion() ? "color: red;" : "");
     m_widget->maxCode_lbl->setText(board.max_code_size);
     m_widget->deviceInformationMainLayout->setVisible(true);
     m_widget->deviceInformationNoInfo->setVisible(false);
@@ -263,6 +416,8 @@ void UploaderGadgetWidget::DeviceInformationUpdate(deviceInfo board)
  */
 void UploaderGadgetWidget::FirmwareOnDeviceUpdate(deviceDescriptorStruct firmware, QString crc)
 {
+    conMngr->setNativeFirmwareIdentity(Core::IBoardType::getBoardNameFromID(firmware.boardID()),
+        Core::FirmwareCatalog::firmwareName(firmware.description));
     m_widget->builtForOD_lbl->setText(Core::IBoardType::getBoardNameFromID(firmware.boardID()));
     m_widget->crcOD_lbl->setText(crc);
     m_widget->gitHashOD_lbl->setText(firmware.gitHash);
@@ -385,16 +540,39 @@ void UploaderGadgetWidget::onAutopilotReady()
     deviceDescriptorStruct device;
     if (utilMngr->getBoardDescriptionStruct(device)) {
         FirmwareOnDeviceUpdate(device, QString::number(utilMngr->getFirmwareCRC()));
-        if (FirmwareCheckForUpdate(device)) {
-            onRescueButtonClick();
-
-            Core::ModeManager::instance()->activateModeByWorkspaceName("Firmware");
-            // Set the status, so when we enter the loader we cue the
-            // upgrade state machine/actions.
-            setUploaderStatus(uploader::UPGRADING);
-        }
+        if (!conMngr->firmwareInstallationActive()) FirmwareCheckForUpdate(device);
     }
     emit newBoardSeen(board, device);
+    if (m_upgrade) m_upgrade->firmwareConnected(device.description, board.cpu_serial);
+}
+
+void UploaderGadgetWidget::onFirmwareUpdateRequested()
+{
+    if (uploaderStatus == uploader::BL_SITTING && !upgraderActive && !m_promptActive) {
+        if (!FirmwareCheckForUpdate(m_bootloaderDescription, !m_bootloaderFirmwareValid)) return;
+        m_firmwarePage->setOperationActive(true);
+        setStatusInfo(tr("Checking the bootloader before updating…"), uploader::STATUSICON_RUNNING);
+        auto device = dfu.findCapabilities();
+        if (device.ID != m_bootloaderDescription.boardID() || device.SizeOfCode <= 0) {
+            setUploaderStatus(uploader::BL_SITTING);
+            setStatusInfo(tr("The bootloader is not responding. Reconnect USB, then retry the update."), uploader::STATUSICON_FAIL);
+            return;
+        }
+        doUpgradeOperation(!m_bootloaderFirmwareValid, device);
+        return;
+    }
+    if (active() || !conMngr->isConnected() || conMngr->firmwareInstallationActive()) return;
+    deviceDescriptorStruct device;
+    if (!utilMngr->getBoardDescriptionStruct(device) || !FirmwareCheckForUpdate(device)) return;
+    onRescueButtonClick();
+    conMngr->showFirmwarePage();
+    setUploaderStatus(uploader::UPGRADING);
+}
+
+void UploaderGadgetWidget::onFirmwareBootRequested()
+{
+    if (uploaderStatus == uploader::BL_SITTING && m_bootloaderFirmwareValid && !upgraderActive && !m_promptActive)
+        m_widget->bootButton->click();
 }
 
 /**
@@ -603,6 +781,11 @@ void UploaderGadgetWidget::onRescueButtonClick()
         return;
     }
 
+    if (conMngr->hasMspFirmware() && conMngr->firmwareVariant() != "DRON") {
+        conMngr->showFirmwarePage();
+        return;
+    }
+
     // Otherwise, this means "begin rescue".
     conMngr->suspendPolling();
     setUploaderStatus(uploader::ENTERING_LOADER);
@@ -619,618 +802,153 @@ bool UploaderGadgetWidget::downloadSettings()
     timeout.setSingleShot(true);
 
     bool operationSuccess = false;
+    bool timedOut = false;
 
-    connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+    connect(&timeout, &QTimer::timeout, &loop, [&] { timedOut = true; dfu.requestInterruption(); });
+    connect(&dfu, &QThread::finished, &loop, &QEventLoop::quit);
 
     /* disconnects when loop comes out of scope */
     connect(&dfu, &DFUObject::downloadFinished, &loop, [&](bool status) {
         qDebug() << "downloadFinished in dSettings: " << status;
         operationSuccess = status;
-        loop.exit();
     });
 
     timeout.start(100000); /* 100 secs is a long time; unfortunately
                             * revo settings part is HUUUUGE and takes
                             * forever to download. */
 
-    triggerPartitionDownload(DFU_PARTITION_SETTINGS);
+    if (!triggerPartitionDownload(DFU_PARTITION_SETTINGS)) return false;
     loop.exec(); /* Wait for timeout or download complete */
     timeout.stop();
 
-    return operationSuccess;
+    return operationSuccess && !timedOut;
 }
 
-bool UploaderGadgetWidget::askIfShouldContinue()
+int UploaderGadgetWidget::promptFirmware(const QString &text, const QString &details,
+                                        QDialogButtonBox::StandardButtons buttons, const QString &action)
 {
-    QMessageBox msgBox(this);
-    msgBox.setText(tr("Proceed without saving a configuration backup?"));
-    msgBox.setInformativeText(tr("It is strongly encouraged that you save a backup of the "
-                                 "configuration before proceeding with upgrade."));
-    msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-    msgBox.setDefaultButton(QMessageBox::No);
-
-    int val = msgBox.exec();
-
-    if (val == QMessageBox::Yes) {
-        return true;
+    if (m_promptActive) return QDialogButtonBox::Cancel;
+    m_promptActive = true;
+    m_advancedTools->setEnabled(false);
+    conMngr->showFirmwarePage();
+    m_firmwarePage->setOperationActive(true);
+    auto *prompt = new QWidget(this);
+    prompt->setObjectName("firmwarePrompt");
+    auto *layout = new QVBoxLayout(prompt);
+    layout->setContentsMargins(0, 0, 0, 0); layout->setSpacing(16);
+    auto *heading = new QLabel(text, prompt); heading->setWordWrap(true); heading->setTextFormat(Qt::PlainText);
+    heading->setProperty("role", "section");
+    auto *body = new QLabel(details, prompt); body->setWordWrap(true); body->setTextFormat(Qt::PlainText);
+    body->setProperty("role", "muted");
+    layout->addWidget(heading); layout->addWidget(body);
+    auto *actions = new QDialogButtonBox(buttons, prompt); layout->addWidget(actions);
+    for (auto *button : actions->buttons()) {
+        button->setIcon(QIcon());
+        if (actions->standardButton(button) == QDialogButtonBox::Yes) {
+            button->setText(action); button->setProperty("primary", true);
+        } else button->setText(tr("Cancel"));
     }
-
-    return false;
-}
-
-bool UploaderGadgetWidget::saveSettings(const QByteArray &settingsDump)
-{
-    /* save dialog for XML config */
-    QString filename = QFileDialog::getSaveFileName(this, tr("Save Settings Backup"),
-                                                    "cloud_exported.uav", "*.uav");
-    if (filename.isEmpty()) {
-        setStatusInfo(tr("Save cancelled."), uploader::STATUSICON_FAIL);
-        setUploaderStatus(uploader::BL_SITTING);
-        return false;
-    }
-
-    if (!filename.endsWith(".uav", Qt::CaseInsensitive))
-        filename.append(".uav");
-
-    QFile file(filename);
-    if (!file.open(QIODevice::WriteOnly)) {
-        setStatusInfo(tr("Error could not open file for save"), uploader::STATUSICON_FAIL);
-
-        setUploaderStatus(uploader::BL_SITTING);
-        return false;
-    }
-
-    file.write(settingsDump);
-    file.close();
-    setStatusInfo(tr("Dump of configuration saved to file!"), uploader::STATUSICON_OK);
-
-    return true;
-}
-
-// Returns negative (<0) if we can't get to the cloud.
-// Returns false (0) if the cloud doesn't have our release
-// Returns true (>0) if the cloud has our release and would be glad to
-// upgrade us.
-int UploaderGadgetWidget::isCloudReleaseAvailable(QString srcRelease)
-{
-    QUrl url(hasRevUrl.arg(srcRelease));
-    QNetworkRequest request(url);
-
-    QNetworkReply *reply = netMngr->head(request);
-
+    m_firmwarePage->addOperationWidget(prompt);
+    prompt->show();
     QEventLoop loop;
-
-    QTimer timeout;
-    timeout.setSingleShot(true);
-
-    connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
-    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    timeout.start(64000); /* 64 seconds */
+    int result = QDialogButtonBox::Cancel;
+    connect(actions, &QDialogButtonBox::clicked, &loop, [&](QAbstractButton *button) {
+        result = actions->standardButton(button); loop.quit();
+    });
+    connect(conMngr, &Core::ConnectionManager::deviceDisconnected, &loop, &QEventLoop::quit);
+    connect(&m_dialog, &UpgradeAssistantDialog::finished, &loop, &QEventLoop::quit);
     loop.exec();
-
-    timeout.stop();
-
-    if (!reply->isFinished()) {
-        setStatusInfo(tr("Timeout communicating with cloud service"), uploader::STATUSICON_FAIL);
-        return -1;
-    }
-
-    QVariant statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
-
-    int code = statusCode.toInt();
-
-    if (code == 200)
-        return 1;
-
-    if (code == 404)
-        return 0;
-
-    return -1; // Unexpected error code
-}
-
-bool UploaderGadgetWidget::tradeSettingsWithCloud(QString srcRelease, QString ancestor,
-                                                  bool upgrading, QByteArray *settingsOut)
-{
-    /* post to cloud service */
-    QUrl url(exportUrl);
-    QNetworkRequest request(url);
-
-    QHttpMultiPart *multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
-
-    if (settingsOut != NULL) {
-        settingsOut->clear();
-    }
-
-    // ZLib compress the data
-    QByteArray compressed = qCompress(tempArray, 8);
-
-    // Remove the first 4 bytes, because Qt prepends expected length
-    // (not compatible with zlib)
-    compressed.remove(0, 4);
-
-    QHttpPart githash, ancestorPart, adaptTo, datafile;
-
-    githash.setHeader(QNetworkRequest::ContentDispositionHeader,
-                      QVariant("form-data; name=\"githash\""));
-    githash.setBody(srcRelease.toLatin1());
-
-    ancestorPart.setHeader(QNetworkRequest::ContentDispositionHeader,
-                           QVariant("form-data; name=\"ancestor\""));
-    ancestorPart.setBody(ancestor.toLatin1());
-
-    const QString gcsRev(Core::Constants::GCS_REVISION_STR);
-    adaptTo.setHeader(QNetworkRequest::ContentDispositionHeader,
-                      QVariant("form-data; name=\"adaptTo\""));
-    adaptTo.setBody(gcsRev.toLatin1());
-
-    datafile.setHeader(QNetworkRequest::ContentTypeHeader, QVariant("application/octet-stream"));
-    datafile.setHeader(QNetworkRequest::ContentDispositionHeader,
-                       QVariant("form-data; filename=\"datafile\"; name=\"datafile\""));
-    datafile.setBody(compressed);
-
-    multiPart->append(githash);
-    multiPart->append(adaptTo);
-    multiPart->append(ancestorPart);
-    multiPart->append(datafile);
-
-    QNetworkReply *reply = netMngr->post(request, multiPart);
-
-    QEventLoop loop;
-
-    QTimer timeout;
-    timeout.setSingleShot(true);
-
-    connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
-    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    timeout.start(20000); /* 20 seconds */
-    loop.exec();
-
-    timeout.stop();
-
-    if (!reply->isFinished()) {
-        setStatusInfo(tr("Timeout communicating with cloud service"), uploader::STATUSICON_FAIL);
-        return false;
-    }
-
-    QVariant statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
-
-    int code = statusCode.toInt();
-
-    if (code != 200) {
-        setStatusInfo(tr("Received status code %1 from cloud").arg(code),
-                      uploader::STATUSICON_FAIL);
-        return false;
-    }
-
-    setStatusInfo(tr("Retrieved dump of configuration from cloud"), uploader::STATUSICON_OK);
-
-    settingsDump = reply->readAll();
-
-    if (settingsOut != NULL) {
-        *settingsOut = settingsDump;
-    }
-
-    if (upgrading) {
-        return true;
-    }
-
-    return saveSettings(settingsDump);
-}
-
-void UploaderGadgetWidget::upgradeError(QString why)
-{
-    upgraderActive = false;
-
-    Q_UNUSED(why);
-
-    m_dialog.hide();
-
-    qDebug() << "Upgrade assistant failed: " + why;
-
-    setUploaderStatus(uploader::DISCONNECTED);
-
-    /* Pop up a proper error dialog */
-    QMessageBox msgBox(this);
-
-    msgBox.setIcon(QMessageBox::Critical);
-    msgBox.setText(tr("Automatic upgrade failed."));
-    msgBox.setInformativeText(why);
-
-    msgBox.setStandardButtons(QMessageBox::Ok);
-    msgBox.exec();
-}
-
-void UploaderGadgetWidget::stepChangeAndDelay(QEventLoop &loop, int delayMs,
-                                              UpgradeAssistantDialog::UpgradeAssistantStep step)
-{
-    m_dialog.onStepChanged(step);
-
-    QTimer delay;
-
-    delay.setSingleShot(true);
-    connect(&delay, &QTimer::timeout, &loop, &QEventLoop::quit);
-
-    delay.start(delayMs);
-    loop.exec();
-    delay.stop();
+    delete prompt;
+    m_promptActive = false;
+    m_advancedTools->setEnabled(!conMngr->firmwareInstallationActive());
+    setUploaderStatus(uploaderStatus);
+    return result;
 }
 
 void UploaderGadgetWidget::doUpgradeOperation(bool blankFC, tl_dfu::device &dev)
 {
+    if (dfu.isRunning() || upgraderActive || !currentBoard.board) return;
     upgraderActive = true;
-
+    m_advancedTools->setEnabled(false);
+    m_firmwarePage->setOperationActive(true);
     Core::ModeManager::instance()->activateModeByWorkspaceName("Firmware");
-
-    m_dialog.onStepChanged(UpgradeAssistantDialog::STEP_ENTERLOADER);
-    m_dialog.setOperatingMode(true, blankFC);
-
-    QEventLoop loop;
-    QTimer timeout;
-
-    timeout.setSingleShot(true);
-
-    bool aborted = false;
-    bool entLoader = false;
-
-    int ret;
-
-    struct deviceInfo board = currentBoard;
-
-    connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
-    connect(&m_dialog, &UpgradeAssistantDialog::finished, &loop, [&](int result) {
-        (void)result;
-        aborted = true;
-        loop.exit();
-    });
-
-    connect(this, &UploaderGadgetWidget::enteredLoader, &loop, [&]() {
-        entLoader = true;
-        loop.exit();
-    });
-
-    m_dialog.open();
-
+    m_dialog.show();
     if (uploaderStatus != uploader::BL_SITTING) {
-        upgradeError(tr("Not in expected bootloader state!"));
+        m_upgrade->fail(tr("The controller is not in its native bootloader. Reconnect USB and retry."));
         return;
     }
+    FirmwareUpgradeContext context;
+    context.name = currentBoard.board->shortName();
+    context.target = Core::FirmwareCatalog::instance().board(context.name).target;
+    context.serial = currentBoard.cpu_serial;
+    context.boardId = dev.ID; context.codeSize = dev.SizeOfCode; context.descriptionSize = dev.SizeOfDesc;
+    context.settingsSize = dev.PartitionSizes.value(DFU_PARTITION_SETTINGS, 0);
+    context.needsBootloader = !context.settingsSize || currentBoard.board->minBootLoaderVersion() > dev.BL_Version;
+    if (!blankFC) context.sourceDescriptor = m_bootloaderDescription.description;
+    FirmwareLoadFromFile(getImagePath(context.name), &context.firmware);
+    if (context.needsBootloader) FirmwareLoadFromFile(getImagePath(context.name, "bu"), &context.bootloader);
+    m_upgrade->start(context);
+}
 
-    /* Save the version to convert from, so we can tell the cloud service */
-    QString upgradingFrom = m_widget->gitHashOD_lbl->text();
-    QString ancestor = m_widget->ancestorHashOD_lbl->text();
-
-    qDebug() << "Upgrading from " << upgradingFrom;
-
-    /* Infer what operations we need to do -- first, do they need a new
-     * bootloader? */
-    bool upgradingLoader = false;
-
-    /* If no settings part known, new loader needed. */
-    upgradingLoader = !haveSettingsPart();
-
-    int requiredLoader = board.board->minBootLoaderVersion();
-
-    if (requiredLoader > dev.BL_Version) {
-        upgradingLoader = true;
-    }
-
-    m_dialog.setOperatingMode(upgradingLoader, blankFC);
-
-    if (!blankFC) {
-        stepChangeAndDelay(loop, 400, UpgradeAssistantDialog::STEP_CHECKCLOUD);
-
-        int available = isCloudReleaseAvailable(upgradingFrom);
-
-        if (available == 0) {
-            available = isCloudReleaseAvailable(ancestor);
+void UploaderGadgetWidget::finishUpgradeTransfer()
+{
+    const auto job = m_upgradeTransfer;
+    m_upgradeTransfer = NoUpgradeTransfer;
+    if (job == NoUpgradeTransfer) return;
+    const bool success = m_upgradeTransferSuccess && !m_upgrade->transferDisconnected();
+    if (job == FirmwareTransfer && success) {
+        m_upgradeBuffer = m_upgradeMetadata;
+        m_upgradeTransferSuccess = false; m_upgradeTransfer = MetadataTransfer;
+        if (!dfu.UploadPartitionThreaded(m_upgradeBuffer, DFU_PARTITION_DESC, 100)) {
+            m_upgradeTransfer = NoUpgradeTransfer; m_upgrade->writeFinished(false);
         }
-
-        if (available < 0) {
-            // Cloud service missing.  Pop up a dialog and ask user what to
-            // do.
-
-            int val =
-                QMessageBox::critical(this, tr("Cloud upgrade service not available"),
-                                      tr("The cloud upgrade service is not reachable. "
-                                         "You may continue without migrating settings, "
-                                         "or cancel the upgrade."),
-                                      QMessageBox::Ok | QMessageBox::Cancel, QMessageBox::Cancel);
-
-            if (val != QMessageBox::Ok) {
-                aborted = true;
-            } else {
-                blankFC = true;
-            }
-        } else if (available == 0) {
-            // Cloud service doesn't know about source release.  Pop up a
-            // dialog and ask what to do.
-
-            int val = QMessageBox::critical(this, tr("Cloud upgrade service: release unknown"),
-                                            tr("The cloud upgrade service does not know about "
-                                               "the firmware on the flight controller. "
-                                               "You may discard the existing settings, "
-                                               "cancel the upgrade, or ignore and attempt to "
-                                               "proceed with migration anyways."),
-                                            QMessageBox::Discard | QMessageBox::Cancel
-                                                | QMessageBox::Ignore,
-                                            QMessageBox::Cancel);
-
-            if (val == QMessageBox::Discard) {
-                blankFC = true;
-            } else if (val != QMessageBox::Ignore) {
-                aborted = true;
-            }
-        }
-    }
-
-    // Set this again, as we could have decided to treat the board as blank.
-    m_dialog.setOperatingMode(upgradingLoader, blankFC);
-
-    if (aborted) {
-        upgradeError(tr("Aborted!"));
-
         return;
     }
-
-    /* gather up bootupdater and firmware images as needed,
-     * so we spot errors before we do destructive things */
-
-    QByteArray bootUpdateFile, firmwareFile;
-
-    if (upgradingLoader) {
-        if (!FirmwareLoadFromFile(getImagePath(board.board->shortName(), "bu"), &bootUpdateFile)) {
-            upgradeError(tr("Unable to load bootloader update image for board!"));
-
-            return;
-        }
-    }
-
-    if (!FirmwareLoadFromFile(getImagePath(board.board->shortName(), "fw"), &firmwareFile)) {
-        upgradeError(tr("Unable to load firmware image for board!"));
-
-        return;
-    }
-
-    if (upgradingLoader) {
-        stepChangeAndDelay(loop, 400, UpgradeAssistantDialog::STEP_UPGRADEBOOTLOADER);
-
-        if (aborted) {
-            upgradeError(tr("Aborted!"));
-
-            return;
-        }
-
-        /* program the boot upgrader tool */
-        FirmwareLoadedClear(true);
-        FirmwareLoadedUpdate(bootUpdateFile);
-        setUploaderStatus(getUploaderStatus());
-
-        if (!flashFirmware(bootUpdateFile)) {
-            upgradeError(tr("Unable to flash upgrader image to board!"));
-
-            return;
-        }
-
-        entLoader = false;
-        setUploaderStatus(uploader::UPGRADING_CATCHLOADER);
-        dfu.JumpToApp(false);
+    if (!success) {
         dfu.CloseBootloaderComs();
+        setUploaderStatus(uploader::DISCONNECTED);
+        conMngr->resumePolling();
+    } else setUploaderStatus(uploader::BL_SITTING);
+    if (job == BackupTransfer) m_upgrade->settingsRead(m_upgradeBuffer, success);
+    else if (job == SettingsConversionTransfer) m_upgrade->convertedSettingsWritten(success);
+    else if (job == SettingsConversionReadbackTransfer) m_upgrade->convertedSettingsRead(m_upgradeBuffer, success);
+    else if (job == ResetTransfer) {
+        bool erased = success && m_upgradeBuffer.size() == m_upgrade->context().settingsSize;
+        for (char byte : m_upgradeBuffer) if (uchar(byte) != 0xff) erased = false;
+        m_upgrade->settingsErased(erased);
+    } else m_upgrade->writeFinished(success);
+}
 
-        /* Wait for / detect main loader */
-        timeout.start(25000);
-        loop.exec();
-        timeout.stop();
+void UploaderGadgetWidget::verifyUpgradeSettings(const QList<FirmwareSettingRecord> &records)
+{
+    m_upgradeVerification = records;
+    verifyNextUpgradeSetting();
+}
 
-        if (!entLoader) {
-            upgradeError(tr("Unable to enter bootloader after bootloader upgrade!"));
+void UploaderGadgetWidget::verifyNextUpgradeSetting()
+{
+    m_upgradeReadbackTimer.stop(); disconnect(m_upgradeReadbackConnection);
+    if (m_upgradeVerification.isEmpty()) { m_upgrade->settingsVerified(true); return; }
+    const auto record = m_upgradeVerification.takeFirst();
+    auto *objects = pm->getObject<UAVObjectManager>();
+    auto *object = objects->getObject(record.id, record.instance);
+    if (!object) { m_upgrade->settingsVerified(false, tr("A saved setting is unavailable in the new firmware.")); return; }
+    m_upgradeReadbackConnection = connect(object, &UAVObject::objectUnpacked, this, [this, record](UAVObject *received) {
+        m_upgradeReadbackTimer.stop(); disconnect(m_upgradeReadbackConnection);
+        QByteArray actual(received->getNumBytes(), 0);
+        received->pack(reinterpret_cast<quint8 *>(actual.data()));
+        if (actual != record.data) {
+            m_upgrade->settingsVerified(false, tr("%1 differs from the saved backup.").arg(received->getName())); return;
         }
-    }
-
-    QByteArray xmlDump;
-
-    if (!blankFC) {
-        stepChangeAndDelay(loop, 400, UpgradeAssistantDialog::STEP_DOWNLOADSETTINGS);
-
-        if (aborted) {
-            upgradeError(tr("Aborted!"));
-
-            return;
-        }
-
-        /* download the settings partition from the board */
-        if (!downloadSettings()) {
-            upgradeError(tr("Unable to pull settings partition!"));
-
-            return;
-        }
-
-        stepChangeAndDelay(loop, 100, UpgradeAssistantDialog::STEP_TRANSLATESETTINGS);
-
-        if (aborted) {
-            upgradeError(tr("Aborted!"));
-
-            return;
-        }
-
-        /* translate the settings using the cloud service */
-        if (!tradeSettingsWithCloud(upgradingFrom, ancestor, true, &xmlDump)) {
-            upgradeError(tr("Unable to use cloud services to translate settings!"));
-
-            return;
-        }
-
-        bool done = false;
-
-        while (!done) {
-            if (aborted) {
-                upgradeError(tr("Aborted!"));
-
-                return;
-            }
-
-            ret = m_dialog.PromptUser(tr("Obtained settings from cloud."),
-                                      tr("It is recommended that you save a backup of the settings "
-                                         "before proceeding with upgrade."),
-                                      QStringList() << tr("Continue without saving")
-                                                    << tr("Save settings backup"));
-
-            switch (ret) {
-            case 0: /* continue */
-                done = true;
-                break;
-            case 1: /* save settings backup */
-                /* try to save. if successful, set done */
-                done = saveSettings(xmlDump);
-                break;
-            default:
-                break;
-            }
-        }
-    }
-
-    stepChangeAndDelay(loop, 400, UpgradeAssistantDialog::STEP_ERASESETTINGS);
-
-    if (aborted) {
-        upgradeError(tr("Aborted!"));
-
-        return;
-    }
-
-    /* wipe the board setting partition in prepation of upgrade */
-    if (!dfu.WipePartition(DFU_PARTITION_SETTINGS)) {
-        upgradeError(tr("Failed to erase settings partition!"));
-    }
-
-    stepChangeAndDelay(loop, 400, UpgradeAssistantDialog::STEP_FLASHFIRMWARE);
-
-    if (aborted) {
-        upgradeError(tr("Aborted!"));
-
-        return;
-    }
-
-    /* flash the appropriate main firmware image */
-    FirmwareLoadedClear(true);
-    FirmwareLoadedUpdate(firmwareFile);
-    setUploaderStatus(getUploaderStatus());
-
-    loop.processEvents();
-    if (aborted) {
-        upgradeError(tr("Aborted!"));
-
-        return;
-    }
-
-    if (!flashFirmware(firmwareFile)) {
-        upgradeError(tr("Unable to flash firmware image to board!"));
-
-        return;
-    }
-
-    if (aborted) {
-        upgradeError(tr("Aborted!"));
-
-        return;
-    }
-
-    /* Set ignoredrev to what we just programmed, so if we programmed
-     * an outdated rev in a developer environment we don't immediately bop
-     * up the message */
-    ignoredRev = m_widget->gitHashOD_lbl->text();
-
-    stepChangeAndDelay(loop, 400, UpgradeAssistantDialog::STEP_BOOT);
-
-    if (aborted) {
-        upgradeError(tr("Aborted!"));
-
-        return;
-    }
-
-    bool firmwareConnected = false;
-
-    /* start firmware and wait for telemetry connection */
-    connect(telMngr, &TelemetryManager::connected, &loop, [&]() {
-        firmwareConnected = true;
-        loop.exit();
+        QTimer::singleShot(0, this, &UploaderGadgetWidget::verifyNextUpgradeSetting);
     });
-
-    dfu.JumpToApp(false);
-    dfu.CloseBootloaderComs();
-    setUploaderStatus(uploader::DISCONNECTED);
-
-    for (int tries = 0; tries < 2; tries++) {
-        if (aborted) {
-            upgradeError(tr("Aborted!"));
-
-            return;
-        }
-
-        timeout.start(25000);
-
-        if (!firmwareConnected) {
-            loop.exec();
-        }
-
-        timeout.stop();
-
-        if (aborted) {
-            upgradeError(tr("Aborted!"));
-
-            return;
-        }
-
-        if (!firmwareConnected) {
-            if (tries == 0) {
-                ret = m_dialog.PromptUser(tr("Unable to automatically reset board"),
-                                          tr("Please remove power and USB from the flight board, "
-                                             " plug it back in, and select \"Continue.\""),
-                                          QStringList() << tr("Continue"));
-            } else {
-                upgradeError(tr("Unable to connect to new firmware!"));
-
-                return;
-            }
-        } else {
-            break;
-        }
-    }
-
-    if (!blankFC) {
-        stepChangeAndDelay(loop, 400, UpgradeAssistantDialog::STEP_IMPORT);
-
-        while (true) {
-            if (aborted) {
-                upgradeError(tr("Aborted!"));
-
-                return;
-            }
-
-            ret = m_dialog.PromptUser(tr("Please review the imported settings and save to board."),
-                                      tr("No settings are currently saved. Select the "
-                                         "\"Review and Save\" button to import the settings."),
-                                      QStringList() << tr("Review and Save"));
-
-            if (ret == 0) {
-                if (importMngr->importUAVSettings(xmlDump, true)) {
-                    break;
-                }
-            }
-        }
-    }
-
-    m_dialog.onStepChanged(UpgradeAssistantDialog::STEP_DONE);
-
-    while (!aborted) {
-        loop.exec();
-    }
-
-    upgraderActive = false;
+    m_upgradeReadbackTimer.start(10000);
+    object->requestUpdate();
 }
 
 /**
  * @brief slot called when the user selects the Export Config button.
- * It retrieves the setting partition and sends it to the cloud, trading it
- * for an XML configuration file.
+ * Exports settings locally, retaining the raw partition when its schema is unknown.
  */
 void UploaderGadgetWidget::onExportButtonClick()
 {
@@ -1255,29 +973,7 @@ void UploaderGadgetWidget::onExportButtonClick()
 
     /* make sure there's a setting partition */
     if (!haveSettingsPart()) {
-        QMessageBox msgBox(this);
-
-        msgBox.setText(tr("No settings partition accessible; can't export."));
-        msgBox.setInformativeText(tr("Please upgrade your bootloader."));
-        msgBox.setStandardButtons(QMessageBox::Ok);
-        msgBox.setDefaultButton(QMessageBox::Ok);
-
-        msgBox.exec();
-
-        return;
-    }
-
-    /* get confirmation from user that using the cloud service is OK */
-    QMessageBox msgBox(this);
-    msgBox.setText(tr("Do you wish to export the settings partition as an XML settings file?"));
-    msgBox.setInformativeText(tr("This will send the raw configuration information to a dRonin "
-                                 "cloud service for translation."));
-    msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-    msgBox.setDefaultButton(QMessageBox::Yes);
-
-    int val = msgBox.exec();
-
-    if (val != QMessageBox::Yes) {
+        setStatusInfo(tr("No settings partition is accessible. Upgrade the bootloader to export settings."), uploader::STATUSICON_FAIL);
         return;
     }
 
@@ -1288,12 +984,20 @@ void UploaderGadgetWidget::onExportButtonClick()
         return;
     }
 
-    setStatusInfo(tr("Retrieved settings; contacting cloud..."), uploader::STATUSICON_FAIL);
-
-    QString upgradingFrom = m_widget->gitHashOD_lbl->text();
-    QString ancestor = m_widget->ancestorHashOD_lbl->text();
-
-    tradeSettingsWithCloud(upgradingFrom, ancestor);
+    const auto target = Core::FirmwareCatalog::instance().board(currentBoard.board->shortName()).target;
+    const auto result = FirmwareSettingsBackup::inspect(tempArray, target,
+        m_bootloaderFirmwareValid,
+        pm->getObject<UAVObjectManager>());
+    QString error;
+    const auto path = FirmwareSettingsBackup::save(
+        QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)).filePath("firmware-backups"), tempArray,
+        {{"target", target}, {"controllerSerial", currentBoard.cpu_serial},
+         {"sourceDescriptor", QString::fromLatin1(m_bootloaderDescription.description.toHex())},
+         {"compatible", result.compatible}, {"compatibilityReport", result.reason}}, result.xml, &error);
+    setUploaderStatus(uploader::BL_SITTING);
+    setStatusInfo(path.isEmpty() ? error : tr("Settings backup saved to %1. %2").arg(path,
+        result.compatible ? tr("A local XML export is included when settings are present.") : result.reason),
+        path.isEmpty() ? uploader::STATUSICON_FAIL : uploader::STATUSICON_OK);
 }
 
 /**
@@ -1302,6 +1006,11 @@ void UploaderGadgetWidget::onExportButtonClick()
  */
 void UploaderGadgetWidget::onBootloaderDetected()
 {
+    if (conMngr->firmwareInstallationActive()) return;
+    if (dfu.isRunning()) return;
+    if (upgraderActive && m_upgrade->state() != FirmwareUpgradeController::WaitingBootloader
+        && m_upgrade->state() != FirmwareUpgradeController::WaitingFirmware
+        && m_upgrade->state() != FirmwareUpgradeController::Reconnect) return;
     Core::BoardManager *brdMgr = Core::ICore::instance()->boardManager();
     QList<USBPortInfo> devices;
 
@@ -1320,28 +1029,33 @@ void UploaderGadgetWidget::onBootloaderDetected()
     if (devices.length() > 1) {
         setStatusInfo(tr("More than one device was detected in bootloader state"),
                       uploader::STATUSICON_INFO);
-        // return;
+        return;
     } else if (devices.length() == 0) {
         setStatusInfo("No devices in bootloader state detected", uploader::STATUSICON_FAIL);
         return;
     }
+    conMngr->showFirmwarePage();
 
     USBPortInfo device = devices.first();
 
     bool triggerUpgrading = false;
     bool inUpgrader = false;
     bool validDescription = false;
-    bool blankFC = false;
 
     if (device.getRunState() == USBMonitor::Upgrader) {
         inUpgrader = true;
     }
 
     if (dfu.OpenBootloaderComs(device)) {
+        conMngr->setControllerSerial(device.serialNumber);
         tl_dfu::device dev = dfu.findCapabilities();
+        if (upgraderActive && (!FirmwareUpgradeController::sameControllerSerial(device.serialNumber, m_upgrade->context().serial)
+            || dev.ID != m_upgrade->context().boardId)) {
+            dfu.CloseBootloaderComs(); m_upgrade->fail(tr("A different controller connected during the upgrade. Reconnect the controller you were updating.")); return;
+        }
 
         QByteArray description = dfu.DownloadDescriptionAsByteArray(dev.SizeOfDesc);
-        deviceDescriptorStruct descStructure;
+        deviceDescriptorStruct descStructure{};
         if (!UAVObjectUtilManager::descriptionToStructure(description, descStructure))
             setStatusInfo(tr("Could not parse firmware metadata"), uploader::STATUSICON_INFO);
         else {
@@ -1361,27 +1075,7 @@ void UploaderGadgetWidget::onBootloaderDetected()
                 if (QString(description.left(4)) == "Tl")
                     break;
 
-                if (validDescription) {
-                    if (FirmwareCheckForUpdate(descStructure)) {
-                        triggerUpgrading = true;
-                        break;
-                    }
-                } else {
-                    QMessageBox msgBox(this);
-                    msgBox.setText(tr("There appears to be no valid firmware on your device.."));
-                    msgBox.setInformativeText(tr("Do you want to install firmware?"));
-                    msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-                    msgBox.setDefaultButton(QMessageBox::Yes);
-
-                    int val = msgBox.exec();
-
-                    if (val == QMessageBox::Yes) {
-                        triggerUpgrading = true;
-                        blankFC = true;
-                    }
-
-                    break; /* Don't boot in any case */
-                }
+                if (!validDescription) break; /* Offer installation in the controller card. */
             }
                 Q_FALLTHROUGH();
             default:
@@ -1464,16 +1158,25 @@ void UploaderGadgetWidget::onBootloaderDetected()
             return;
         }
         info.bl_version = QString::number(dev.BL_Version, 16);
-        info.cpu_serial = "Not Available";
+        info.cpu_serial = device.serialNumber;
         info.hw_revision = QString::number(dev.HW_Rev);
         info.max_code_size = QString::number(dev.SizeOfCode);
         DeviceInformationUpdate(info);
+        m_bootloaderFirmwareValid = validDescription;
+        m_bootloaderDescription = descStructure;
+        if (!validDescription) {
+            m_bootloaderDescription.boardType = dev.ID >> 8;
+            m_bootloaderDescription.boardRevision = dev.ID & 0xff;
+        }
+        const bool updateAvailable = !inUpgrader && !triggerUpgrading
+            && FirmwareCheckForUpdate(m_bootloaderDescription, !validDescription);
 
         iapUpdated = false;
 
         if (!inUpgrader) {
             setStatusInfo(tr("Connection to bootloader successful"), uploader::STATUSICON_OK);
 
+            loadedFile.clear();
             if (FirmwareLoadFromFile(getImagePath(info.board->shortName()), &loadedFile)) {
                 FirmwareLoadedClear(true);
                 FirmwareLoadedUpdate(loadedFile);
@@ -1483,6 +1186,13 @@ void UploaderGadgetWidget::onBootloaderDetected()
             }
 
             setUploaderStatus(uploader::BL_SITTING);
+            if (!triggerUpgrading) {
+                setStatusInfo(validDescription
+                    ? updateAvailable ? tr("Update firmware, or choose Start controller to connect to the installed firmware.")
+                        : tr("Choose Start controller to connect to the installed firmware.")
+                    : updateAvailable ? tr("Install DroniNG firmware to start this controller.")
+                        : tr("No compatible firmware image is included in this build. Open Maintenance & recovery to load a firmware file."), uploader::STATUSICON_INFO);
+            }
         } else {
             setStatusInfo(tr("Connected to upgrader-loader"), uploader::STATUSICON_OK);
             setUploaderStatus(uploader::BL_SITTING);
@@ -1494,13 +1204,17 @@ void UploaderGadgetWidget::onBootloaderDetected()
                     Core::IBoardType::BOARD_CAPABILITIES_UPGRADEABLE);
 
                 if (canBeUpgraded) {
-                    doUpgradeOperation(blankFC, dev);
+                    doUpgradeOperation(!validDescription, dev);
                     return;
                 }
             }
         }
 
         emit enteredLoader();
+        if (upgraderActive && m_upgrade->state() == FirmwareUpgradeController::WaitingBootloader)
+            m_upgrade->bootloaderReady(dev.ID, device.serialNumber, dev.SizeOfCode,
+                dev.PartitionSizes.value(DFU_PARTITION_SETTINGS, 0),
+                dev.BL_Version >= info.board->minBootLoaderVersion());
     } else {
         setStatusInfo(tr("Could not open coms with the bootloader"), uploader::STATUSICON_FAIL);
         setUploaderStatus((uploader::DISCONNECTED));
@@ -1514,6 +1228,12 @@ void UploaderGadgetWidget::onBootloaderDetected()
  */
 void UploaderGadgetWidget::onBootloaderRemoved()
 {
+    if (m_upgrade) m_upgrade->deviceRemoved();
+    m_bootloaderFirmwareValid = false;
+    m_bootloaderDescription = {};
+    m_firmwarePage->setLegacyBootloaderState(false);
+    m_firmwarePage->setLegacyFirmwareUpdate();
+    if (!conMngr->isConnected() && !upgraderActive) conMngr->setFirmwareIdentity({}, {});
     conMngr->resumePolling();
     setStatusInfo(tr("Bootloader disconnection detected"), uploader::STATUSICON_INFO);
     DeviceInformationClear();
@@ -1557,6 +1277,9 @@ void UploaderGadgetWidget::onRescueTimer()
         setStatusInfo(tr("Failed to detect bootloader"), uploader::STATUSICON_FAIL);
         setUploaderStatus(uploader::DISCONNECTED);
         conMngr->resumePolling();
+        // Native rescue needs an existing dRonin bootloader. Offer ROM DFU first-install
+        // when that loader never appears, including boards already held in BOOT mode.
+        conMngr->showFirmwarePage();
     }
 }
 
@@ -1577,24 +1300,28 @@ void UploaderGadgetWidget::onDeviceDiscovered()
  */
 void UploaderGadgetWidget::onStatusUpdate(QString text, int progress)
 {
+    if (upgraderActive && progress >= 0) m_upgrade->transferProgress(progress);
     if (!text.isEmpty())
         setStatusInfo(text, uploader::STATUSICON_RUNNING);
     if (progress != -1)
         m_widget->progressBar->setValue(progress);
 }
 
-void UploaderGadgetWidget::triggerPartitionDownload(int index)
+bool UploaderGadgetWidget::triggerPartitionDownload(int index)
 {
     if (!CheckInBootloaderState())
-        return;
+        return false;
 
     tl_dfu::device dev = dfu.findCapabilities();
-    int size = dev.PartitionSizes[index];
+    const int size = dev.PartitionSizes.value(index, 0);
+    if (size <= 0 || size > 16 * 1024 * 1024 || size % 4) {
+        setStatusInfo(tr("The bootloader reported an invalid partition size."), uploader::STATUSICON_FAIL); return false;
+    }
 
     setStatusInfo("", uploader::STATUSICON_RUNNING);
     setUploaderStatus(uploader::BL_BUSY);
     tempArray.clear();
-    dfu.DownloadPartitionThreaded(&tempArray, (dfu_partition_label)index, size);
+    return dfu.DownloadPartitionThreaded(&tempArray, (dfu_partition_label)index, size);
 }
 
 /**
@@ -1614,7 +1341,7 @@ void UploaderGadgetWidget::onPartitionSave()
         loop.exit();
     });
 
-    triggerPartitionDownload(index);
+    if (!triggerPartitionDownload(index)) return;
 
     loop.exec();
 
@@ -1671,11 +1398,11 @@ void UploaderGadgetWidget::onPartitionFlash()
 
     if (tempArray.length() > size) {
         setStatusInfo(tr("File bigger than partition size"), uploader::STATUSICON_FAIL);
+        return;
     }
-    if (QMessageBox::warning(this, tr("Warning"),
-                             tr("Are you sure you want to flash the selected partition?"),
-                             QMessageBox::Yes, QMessageBox::No)
-        != QMessageBox::Yes)
+    if (promptFirmware(tr("Flash the selected partition?"),
+        tr("This replaces the partition's contents."), QDialogButtonBox::Yes | QDialogButtonBox::No, tr("Flash partition"))
+        != QDialogButtonBox::Yes)
         return;
     setStatusInfo("", uploader::STATUSICON_RUNNING);
     setUploaderStatus(uploader::BL_BUSY);
@@ -1708,10 +1435,9 @@ void UploaderGadgetWidget::onPartitionErase()
 {
     int index = m_widget->partitionBrowserTW->selectedItems().first()->data(Qt::UserRole).toInt();
 
-    if (QMessageBox::warning(this, tr("Warning"),
-                             tr("Are you sure you want erase the selected partition?"),
-                             QMessageBox::Yes, QMessageBox::No)
-        != QMessageBox::Yes)
+    if (promptFirmware(tr("Erase the selected partition?"),
+        tr("This removes the partition's contents."), QDialogButtonBox::Yes | QDialogButtonBox::No, tr("Erase partition"))
+        != QDialogButtonBox::Yes)
         return;
     if (dfu.WipePartition((dfu_partition_label)index))
         setStatusInfo(tr("Partition erased"), uploader::STATUSICON_OK);
@@ -1735,8 +1461,14 @@ void UploaderGadgetWidget::onBootButtonClick()
     if (!CheckInBootloaderState())
         return;
 
-    dfu.JumpToApp(safeboot);
+    if (dfu.JumpToApp(safeboot) < 1) {
+        setStatusInfo(tr("The controller could not start. Reconnect USB, then choose Start controller again."), uploader::STATUSICON_FAIL);
+        return;
+    }
     dfu.CloseBootloaderComs();
+    conMngr->resumePolling();
+    setUploaderStatus(uploader::DISCONNECTED);
+    setStatusInfo(tr("Starting controller. Waiting for its USB connection…"), uploader::STATUSICON_INFO);
 }
 
 /**
@@ -1794,6 +1526,7 @@ void UploaderGadgetWidget::setStatusInfo(QString str, uploader::StatusIcon ic)
 
     QPixmap px;
     m_widget->statusLabel->setText(str);
+    if (conMngr && !str.isEmpty()) conMngr->setFirmwareStatus(str);
     switch (ic) {
     case uploader::STATUSICON_RUNNING:
         px.load(QString(":/uploader/images/system-run.svg"));
@@ -1836,12 +1569,17 @@ bool UploaderGadgetWidget::haveSettingsPart() const
 void UploaderGadgetWidget::setUploaderStatus(const uploader::UploaderStatus &value)
 {
     uploaderStatus = value;
+    if (m_firmwarePage) {
+        const bool idleBootloader = value == uploader::BL_SITTING && !upgraderActive && !m_promptActive;
+        m_firmwarePage->setOperationActive(m_promptActive || (active() && !idleBootloader));
+        m_firmwarePage->setLegacyBootloaderState(idleBootloader, m_bootloaderFirmwareValid);
+    }
     switch (uploaderStatus) {
     case uploader::DISCONNECTED:
         m_widget->progressBar->setVisible(false);
 
         m_widget->rescueButton->setEnabled(true);
-        m_widget->rescueButton->setText(tr("Rescue"));
+        m_widget->rescueButton->setText(tr("Recover DroniNG firmware"));
         m_widget->bootButton->setText(tr("Boot"));
 
         m_widget->openButton->setEnabled(true);
@@ -1854,7 +1592,7 @@ void UploaderGadgetWidget::setUploaderStatus(const uploader::UploaderStatus &val
     case uploader::ENTERING_LOADER:
         m_widget->progressBar->setVisible(true);
 
-        m_widget->rescueButton->setText(tr("Rescue"));
+        m_widget->rescueButton->setText(tr("Recover DroniNG firmware"));
         m_widget->bootButton->setText(tr("Boot"));
 
         m_widget->rescueButton->setEnabled(false);
@@ -1868,7 +1606,7 @@ void UploaderGadgetWidget::setUploaderStatus(const uploader::UploaderStatus &val
     case uploader::BL_SITTING:
         m_widget->progressBar->setVisible(false);
 
-        m_widget->rescueButton->setText(tr("Rescue"));
+        m_widget->rescueButton->setText(tr("Recover DroniNG firmware"));
         m_widget->bootButton->setText(tr("Boot"));
 
         m_widget->rescueButton->setEnabled(false);
@@ -1923,50 +1661,17 @@ void UploaderGadgetWidget::setUploaderStatus(const uploader::UploaderStatus &val
 void UploaderGadgetWidget::openHelp()
 {
     QDesktopServices::openUrl(QUrl(
-        "https://github.com/d-ronin/dRonin/wiki/OnlineHelp:-Uploader-Plugin", QUrl::StrictMode));
+        "https://github.com/reubenfirmin/droniNG/wiki/OnlineHelp:-Uploader-Plugin", QUrl::StrictMode));
 }
 
 QString UploaderGadgetWidget::getImagePath(QString boardName, QString imageType)
 {
-    QString imageName = QString("%1_%2").arg(imageType).arg(boardName.toLower());
-    QString imageNameWithSuffix = QString("%1.tlfw").arg(imageName);
-
-    QStringList paths = QStringList()
-        /* Relative paths first; try in application bundle or build dir */
-        << "." // uh, right here?
-        << "../firmware" // windows installed path
-        /* Added ../build to these to make sure our assumptions are right
-         * about it being a build tree */
-        << "../../../../build" // windows / linux build
-        << "../../../../../../../build" // OSX build
-        << "../Resources/firmware" // OSX app bundle
-        << "/usr/local/" GCS_PROJECT_BRANDING_PRETTY "/firmware"; // leenucks deb
-
-    foreach (QString path, paths) {
-        QDir pathDir = QDir(QCoreApplication::applicationDirPath());
-
-        if (pathDir.cd(path)) {
-            /* Two things to try. */
-            QString perTargetPath = QString("%1/%2/%3")
-                                        .arg(pathDir.absolutePath())
-                                        .arg(imageName)
-                                        .arg(imageNameWithSuffix);
-
-            if (QFile::exists(perTargetPath)) {
-                return perTargetPath;
-            }
-
-            QString directPath =
-                QString("%1/%2").arg(pathDir.absolutePath()).arg(imageNameWithSuffix);
-
-            if (QFile::exists(directPath)) {
-                return directPath;
-            }
-        }
-    }
-
-    /* This is sane for file dialogs, too. */
-    return QString("");
+    if (imageType != "fw" && imageType != "bu")
+        return {};
+    const auto board = Core::FirmwareCatalog::instance().board(boardName);
+    return Core::FirmwareCatalog::imagePath(board, imageType == "bu"
+        ? Core::FirmwareCatalog::ImageKind::BootloaderUpdate
+        : Core::FirmwareCatalog::ImageKind::Application);
 }
 
 bool UploaderGadgetWidget::FirmwareLoadFromFile(QString filename, QByteArray *contents)
@@ -1984,41 +1689,21 @@ bool UploaderGadgetWidget::FirmwareLoadFromFile(QString filename, QByteArray *co
     return true;
 }
 
-bool UploaderGadgetWidget::FirmwareCheckForUpdate(deviceDescriptorStruct device)
+bool UploaderGadgetWidget::FirmwareCheckForUpdate(deviceDescriptorStruct device, bool blank)
 {
-    if (currentBoard.board) {
-        bool canBeUpgraded =
-            currentBoard.board->queryCapabilities(Core::IBoardType::BOARD_CAPABILITIES_UPGRADEABLE);
-
-        if (!canBeUpgraded) {
-            return false;
-        }
-    }
-
-    const QString gcsRev(GCS_REVISION);
-    if (gcsRev.contains(':')) {
-        QString gcsShort = gcsRev.mid(gcsRev.indexOf(':') + 1, 8);
-        if ((gcsShort != device.gitHash) && (ignoredRev != device.gitHash)) {
-            QMessageBox msgBox;
-            msgBox.setText(
-                tr("The firmware version on your board does not match this version of GCS."));
-            msgBox.setInformativeText(
-                tr("Do you want to upgrade the firmware to a compatible version?"));
-            msgBox.setDetailedText(QString("Firmware git hash: %1\nGCS git hash: %2")
-                                       .arg(device.gitHash)
-                                       .arg(gcsShort));
-            msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::Ignore);
-            msgBox.setDefaultButton(QMessageBox::Yes);
-
-            int val = msgBox.exec();
-
-            if (val == QMessageBox::Yes)
-                return true;
-            else if (val == QMessageBox::Ignore)
-                ignoredRev = device.gitHash;
-        }
-    }
-    return false;
+    m_firmwarePage->setLegacyFirmwareUpdate();
+    if (!currentBoard.board || !Core::FirmwareCatalog::instance().board(currentBoard.board->shortName()).layoutId.isEmpty()
+        || !currentBoard.board->queryCapabilities(Core::IBoardType::BOARD_CAPABILITIES_UPGRADEABLE))
+        return false;
+    QByteArray candidate;
+    deviceDescriptorStruct available;
+    if (!FirmwareLoadFromFile(getImagePath(currentBoard.board->shortName()), &candidate)
+        || !utilMngr->descriptionToStructure(candidate.right(100), available)
+        || available.boardID() != device.boardID()
+        || (!blank && available.description.mid(40, 40) == device.description.mid(40, 40)))
+        return false;
+    m_firmwarePage->setLegacyFirmwareUpdate(blank ? tr("not installed") : device.gitHash, available.gitHash);
+    return true;
 }
 
 bool UploaderGadgetWidget::active() const

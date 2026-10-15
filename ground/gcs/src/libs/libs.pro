@@ -11,10 +11,6 @@ SUBDIRS   = \
     libcrashreporter-qt \
     runguard
 
-win32 {
-SUBDIRS   += \
-    zlib
-}
 SUBDIRS   += \
     quazip
 SDL {
@@ -23,6 +19,7 @@ SUBDIRS += sdlgamepad
 
 !LIGHTWEIGHT_GCS {
     SUBDIRS += glc_lib
+    glc_lib.file = glc_lib/qt6.pro
 }
 
 SUBDIRS +=

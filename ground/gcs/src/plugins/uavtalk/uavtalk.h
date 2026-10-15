@@ -41,6 +41,7 @@
 #include <QSemaphore>
 #include "uavobjects/uavobjectmanager.h"
 #include "uavtalk_global.h"
+#include "mspfirmwareprobe.h"
 #include <QtNetwork/QUdpSocket>
 
 class UAVTALK_EXPORT UAVTalk : public QObject
@@ -69,6 +70,9 @@ public:
     ComStats getStats();
 
     bool processInput();
+    void probeFirmware();
+    void stopFirmwareProbe() { firmwareProbe.stop(); }
+    const MspFirmwareProbe &firmwareIdentity() const { return firmwareProbe; }
 
 signals:
     // The only signals we send to the upper level are when we
@@ -147,6 +151,8 @@ protected:
     quint32 filledBytes;
 
     ComStats stats;
+    MspFirmwareProbe firmwareProbe;
+    void sendFirmwareProbe(const QByteArray &requests);
 
     // Methods
     bool objectTransaction(UAVObject *obj, quint8 type, bool allInstances);

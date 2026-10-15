@@ -28,10 +28,12 @@
 #include <QQmlContext>
 #include "stabilizationdesired.h"
 
-PfdQmlGadgetWidget::PfdQmlGadgetWidget(QWindow *parent)
-    : QQuickView(parent)
+PfdQmlGadgetWidget::PfdQmlGadgetWidget(QWidget *parent)
+    : QQuickWidget(parent)
 {
     setResizeMode(SizeRootObjectToView);
+    setMinimumSize(64, 64);
+    setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
 
     objectsToExport << "VelocityActual"
                     << "PositionActual"
@@ -97,6 +99,8 @@ void PfdQmlGadgetWidget::setQmlFile(QString fn)
 {
     m_qmlFileName = fn;
 
+    // Destroy bindings to the old provider before the engine deletes it.
+    setSource(QUrl());
     engine()->removeImageProvider("svg");
     SvgImageProvider *svgProvider = new SvgImageProvider(fn);
     engine()->addImageProvider("svg", svgProvider);
@@ -126,5 +130,5 @@ void PfdQmlGadgetWidget::mouseReleaseEvent(QMouseEvent *event)
         setQmlFile(m_qmlFileName);
     }
 
-    QQuickView::mouseReleaseEvent(event);
+    QQuickWidget::mouseReleaseEvent(event);
 }

@@ -76,7 +76,7 @@ void KmlExportPlugin::exportToKML()
     //
     QString inputFileName = QFileDialog::getOpenFileName(
         static_cast<QWidget *>(Core::ICore::instance)()->mainWindow(), tr("Open file"), QString(""),
-        tr("dRonin Log Files (*.drlog *.tll)"));
+        tr("droniNG Log Files (*.drlog *.tll)"));
 
     if (inputFileName.isEmpty())
         return;
@@ -92,7 +92,7 @@ void KmlExportPlugin::exportToKML()
     while (proceed_flag == false) {
         outputFileName = QFileDialog::getSaveFileName(
             static_cast<QWidget *>(Core::ICore::instance)()->mainWindow(), tr("Export log"),
-            inputFileName.split(".", QString::SkipEmptyParts).at(0), filters);
+            inputFileName.split(".", Qt::SkipEmptyParts).at(0), filters);
 
         if (outputFileName.isEmpty()) {
             qDebug() << "No KML file name given.";

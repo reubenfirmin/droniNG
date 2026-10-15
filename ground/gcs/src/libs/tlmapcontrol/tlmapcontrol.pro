@@ -112,6 +112,7 @@ HEADERS += mapwidget/mapgraphicitem.h \
 QT += network
 QT += sql
 QT += svg
+QT += svgwidgets
 QT += xml
 QT += widgets
 

@@ -8,6 +8,7 @@
  *****************************************************************************/
 
 #include "qwt_plot_canvas.h"
+#include <qpainterpath.h>
 #include "qwt_painter.h"
 #include "qwt_null_paintdevice.h"
 #include "qwt_math.h"
@@ -188,7 +189,8 @@ static void qwtDrawBackground( QPainter *painter, QwtPlotCanvas *canvas )
         } 
         else 
         {
-            rects = painter->clipRegion().rects();
+            const QRegion region = painter->clipRegion();
+            rects = QVector<QRect>( region.begin(), region.end() );
         }
 
 #if 1
@@ -248,7 +250,8 @@ static void qwtDrawBackground( QPainter *painter, QwtPlotCanvas *canvas )
         painter->setPen( Qt::NoPen );
         painter->setBrush( brush );
 
-        painter->drawRects( painter->clipRegion().rects() );
+        const QRegion region = painter->clipRegion();
+        painter->drawRects( region.begin(), region.rectCount() );
 
     }
 
@@ -591,12 +594,7 @@ void QwtPlotCanvas::setPaintAttribute( PaintAttribute attribute, bool on )
 
                 if ( isVisible() )
                 {
-#if QT_VERSION >= 0x050000
                     *d_data->backingStore = grab( rect() );
-#else
-                    *d_data->backingStore = 
-                        QPixmap::grabWidget( this, rect() );
-#endif
                 }
             }
             else
@@ -936,9 +934,8 @@ void QwtPlotCanvas::drawBorder( QPainter *painter )
     }
     else
     {
-#if QT_VERSION >= 0x040500
         QStyleOptionFrame opt;
-        opt.init(this);
+        opt.initFrom(this);
 
         int frameShape  = frameStyle() & QFrame::Shape_Mask;
         int frameShadow = frameStyle() & QFrame::Shadow_Mask;
@@ -973,9 +970,6 @@ void QwtPlotCanvas::drawBorder( QPainter *painter )
             opt.state |= QStyle::State_Raised;
 
         style()->drawControl(QStyle::CE_ShapedFrame, &opt, painter, this);
-#else
-        drawFrame( painter );
-#endif
     }
 }
 

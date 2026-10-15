@@ -31,7 +31,6 @@
 
 #include <QtDebug>
 #include <QStringList>
-#include <QRegExp>
 
 #include <QVariant>
 #include <QRect>
@@ -39,8 +38,28 @@
 #include <QPoint>
 #include <QtCore/QUrl>
 #include <QDataStream>
+#include <QDomDocument>
+#include <QIODevice>
 
 #define NUM_PREFIX "arr_"
+
+namespace {
+QString encodedVariant(const QVariant &value)
+{
+#ifndef QT_NO_DATASTREAM
+    QByteArray bytes;
+    QDataStream stream(&bytes, QIODevice::WriteOnly);
+    stream.setVersion(QDataStream::Qt_4_0);
+    stream << value;
+    return QLatin1String("@Variant(") + QString::fromLatin1(bytes.toBase64())
+           + QLatin1Char(')');
+#else
+    Q_UNUSED(value);
+    Q_ASSERT(!"QSettings: Cannot save custom types without QDataStream support");
+    return QString();
+#endif
+}
+}
 
 QString XmlConfig::rootName = "gcs";
 
@@ -63,7 +82,7 @@ bool XmlConfig::readXmlFile(QIODevice &device, QSettings::SettingsMap &map)
                       .arg(errorLine)
                       .arg(errorColumn)
                       .arg(errorStr);
-        qFatal("%s",err.toLatin1().data());
+        qWarning().noquote() << err;
         return false;
     }
     root = domDoc.documentElement();
@@ -101,7 +120,8 @@ void XmlConfig::handleNode(QDomElement* node, QSettings::SettingsMap &map, QStri
     for ( int i = 0; i < node->childNodes().length(); ++i ){
         QDomNode child = node->childNodes().item(i);
         if ( child.isElement() ){
-            handleNode( static_cast<QDomElement*>(&child), map, path);
+            QDomElement element = child.toElement();
+            handleNode(&element, map, path);
         }
         else if ( child.isText() ){
 //            qDebug() << "Key: " << path << " Value:" << node->text();
@@ -138,7 +158,7 @@ bool XmlConfig::writeXmlFile(QIODevice &device, const QSettings::SettingsMap &ma
                 qWarning() << "ERROR: Settings must not start with " << NUM_PREFIX
                         << " in: " + iter.key();
             }
-            if ( QRegExp("[0-9]").exactMatch(elem.left(1)) ){
+            if ( !elem.isEmpty() && elem.at(0) >= QLatin1Char('0') && elem.at(0) <= QLatin1Char('9') ){
                 elem.prepend(NUM_PREFIX);
             }
             if ( node.firstChildElement(elem).isNull() ){
@@ -148,10 +168,10 @@ bool XmlConfig::writeXmlFile(QIODevice &device, const QSettings::SettingsMap &ma
         }
         node.appendChild(outDocument.createTextNode(variantToString(iter.value())));
     }
-    device.write(outDocument.toByteArray(2).constData());
+    const QByteArray output = outDocument.toByteArray(2);
 //    qDebug() << "Dokument:\n" << outDocument.toByteArray(2).constData();
 //    qDebug() << "writeXmlFile end";
-    return true;
+    return device.write(output) == output.size();
 }
 
 
@@ -186,6 +206,13 @@ QString XmlConfig::variantToString(const QVariant &v)
         }
 
         case QVariant::String:
+            // An empty XML text node disappears on reload. The existing variant
+            // encoding preserves an explicit empty string for legacy readers too.
+            if (v.toString().isEmpty()) {
+                result = encodedVariant(v);
+                break;
+            }
+            Q_FALLTHROUGH();
         case QVariant::LongLong:
         case QVariant::ULongLong:
         case QVariant::Int:
@@ -234,23 +261,7 @@ QString XmlConfig::variantToString(const QVariant &v)
 #endif // !QT_NO_GEOM_VARIANT
 
     default: {
-#ifndef QT_NO_DATASTREAM
-        QByteArray a;
-        {
-            QDataStream s(&a, QIODevice::WriteOnly);
-            s.setVersion(QDataStream::Qt_4_0);
-            s << v;
-        }
-
-        result = QLatin1String("@Variant(");
-        result += QString::fromLatin1(a.toBase64().constData());
-        result += QLatin1Char(')');
-	// These were being much too noisy!!
-        //qDebug() << "Variant Type: " << v.type();
-        //qDebug()<< "Variant: " << result;
-#else
-        Q_ASSERT(!"QSettings: Cannot save custom types without QDataStream support");
-#endif
+        result = encodedVariant(v);
         break;
     }
 }

@@ -30,7 +30,7 @@
 #include <QWidget>
 #include <QGraphicsView>
 #include <QtSvg/QSvgRenderer>
-#include <QtSvg/QGraphicsSvgItem>
+#include <QGraphicsSvgItem>
 
 namespace Ui {
 class PositionField;

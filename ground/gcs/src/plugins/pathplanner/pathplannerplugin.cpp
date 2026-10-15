@@ -24,6 +24,9 @@
  */
 #include "pathplannerplugin.h"
 #include "pathplannergadgetfactory.h"
+#include "waypointplanningcontroller.h"
+#include <coreplugin/icore.h>
+#include <uavtalk/telemetrymanager.h>
 #include <QtPlugin>
 #include <QStringList>
 #include <extensionsystem/pluginmanager.h>
@@ -62,6 +65,20 @@ bool PathPlannerPlugin::initialize(const QStringList &args, QString *errMsg)
     // Create a common dialog to be used by the map and path planner
     waypointDialog = new WaypointDialog(NULL, dataModel, selection);
     addAutoReleasedObject(waypointDialog);
+
+    auto *pm = ExtensionSystem::PluginManager::instance();
+    auto *planning = new WaypointPlanningController(pm->getObject<UAVObjectManager>(),
+        Core::ICore::instance()->connectionManager(), this);
+    addAutoReleasedObject(planning);
+    connect(planning, &WaypointPlanningController::changed, waypointDialog, [this, planning] {
+        waypointDialog->setEnabled(planning->ready());
+    });
+    waypointDialog->setEnabled(planning->ready());
+    if (auto *telemetry = pm->getObject<TelemetryManager>()) {
+        connect(telemetry, &TelemetryManager::connected, planning, [planning] { planning->setConnected(true); });
+        connect(telemetry, &TelemetryManager::disconnected, planning, [planning] { planning->setConnected(false); });
+        planning->setConnected(telemetry->isConnected());
+    }
 
     return true;
 }

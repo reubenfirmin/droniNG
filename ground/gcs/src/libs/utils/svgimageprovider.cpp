@@ -29,9 +29,9 @@
 #include <QPainter>
 #include <QUrl>
 #include <QFileInfo>
+#include <QRegularExpression>
 
 SvgImageProvider::SvgImageProvider(const QString &basePath):
-    QObject(),
     QQuickImageProvider(QQuickImageProvider::Image),
     m_basePath(basePath)
 {
@@ -111,19 +111,19 @@ QImage SvgImageProvider::requestImage(const QString &id, QSize *size, const QSiz
     int vSlice = 0;
     int border = 0;
     if (!parameters.isEmpty()) {
-        QRegExp hSliceRx("hslice=(\\d+):(\\d+)");
-        if (hSliceRx.indexIn(parameters) != -1) {
-            hSlice = hSliceRx.cap(1).toInt();
-            hSlicesCount = hSliceRx.cap(2).toInt();
+        const auto hSliceMatch = QRegularExpression("hslice=(\\d+):(\\d+)").match(parameters);
+        if (hSliceMatch.hasMatch()) {
+            hSlice = hSliceMatch.captured(1).toInt();
+            hSlicesCount = hSliceMatch.captured(2).toInt();
         }
-        QRegExp vSliceRx("vslice=(\\d+):(\\d+)");
-        if (vSliceRx.indexIn(parameters) != -1) {
-            vSlice = vSliceRx.cap(1).toInt();
-            vSlicesCount = vSliceRx.cap(2).toInt();
+        const auto vSliceMatch = QRegularExpression("vslice=(\\d+):(\\d+)").match(parameters);
+        if (vSliceMatch.hasMatch()) {
+            vSlice = vSliceMatch.captured(1).toInt();
+            vSlicesCount = vSliceMatch.captured(2).toInt();
         }
-        QRegExp borderRx("border=(\\d+)");
-        if (borderRx.indexIn(parameters) != -1) {
-            border = borderRx.cap(1).toInt();
+        const auto borderMatch = QRegularExpression("border=(\\d+)").match(parameters);
+        if (borderMatch.hasMatch()) {
+            border = borderMatch.captured(1).toInt();
         }
     }
 
@@ -161,8 +161,10 @@ QImage SvgImageProvider::requestImage(const QString &id, QSize *size, const QSiz
         }
 
         QRectF elementBounds = renderer->boundsOnElement(element);
-        int elementWidth = qRound(elementBounds.width() * xScale);
-        int elementHeigh = qRound(elementBounds.height() * yScale);
+        // Small layout requests can round one dimension to zero. Keep a valid
+        // paint device while the view is resizing or waiting for its layout.
+        int elementWidth = qMax(1, qRound(elementBounds.width() * xScale));
+        int elementHeigh = qMax(1, qRound(elementBounds.height() * yScale));
         int w = elementWidth;
         int h = elementHeigh;
         int x = 0;
@@ -238,7 +240,7 @@ QRectF SvgImageProvider::scaledElementBounds(const QString &svgFile, const QStri
     }
 
     QRectF elementBounds = renderer->boundsOnElement(elementName);
-    QMatrix matrix = renderer->matrixForElement(elementName);
+    QTransform matrix = renderer->transformForElement(elementName);
     elementBounds = matrix.mapRect(elementBounds);
 
     QSize docSize = renderer->defaultSize();

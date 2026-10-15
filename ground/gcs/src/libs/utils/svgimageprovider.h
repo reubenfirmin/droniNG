@@ -35,7 +35,8 @@
 
 #include "utils_global.h"
 
-class QTCREATOR_UTILS_EXPORT SvgImageProvider : public QObject, public QQuickImageProvider
+class QTCREATOR_UTILS_EXPORT SvgImageProvider :
+    public QQuickImageProvider
 {
     Q_OBJECT
 public:

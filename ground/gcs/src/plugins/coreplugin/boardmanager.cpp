@@ -81,7 +81,7 @@ QList<int> BoardManager::getKnownVendorIDs()
         for (const auto vid : vids)
             res.insert(vid);
     }
-    return res.toList();
+    return res.values();
 }
 
 /**

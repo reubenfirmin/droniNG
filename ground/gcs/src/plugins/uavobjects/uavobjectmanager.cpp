@@ -142,7 +142,7 @@ void UAVObjectManager::addObject(UAVObject *obj)
     list.insert(obj->getInstID(), obj);
     objects.insert(obj->getObjID(), list);
 
-    objectsByName.insert(obj->getName(), list);
+    objectsByName.insert(obj->getName(), obj->getObjID());
 
     emit newObject(obj);
 }
@@ -214,7 +214,7 @@ QVector<QVector<UAVMetaObject *>> UAVObjectManager::getMetaObjectsVector()
  */
 UAVObject *UAVObjectManager::getObject(const QString &name, quint32 instId)
 {
-    return getObject(name, 0, instId);
+    return getObject(&name, 0, instId);
 }
 
 /**
@@ -223,17 +223,18 @@ UAVObject *UAVObjectManager::getObject(const QString &name, quint32 instId)
  */
 UAVObject *UAVObjectManager::getObject(quint32 objId, quint32 instId)
 {
-    return getObject(NULL, objId, instId);
+    return getObject(nullptr, objId, instId);
 }
 
 /**
  * Helper function for the public getObject() functions.
  */
-UAVObject *UAVObjectManager::getObject(const QString &name, quint32 objId, quint32 instId)
+UAVObject *UAVObjectManager::getObject(const QString *name, quint32 objId, quint32 instId)
 {
-    if (name != NULL) {
-        if (objectsByName.contains(name)) {
-            return objectsByName.value(name).value(instId);
+    if (name != nullptr) {
+        const auto objectId = objectsByName.constFind(*name);
+        if (objectId != objectsByName.constEnd()) {
+            return objects.value(objectId.value()).value(instId);
         }
 
         return NULL;
@@ -265,7 +266,7 @@ QVector<UAVObject *> UAVObjectManager::getObjectInstancesVector(const QString *n
 {
     if (name != NULL) {
         foreach (const ObjectMap &map, objects) {
-            if (map.first()->getName().compare(name) == 0)
+            if (map.first()->getName().compare(*name) == 0)
                 return map.values().toVector();
         }
     } else if (objects.contains(objId))
@@ -296,7 +297,7 @@ qint32 UAVObjectManager::getNumInstances(const QString *name, quint32 objId)
 {
     if (name != NULL) {
         foreach (const ObjectMap &map, objects) {
-            if (map.first()->getName().compare(name) == 0)
+            if (map.first()->getName().compare(*name) == 0)
                 return map.count();
         }
     } else if (objects.contains(objId))

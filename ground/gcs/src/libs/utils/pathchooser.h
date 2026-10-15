@@ -85,7 +85,7 @@ public:
 
     virtual bool validatePath(const QString &path, QString *errorMessage = nullptr);
 
-    /** Return the home directory, which needs some fixing under Windows. */
+    /** Return the user's home directory. */
     static QString homePath();
 
     void addButton(const QString &text, QObject *receiver, const char *slotFunc);

@@ -30,6 +30,8 @@
 #include "mapgraphicitem.h"
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsScene>
+#include <QApplication>
+#include <QPalette>
 
 namespace mapcontrol
 {
@@ -37,7 +39,6 @@ namespace mapcontrol
         core(core), config(configuration), MapRenderTransform(1), maxZoom(17),
         minZoom(2), zoomReal(0), zoomDigi(0), isSelected(false), rotation(0)
     {
-        dragons.load(QString::fromUtf8(":/markers/images/grid.jpg"));
         showTileGridLines=false;
         isMouseOverMarker=false;
         maprect=QRectF(0,0,1022,680);
@@ -131,11 +132,12 @@ namespace mapcontrol
             QTransform transform;
             transform.translate(-((boundingRect().width()*MapRenderTransform)-(boundingRect().width()))/2,-((boundingRect().height()*MapRenderTransform)-(boundingRect().height()))/2);
             transform.scale(MapRenderTransform,MapRenderTransform);
-            painter->setWorldTransform(transform);
+            painter->save();
+            painter->setWorldTransform(transform, true);
             {
                 DrawMap2D(painter);
             }
-            painter->resetTransform();
+            painter->restore();
         }
         else
         {
@@ -154,14 +156,15 @@ namespace mapcontrol
             transform.translate(-((boundingRect().width()*MapRenderTransform)-(boundingRect().width()))/2,-((boundingRect().height()*MapRenderTransform)-(boundingRect().height()))/2);
             transform.scale(MapRenderTransform,MapRenderTransform);
 
-            painter->setWorldTransform(transform);
+            painter->save();
+            painter->setWorldTransform(transform, true);
             painter->setRenderHint(QPainter::SmoothPixmapTransform,true);
-            painter->setRenderHint(QPainter::HighQualityAntialiasing,true);
+            painter->setRenderHint(QPainter::Antialiasing,true);
 
             {
                 DrawMap2D(painter);
             }
-            painter->resetTransform();
+            painter->restore();
         }
         else
         {
@@ -352,7 +355,18 @@ namespace mapcontrol
     }
     void MapGraphicItem::DrawMap2D(QPainter *painter)
     {
-        painter->drawImage(this->boundingRect(),dragons.toImage());
+        // Missing/offline imagery follows the application palette. Actual
+        // downloaded tiles keep their original map colours.
+        const QPalette palette = QApplication::palette();
+        const QRectF bounds = boundingRect();
+        painter->save();
+        painter->fillRect(bounds, palette.base());
+        painter->setPen(QPen(palette.mid().color(), 0));
+        for (qreal x = bounds.left(); x < bounds.right(); x += 32)
+            painter->drawLine(QPointF(x, bounds.top()), QPointF(x, bounds.bottom()));
+        for (qreal y = bounds.top(); y < bounds.bottom(); y += 32)
+            painter->drawLine(QPointF(bounds.left(), y), QPointF(bounds.right(), y));
+        painter->restore();
          if(!lastimage.isNull())
             painter->drawImage(core->GetrenderOffset().X()-lastimagepoint.X(),core->GetrenderOffset().Y()-lastimagepoint.Y(),lastimage);
 
@@ -537,6 +551,7 @@ namespace mapcontrol
     }
     void MapGraphicItem::SetZoomStep(qint32 const& value)
     {
+        core->SetViewScale(MapRenderTransform);
         if((value - core->Zoom()) > 0 && value<= MaxZoom())
             ConstructLastImage(value - core->Zoom());
         else if(value!=MaxZoom())

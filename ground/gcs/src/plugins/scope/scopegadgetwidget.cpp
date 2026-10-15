@@ -234,7 +234,7 @@ void ScopeGadgetWidget::wheelEvent(QWheelEvent *e)
         // the value returned by Qt includes the legend, whereas the value transformed by Qwt
         // does *not*. Thus, when zooming with a legend, there will always be a small bias error.
         // In practice, this seems not to be a UI problem.
-        QPoint mouse_pos = e->pos(); // Get the mouse coordinate in the frame
+        QPoint mouse_pos = e->position().toPoint(); // Mouse coordinate in the frame.
         double zoomLine = invTransform(
             QwtPlot::yLeft, mouse_pos.y()); // Transform the y mouse coordinate into a frame value.
 
@@ -242,7 +242,7 @@ void ScopeGadgetWidget::wheelEvent(QWheelEvent *e)
                                 // INSTEAD OF BURIED HERE
 
         // Set the scale
-        if (e->delta() < 0) {
+        if (e->angleDelta().y() < 0) {
             setAxisScale(QwtPlot::yLeft, (yInterval.minValue() - zoomLine) * zoomScale + zoomLine,
                          (yInterval.maxValue() - zoomLine) * zoomScale + zoomLine);
         } else {
@@ -302,11 +302,6 @@ void ScopeGadgetWidget::addLegend()
     m_legend->setDefaultItemMode(QwtLegendData::Checkable);
     m_legend->setFrameStyle(QFrame::Box | QFrame::Sunken);
     m_legend->setToolTip(tr("Click legend to show/hide scope trace"));
-
-    QPalette pal = m_legend->palette();
-    pal.setColor(m_legend->backgroundRole(), QColor(100, 100, 100)); // background colour
-    pal.setColor(QPalette::Text, QColor(0, 0, 0)); // text colour
-    m_legend->setPalette(pal);
 
     insertLegend(m_legend, QwtPlot::TopLegend);
 

@@ -337,7 +337,7 @@ void MenuActionContainer::setMenu(QMenu *menu)
     m_menu = menu;
 
     QVariant v;
-    qVariantSetValue<MenuActionContainer *>(v, this);
+    v.setValue(this);
 
     m_menu->menuAction()->setData(v);
 }

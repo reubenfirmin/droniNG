@@ -8,6 +8,7 @@
  *****************************************************************************/
 
 #include "qwt_legend_label.h"
+#include "qwt_qt_compat.h"
 #include "qwt_legend_data.h"
 #include "qwt_math.h"
 #include "qwt_painter.h"
@@ -27,7 +28,7 @@ static const int Margin = 2;
 static QSize buttonShift( const QwtLegendLabel *w )
 {
     QStyleOption option;
-    option.init( w );
+    option.initFrom( w );
 
     const int ph = w->style()->pixelMetric(
         QStyle::PM_ButtonShiftHorizontal, &option, w );
@@ -277,7 +278,7 @@ QSize QwtLegendLabel::sizeHint() const
     if ( d_data->itemMode != QwtLegendData::ReadOnly )
     {
         sz += buttonShift( this );
-        sz = sz.expandedTo( QApplication::globalStrut() );
+        sz = sz.expandedTo( qwtGlobalStrut() );
     }
 
     return sz;

@@ -32,7 +32,7 @@
 class BrainFPVPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.BrainFPV")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.BrainFPV")
 
 public:
     BrainFPVPlugin();

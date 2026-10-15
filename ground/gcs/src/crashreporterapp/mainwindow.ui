@@ -37,8 +37,8 @@
    <string>Oopps!</string>
   </property>
   <property name="windowIcon">
-   <iconset>
-    <normaloff>../../../../branding/gcs.ico</normaloff>../../../../branding/gcs.ico</iconset>
+   <iconset resource="resources.qrc">
+    <normaloff>:/gcs_logo_256.png</normaloff>:/gcs_logo_256.png</iconset>
   </property>
   <widget class="QWidget" name="centralWidget">
    <layout class="QVBoxLayout" name="verticalLayout">

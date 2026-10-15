@@ -1,11 +1,9 @@
-# dRonin Software Licenses
+# droniNG Software Licenses
 
-[//]: # "Note that LICENSE.txt and LICENSE.rtf are generated from this file manually, with pandoc.  pandoc -s LICENSE.md -o LICENSE.rtf and pandoc -s LICENSE.md -o LICENSE.txt ; unix2dos LICENSE.txt are the commands"
+droniNG is open-source software, forked from dRonin. The full source code of droniNG can be found at:
+<https://github.com/reubenfirmin/droniNG>
 
-dRonin is open-source software. The full source code of dRonin can be found at:
-<https://github.com/d-ronin/dRonin>
-
-Most of the dRonin code is licensed under the GPLv3. There are a few minor
+Most of the droniNG code is licensed under the GPLv3. There are a few minor
 exceptions to this, so please see the headers of all source code for copyright
 and license information.
 
@@ -17,7 +15,7 @@ The full text of the various licences used in the project can be found here:
 * The LGPLv2.1: <http://www.gnu.org/licenses/old-licenses/lgpl-2.1.en.html>
 * The CC-BY-SA v3: <https://creativecommons.org/licenses/by-sa/3.0/>
 * The CC-BY-NC-SA v3: <http://creativecommons.org/licenses/by-nc-sa/3.0/>
-* Various 3-clause BSD: <https://github.com/d-ronin/dRonin/search?q=Redistributions>
+* Various 3-clause BSD: <https://github.com/reubenfirmin/droniNG/search?q=Redistributions>
 
 Flight and GCS code are licensed under the GPLv3, except for some components
 from outside projects.  Note that STM32 hardware support in the flight code is
@@ -26,7 +24,7 @@ permits their use on STM32 hardware.  Contributors to dRonin hereby agree that
 it is permitted to combine their contribution with the STM32 StdPeriph
 libraries.
 
-The python API code in the python/dronin subtree is licensed under the LPGLv2.1
+The python API code in the python/droning subtree is licensed under the LGPLv2.1
 or any later version.
 
 Artwork and documentation are licensed under the Creative Commons CC-BY-SA v3.
@@ -42,14 +40,14 @@ directory. For example, you can find the OpenNaze rev4 hardware design at:
 
 Some files are licensed under 3-clause BSD licenses. The full text of these
 licenses vary according to the author, but you can easily find it by searching
-the repository for the keyword "Redistributions". The full source code of dRonin
-can be found at <https://github.com/d-ronin/dRonin> and is part of its
+the repository for the keyword "Redistributions". The full source code of droniNG
+can be found at <https://github.com/reubenfirmin/droniNG> and is part of its
 documentation, and must be provided in the form of a link to the repository in
-all distributions and redistributions of dRonin, in accordance with the 3-clause
+all distributions and redistributions of droniNG, in accordance with the 3-clause
 BSD. For more information about this license, visit:
 <https://opensource.org/licenses/BSD-3-Clause>
 
-This project was forked from Tau Labs, which in turn was forked from OpenPilot.
+droniNG was forked from dRonin, which was forked from Tau Labs, which in turn was forked from OpenPilot.
 
 # GNU GENERAL PUBLIC LICENSE {#GPLV3}
 

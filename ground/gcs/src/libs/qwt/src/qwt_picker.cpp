@@ -8,6 +8,8 @@
  *****************************************************************************/
 
 #include "qwt_picker.h"
+#include "qwt_qt_compat.h"
+#include <qpainterpath.h>
 #include "qwt_picker_machine.h"
 #include "qwt_painter.h"
 #include "qwt_math.h"
@@ -222,7 +224,7 @@ void QwtPicker::init( QWidget *parent,
         if ( parent->focusPolicy() == Qt::NoFocus )
             parent->setFocusPolicy( Qt::WheelFocus );
 
-        d_data->openGL = parent->inherits( "QGLWidget" );
+        d_data->openGL = parent->inherits( "QOpenGLWidget" );
         d_data->trackerFont = parent->font();
         d_data->mouseTracking = parent->hasMouseTracking();
 
@@ -506,13 +508,13 @@ QwtText QwtPicker::trackerText( const QPoint &pos ) const
     switch ( rubberBand() )
     {
         case HLineRubberBand:
-            label.sprintf( "%d", pos.y() );
+            label = QString::number( pos.y() );
             break;
         case VLineRubberBand:
-            label.sprintf( "%d", pos.x() );
+            label = QString::number( pos.x() );
             break;
         default:
-            label.sprintf( "%d, %d", pos.x(), pos.y() );
+            label = QString::asprintf( "%d, %d", pos.x(), pos.y() );
     }
     return label;
 }
@@ -1078,8 +1080,8 @@ void QwtPicker::widgetMouseDoubleClickEvent( QMouseEvent *mouseEvent )
 */
 void QwtPicker::widgetWheelEvent( QWheelEvent *wheelEvent )
 {
-    if ( pickArea().contains( wheelEvent->pos() ) )
-        d_data->trackerPosition = wheelEvent->pos();
+    if ( pickArea().contains( qwtWheelPosition( wheelEvent ) ) )
+        d_data->trackerPosition = qwtWheelPosition( wheelEvent );
     else
         d_data->trackerPosition = QPoint( -1, -1 );
 

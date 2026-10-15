@@ -34,82 +34,52 @@
 
 #include <QString>
 
-#ifdef Q_OS_WIN
-#define QTC_HOST_EXE_SUFFIX ".exe"
-#else
-#define QTC_HOST_EXE_SUFFIX ""
-#endif // Q_OS_WIN
-
 namespace Utils {
 
 class QTCREATOR_UTILS_EXPORT HostOsInfo
 {
 public:
     // Add more as needed.
-    enum HostOs { HostOsWindows, HostOsLinux, HostOsMac, HostOsOtherUnix, HostOsOther };
+    enum HostOs { HostOsLinux };
     static inline HostOs hostOs();
 
     enum HostArchitecture { HostArchitectureX86, HostArchitectureAMD64, HostArchitectureItanium,
                             HostArchitectureArm, HostArchitectureUnknown };
     static HostArchitecture hostArchitecture();
 
-    static bool isWindowsHost() { return hostOs() == HostOsWindows; }
     static bool isLinuxHost() { return hostOs() == HostOsLinux; }
-    static bool isMacHost() { return hostOs() == HostOsMac; }
     static inline bool isAnyUnixHost();
 
     static QString appendExecutableSuffix(const QString &executable)
     {
-        QString finalName = executable;
-        if (isWindowsHost())
-            finalName += QLatin1String(QTC_HOST_EXE_SUFFIX);
-        return finalName;
+        return executable;
     }
 
     static Qt::CaseSensitivity fileNameCaseSensitivity()
     {
-        return isWindowsHost() ? Qt::CaseInsensitive: Qt::CaseSensitive;
+        return Qt::CaseSensitive;
     }
 
     static QChar pathListSeparator()
     {
-        return isWindowsHost() ? QLatin1Char(';') : QLatin1Char(':');
+        return QLatin1Char(':');
     }
 
     static Qt::KeyboardModifier controlModifier()
     {
-        return isMacHost() ? Qt::MetaModifier : Qt::ControlModifier;
+        return Qt::ControlModifier;
     }
 
-    /**
-     * @brief Is debugger connected to this process?
-     * @return true if debugger connected
-     */
-    static bool debuggerPresent();
 };
 
 HostOsInfo::HostOs HostOsInfo::hostOs()
 {
-#if defined(Q_OS_WIN)
-    return HostOsWindows;
-#elif defined(Q_OS_LINUX)
     return HostOsLinux;
-#elif defined(Q_OS_MAC)
-    return HostOsMac;
-#elif defined(Q_OS_UNIX)
-    return HostOsOtherUnix;
-#else
-    return HostOsOther;
-#endif
 }
 
 bool HostOsInfo::isAnyUnixHost()
 {
-#ifdef Q_OS_UNIX
     return true;
-#else
-    return false;
-#endif
 }
 
 } // namespace Utils

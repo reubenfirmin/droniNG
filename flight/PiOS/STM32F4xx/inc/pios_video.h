@@ -113,6 +113,9 @@ extern bool PIOS_Vsync_ISR();
 extern bool PIOS_Hsync_ISR();
 
 extern void PIOS_Video_Init(const struct pios_video_cfg *cfg);
+#if defined(PIOS_INCLUDE_IMPORTED)
+extern void PIOS_Video_RecoverSync(void);
+#endif
 extern void PIOS_Pixel_Init(void);
 extern void PIOS_Video_SetLevels(uint8_t, uint8_t);
 extern void PIOS_Video_SetXOffset(int8_t);

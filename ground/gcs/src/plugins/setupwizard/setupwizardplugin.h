@@ -35,7 +35,7 @@
 class SetupWizardPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.SetupWizard")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.SetupWizard")
 public:
     SetupWizardPlugin();
     ~SetupWizardPlugin();
@@ -45,13 +45,11 @@ public:
     void shutdown();
 
 private slots:
-    void showSetupWizard(bool autoLaunched);
+    void showSetupWizard();
     void wizardTerminated();
-    void ignoreBoard(QByteArray uuid);
 
 private:
     bool wizardRunning;
-    QSet<QByteArray> ignoredBoards;
 };
 
 #endif // SETUPWIZARDPLUGIN_H

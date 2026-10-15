@@ -23,6 +23,9 @@ endif
 # Compiler options implied by the F4xx
 #
 CDEFS 				+= -DUSE_STDPERIPH_DRIVER
+# crt0.c deliberately does not include chconf.h. Supply the same FPU setting
+# used by the kernel, so direct boot enables CP10/CP11 before any FP instruction.
+CDEFS                += -DCORTEX_USE_FPU=TRUE
 ARCHFLAGS			+= -mcpu=cortex-m4 -march=armv7e-m -mfpu=fpv4-sp-d16 -mfloat-abi=hard
 FLOATABI			+= hard
 

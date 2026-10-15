@@ -28,8 +28,7 @@ SOURCES     += sdlgamepad.cpp
 HEADERS     += sdlgamepad.h \
                sdlgamepad_global.h
 
-macx:LIBS   += -framework SDL
-!macx:LIBS  += -lSDL
+LIBS += -lSDL
 
 OTHER_FILES += COPYING \
                README \

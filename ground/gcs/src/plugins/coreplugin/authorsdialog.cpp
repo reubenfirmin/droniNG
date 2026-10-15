@@ -34,7 +34,6 @@
 #include <utils/qtcassert.h>
 #include <utils/pathutils.h>
 
-#include <QtCore/QDate>
 #include <QtCore/QFile>
 #include <QtCore/QSysInfo>
 
@@ -59,9 +58,6 @@ AuthorsDialog::AuthorsDialog(QWidget *parent)
     setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
     auto layout = new QGridLayout(this);
     layout->setSizeConstraint(QLayout::SetFixedSize);
-
-    QString version = QLatin1String(GCS_VERSION_LONG);
-    version += QDate(2007, 25, 10).toString(Qt::SystemLocaleDate);
 
     QLabel *mainLabel = new QLabel(
         tr("%0 proudly brought to you by this fine team:").arg(GCS_PROJECT_BRANDING_PRETTY));

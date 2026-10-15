@@ -8,7 +8,7 @@ import sys
 
 sys.path.insert(1, os.path.dirname(sys.path[0]) + "/python")
 
-from dronin import uavo, telemetry, uavo_collection
+from droning import uavo, telemetry, uavo_collection
 from threading import Condition
 import time
 import unittest

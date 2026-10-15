@@ -13,9 +13,9 @@
  * with this program; if not, see <http://www.gnu.org/licenses/>
  */
 
-package org.dronin.uavtalk;
-import org.dronin.uavtalk.CRC8;
-import org.dronin.uavtalk.UAVObject;
+package org.droning.uavtalk;
+import org.droning.uavtalk.CRC8;
+import org.droning.uavtalk.UAVObject;
 
 /**
  ******************************************************************************

@@ -8,7 +8,7 @@ BOARD               := STM32F30x_sprf3e
 MODEL               := HD
 MODEL_SUFFIX        :=
 
-USB_VEND            := "dRonin"
+USB_VEND            := "droniNG"
 USB_PROD            := "SPRF3E"
 
 # Note: These must match the values in link_$(BOARD)_memory.ld

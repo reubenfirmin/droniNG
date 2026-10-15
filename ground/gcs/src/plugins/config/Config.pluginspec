@@ -1,9 +1,9 @@
 <plugin name="Config" version="1.0.0" compatVersion="1.0.0">
-	<vendor>dRonin</vendor>
+	<vendor>droniNG</vendor>
         <copyright>(C) 2015-2016 dRonin, (C) 2012-2013 Tau Labs, (C) 2010 OpenPilot Project</copyright>
 	<license>GNU Public License (GPL) Version 3</license>
         <description>Configuration GUI</description>
-        <url>http://dronin.org</url>
+        <url>https://github.com/reubenfirmin/droniNG</url>
 	<dependencyList>
         	<dependency name="Core" version="1.0.0"/>
         	<dependency name="UAVObjects" version="1.0.0"/>

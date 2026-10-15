@@ -21,13 +21,7 @@ OTHER_FILES += KMLExport.pluginspec
 INCLUDEPATH *= $$PWD/../../../../../tools/libkml/include
 DEPENDPATH *= $$PWD/../../../../../tools/libkml/include
 
-win32:CONFIG(release, debug|release): {
-    LIBS *= -L$$PWD/../../../../../tools/libkml/lib/release/
-}
-else:win32:CONFIG(debug, debug|release): {
-    LIBS *= -L$$PWD/../../../../../tools/libkml/lib/debug/
-}
-else:unix: {
+unix: {
     LIBS *= -L$$PWD/../../../../../tools/libkml/lib/
 }
 

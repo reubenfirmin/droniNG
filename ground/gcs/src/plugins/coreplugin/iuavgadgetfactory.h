@@ -30,13 +30,10 @@
 #include "core_global.h"
 
 #include <QtCore/QObject>
+#include <QtCore/QStringList>
 #include <QIcon>
 #include <QSettings>
 #include "uavconfiginfo.h"
-
-QT_BEGIN_NAMESPACE
-class QStringList;
-QT_END_NAMESPACE
 
 namespace Core {
 

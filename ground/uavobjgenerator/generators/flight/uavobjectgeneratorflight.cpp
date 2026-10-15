@@ -116,7 +116,7 @@ QString UAVObjectGeneratorFlight::form_enum_name(const QString &objName, const Q
 
     return s.arg(objName.toUpper())
         .arg(fieldName.toUpper())
-        .arg(option.toUpper().replace(QRegExp(ENUM_SPECIAL_CHARS), ""));
+        .arg(option.toUpper().replace(QRegularExpression(ENUM_SPECIAL_CHARS, QRegularExpression::UseUnicodePropertiesOption), ""));
 }
 
 /**
@@ -136,13 +136,14 @@ bool UAVObjectGeneratorFlight::process_object(ObjectInfo *info)
     replaceCommonTags(outCode, info);
 
     // Replace the $(PARENT_INCLUDES) tag
-    QString parentIncludes;
+    QStringList parentIncludes;
 
     foreach (ObjectInfo *parent, info->parents) {
         parentIncludes.append(QString("#include <%1.h>\r\n").arg(parent->namelc));
     }
 
-    outInclude.replace(QString("$(PARENT_INCLUDES)"), parentIncludes);
+    parentIncludes.sort();
+    outInclude.replace(QString("$(PARENT_INCLUDES)"), parentIncludes.join(QString()));
 
     // Replace the $(DATAFIELDS) tag
     QString type;

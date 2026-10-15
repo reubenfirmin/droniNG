@@ -112,7 +112,7 @@ PAYLOAD_FILE = $(ROOT_DIR)/build/bl_$(BOARD_NAME)/bl_$(BOARD_NAME).bin
 # -U options for C here.
 #
 # This exists to prevent ccache from caching compilation results when the file
-# has changed.  md5sum is used on linux and Windows; cksum is used on mac.
+# has changed.  md5sum is used on Linux; cksum is used on macOS.
 CDEFS += -DBU_HASH=$(shell md5sum "$(PAYLOAD_FILE)" 2>/dev/null | cut -d ' ' -f 1 || cksum "$(PAYLOAD_FILE)" | cut -d ' ' -f 1)
 CDEFS = -DSTM32F10X_$(MODEL)
 #CDEFS += -DHSE_VALUE=$(OSCILLATOR_FREQ)
@@ -215,19 +215,10 @@ docs:
 	doxygen  $(DOXYGENDIR)/doxygen.cfg
 
 # Create output files directory
-# all known MS Windows OS define the ComSpec environment variable
-ifdef ComSpec
-$(shell md $(subst /,\\,$(OUTDIR)) 2>NUL)
-else
 $(shell mkdir -p $(OUTDIR) 2>/dev/null)
-endif
 
 # Include the dependency files.
-ifdef ComSpec
--include $(shell md $(subst /,\\,$(OUTDIR))\dep 2>NUL) $(wildcard $(OUTDIR)/dep/*)
-else
 -include $(shell mkdir -p $(OUTDIR) 2>/dev/null) $(shell mkdir $(OUTDIR)/dep 2>/dev/null) $(wildcard $(OUTDIR)/dep/*)
-endif
 
 ifneq ($(BU_PAD_AND_REPEAT_OFFS),)
 # This pads the bin to have two entry locations.  Used on PlayUAV OSD where

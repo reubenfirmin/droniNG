@@ -35,12 +35,22 @@
 #include "manualcontrolsettings.h"
 
 #include "ui_osdpage.h"
+#include <QScrollArea>
 
 ConfigOsdWidget::ConfigOsdWidget(QWidget *parent)
     : ConfigTaskWidget(parent)
 {
     ui = new Ui::Osd();
     ui->setupUi(this);
+    // Keep the complete General form readable at the shared control size.
+    const QString generalTitle = ui->tabWidget->tabText(0);
+    ui->tabWidget->removeTab(0);
+    auto *generalScroll = new QScrollArea(ui->tabWidget);
+    generalScroll->setWidgetResizable(true);
+    generalScroll->setFrameShape(QFrame::NoFrame);
+    generalScroll->setWidget(ui->tabGeneral);
+    ui->tabWidget->insertTab(0, generalScroll, generalTitle);
+    ui->tabWidget->setCurrentIndex(0);
 
     osdSettingsObj = OnScreenDisplaySettings::GetInstance(getObjectManager());
     manualCommandObj = ManualControlCommand::GetInstance(getObjectManager());
@@ -297,6 +307,8 @@ void ConfigOsdWidget::getCustomText()
 void ConfigOsdWidget::setupOsdPage(Ui::OsdPage *page, QWidget *page_widget, const QString &objName)
 {
     page->setupUi(page_widget);
+    page->horizontalLayout_4->setContentsMargins(12, 0, 12, 0);
+    page->horizontalLayout_4->addStretch();
     const QString nameRel = QStringLiteral("objname:%0").arg(objName);
 
     for (const auto wid : page_widget->findChildren<QWidget *>()) {

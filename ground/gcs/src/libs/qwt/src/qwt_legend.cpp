@@ -668,8 +668,9 @@ void QwtLegend::renderLegend( QPainter *painter,
     if ( legendLayout == NULL )
         return;
 
-    int left, right, top, bottom;
-    getContentsMargins( &left, &top, &right, &bottom );
+    const QMargins margins = contentsMargins();
+    const int left = margins.left(), right = margins.right();
+    const int top = margins.top(), bottom = margins.bottom();
 
     QRect layoutRect; 
     layoutRect.setLeft( qCeil( rect.left() ) + left );

@@ -8,6 +8,7 @@
  *****************************************************************************/
 
 #include "qwt_plot_renderer.h"
+#include <qpainterpath.h>
 #include "qwt_plot.h"
 #include "qwt_painter.h"
 #include "qwt_plot_layout.h"
@@ -245,38 +246,19 @@ void QwtPlotRenderer::renderDocument( QwtPlot *plot,
         printer.setOutputFormat( QPrinter::PdfFormat );
         printer.setColorMode( QPrinter::Color );
         printer.setFullPage( true );
-        printer.setPaperSize( sizeMM, QPrinter::Millimeter );
+        printer.setPageSize( QPageSize( sizeMM, QPageSize::Millimeter ) );
         printer.setDocName( title );
         printer.setOutputFileName( fileName );
         printer.setResolution( resolution );
 
         QPainter painter( &printer );
         render( plot, &painter, documentRect );
-#endif
-    }
-    else if ( fmt == "ps" )
-    {
-#if QT_VERSION < 0x050000
-#ifndef QT_NO_PRINTER
-        QPrinter printer;
-        printer.setOutputFormat( QPrinter::PostScriptFormat );
-        printer.setColorMode( QPrinter::Color );
-        printer.setFullPage( true );
-        printer.setPaperSize( sizeMM, QPrinter::Millimeter );
-        printer.setDocName( title );
-        printer.setOutputFileName( fileName );
-        printer.setResolution( resolution );
-
-        QPainter painter( &printer );
-        render( plot, &painter, documentRect );
-#endif
 #endif
     }
     else if ( fmt == "svg" )
     {
 #ifndef QWT_NO_SVG
 #ifdef QT_SVG_LIB
-#if QT_VERSION >= 0x040500
         QSvgGenerator generator;
         generator.setTitle( title );
         generator.setFileName( fileName );
@@ -285,7 +267,6 @@ void QwtPlotRenderer::renderDocument( QwtPlot *plot,
 
         QPainter painter( &generator );
         render( plot, &painter, documentRect );
-#endif
 #endif
 #endif
     }
@@ -368,7 +349,6 @@ void QwtPlotRenderer::renderTo(
 
 #ifndef QWT_NO_SVG
 #ifdef QT_SVG_LIB
-#if QT_VERSION >= 0x040500
 
 /*!
   \brief Render the plot to a QSvgGenerator
@@ -394,7 +374,6 @@ void QwtPlotRenderer::renderTo(
     QPainter p( &generator );
     render( plot, &p, rect );
 }
-#endif
 #endif
 #endif
 
@@ -435,9 +414,9 @@ void QwtPlotRenderer::render( QwtPlot *plot,
     {
         // subtract the contents margins
 
-        int left, top, right, bottom;
-        plot->getContentsMargins( &left, &top, &right, &bottom );
-        layoutRect.adjust( left, top, -right, -bottom );
+        const QMargins margins = plot->contentsMargins();
+        layoutRect.adjust( margins.left(), margins.top(),
+                           -margins.right(), -margins.bottom() );
     }
 
     QwtPlotLayout *layout = plot->plotLayout();

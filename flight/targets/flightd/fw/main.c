@@ -29,10 +29,6 @@
  */
 
 /* OpenPilot Includes */
-#if defined(_WIN32) || defined(WIN32) || defined(__MINGW32__)
-#include <winsock2.h>
-#endif
-
 #include "openpilot.h"
 #include "uavobjectsinit.h"
 #include "systemmod.h"
@@ -52,10 +48,6 @@ static char **g_argv;
 int main(int argc, char *argv[]) {
 	setvbuf(stdout, NULL, _IONBF, 1);
 	printf("Beginning simulation environment\n");
-#if defined(_WIN32) || defined(WIN32) || defined(__MINGW32__)
-	WSADATA wsaData;
-	WSAStartup(MAKEWORD(2, 2), &wsaData);
-#endif
 
 	g_argc = argc;
 	g_argv = argv;

@@ -32,6 +32,7 @@
 #include <QTextEdit>
 #include <QVBoxLayout>
 #include <QPushButton>
+#include <utils/settingsstyle.h>
 #include <loggingplugin.h>
 
 LoggingGadgetWidget::LoggingGadgetWidget(QWidget *parent)
@@ -39,6 +40,11 @@ LoggingGadgetWidget::LoggingGadgetWidget(QWidget *parent)
 {
     m_logging = new Ui_Logging();
     m_logging->setupUi(this);
+    for (int index = 0; index < m_logging->horizontalLayout->count(); ++index)
+        m_logging->horizontalLayout->setStretch(index, 0);
+    m_logging->horizontalLayout->insertStretch(2, 1);
+    Utils::styleSettingsPage(this);
+    setFixedHeight(108);
 
     ExtensionSystem::PluginManager *pm = ExtensionSystem::PluginManager::instance();
     scpPlugin = pm->getObject<ScopeGadgetFactory>();

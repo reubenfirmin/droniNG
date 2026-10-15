@@ -39,9 +39,12 @@
 
 #include <QtCore/QMutex>
 #include <QtCore/QThread>
+#include <QHash>
+#include <QPointer>
 
 class IConnection;
 class RawHIDConnection;
+class USBDevice;
 
 /**
 *   Define a connection via the IConnection interface
@@ -58,6 +61,7 @@ public:
     virtual QList<Core::IDevice *> availableDevices();
     virtual QIODevice *openDevice(Core::IDevice *deviceName);
     virtual void closeDevice(const QString &deviceName);
+    Core::ConnectionError transportError() const override { return m_transportError; }
 
     virtual QString connectionName();
     virtual QString shortName();
@@ -65,6 +69,10 @@ public:
     virtual void resumePolling();
 
     bool deviceOpened() { return (RawHidHandle != NULL); } // Pip
+
+protected:
+    QList<Core::IDevice *> devicesForPorts(const QList<USBPortInfo> &ports);
+    virtual RawHID *createTransport(USBDevice *device);
 
 protected slots:
     void onDeviceConnected();
@@ -75,12 +83,14 @@ private:
     bool enablePolling;
     USBMonitor *m_usbMonitor;
     USBSignalFilter *m_signalFilter;
+    QHash<QString, QPointer<USBDevice>> m_devices;
+    Core::ConnectionError m_transportError;
 };
 
 class RAWHID_EXPORT RawHIDPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.RawHID")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.RawHID")
 
 public:
     RawHIDPlugin();

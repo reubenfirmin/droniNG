@@ -125,10 +125,10 @@ struct re1fpga_dev {
 //! Global structure for this device device
 static struct re1fpga_dev *dev;
 
-static int32_t PIOS_RE1FPGA_WriteReg(uint8_t reg, uint8_t data, uint8_t mask);
+static int32_t PIOS_RE1FPGA_WriteReg(enum pios_re1fpga_register reg, uint8_t data, uint8_t mask);
 static int32_t PIOS_RE1FPGA_WriteRegDirect(enum pios_re1fpga_register reg, uint8_t data);
-static uint8_t PIOS_RE1FPGA_ReadReg(uint8_t reg);
-static void update_shadow_regs();
+static int32_t PIOS_RE1FPGA_ReadReg(enum pios_re1fpga_register reg, uint8_t *data);
+static int32_t update_shadow_regs(void);
 int32_t PIOS_RE1FPGA_SetLEDs(const uint8_t * led_data, uint16_t n_leds);
 int32_t PIOS_RE1FPGA_SetIRData(const uint8_t * ir_data, uint8_t n_bytes);
 
@@ -144,6 +144,7 @@ static struct re1fpga_dev *PIOS_RE1FPGA_alloc(const struct pios_re1fpga_cfg *cfg
 	if (!re1fpga_dev)
 		return NULL;
 
+	memset(re1fpga_dev, 0, sizeof(*re1fpga_dev));
 	re1fpga_dev->magic = PIOS_RE1FPGA_DEV_MAGIC;
 
 	return re1fpga_dev;
@@ -207,17 +208,22 @@ int32_t PIOS_RE1FPGA_Init(pios_spi_t spi_id, uint32_t slave_num,
 	PIOS_DELAY_WaitmS(1);
 
 	// Initialize registers
-	PIOS_RE1FPGA_WriteRegDirect(RE1FPGA_REG_CFG, 0x00);
-	PIOS_RE1FPGA_WriteRegDirect(RE1FPGA_REG_CTL, 0x00);
-	PIOS_RE1FPGA_WriteRegDirect(RE1FPGA_REG_BLACK, 35);
-	PIOS_RE1FPGA_WriteRegDirect(RE1FPGA_REG_BLACK, 110);
-	PIOS_RE1FPGA_WriteRegDirect(RE1FPGA_REG_THR, 120);
-	PIOS_RE1FPGA_WriteRegDirect(RE1FPGA_REG_XCFG, 0x08);
-	PIOS_RE1FPGA_WriteRegDirect(RE1FPGA_REG_XCFG2, 0x10);
-	PIOS_RE1FPGA_WriteRegDirect(RE1FPGA_REG_IRCFG, 0x00);
+	if (PIOS_RE1FPGA_WriteRegDirect(RE1FPGA_REG_CFG, 0x00) ||
+		PIOS_RE1FPGA_WriteRegDirect(RE1FPGA_REG_CTL, 0x00) ||
+		PIOS_RE1FPGA_WriteRegDirect(RE1FPGA_REG_BLACK, 35) ||
+		PIOS_RE1FPGA_WriteRegDirect(RE1FPGA_REG_WHITE, 110) ||
+		PIOS_RE1FPGA_WriteRegDirect(RE1FPGA_REG_THR, cfg->sync_threshold ? cfg->sync_threshold : 120) ||
+		PIOS_RE1FPGA_WriteRegDirect(RE1FPGA_REG_XCFG, 0x08) ||
+		PIOS_RE1FPGA_WriteRegDirect(RE1FPGA_REG_XCFG2, 0x10) ||
+		PIOS_RE1FPGA_WriteRegDirect(RE1FPGA_REG_IRCFG, 0x00))
+		return -3;
 
 	// Read all registers into shadow regsiters
-	update_shadow_regs();
+	if (update_shadow_regs() || (cfg->spi_hz && dev->shadow_reg.reg_hwrev == 0xff))
+		return -4;
+	if (dev->shadow_reg.reg_black != 35 || dev->shadow_reg.reg_white != 110 ||
+		dev->shadow_reg.reg_thr != (cfg->sync_threshold ? cfg->sync_threshold : 120))
+		return -5;
 
 	return 0;
 }
@@ -248,6 +254,10 @@ static int32_t PIOS_RE1FPGA_ClaimBus()
 
 	if (PIOS_SPI_ClaimBus(dev->spi_id) != 0)
 		return -2;
+	if (dev->cfg->spi_hz && PIOS_SPI_SetClockSpeed(dev->spi_id, dev->cfg->spi_hz) <= 0) {
+		PIOS_SPI_ReleaseBus(dev->spi_id);
+		return -3;
+	}
 
 	PIOS_SPI_RC_PinSet(dev->spi_id, dev->slave_num, 0);
 
@@ -323,9 +333,9 @@ static int32_t PIOS_RE1FPGA_WriteReg(enum pios_re1fpga_register reg, uint8_t dat
 		return 0;
 	}
 
-	*cur_reg = new_data;
-
-	return PIOS_RE1FPGA_WriteRegDirect(reg, new_data);
+	int32_t result = PIOS_RE1FPGA_WriteRegDirect(reg, new_data);
+	if (result == 0) *cur_reg = new_data;
+	return result;
 }
 
 static int32_t PIOS_RE1FPGA_WriteRegDirect(enum pios_re1fpga_register reg, uint8_t data)
@@ -337,12 +347,12 @@ static int32_t PIOS_RE1FPGA_WriteRegDirect(enum pios_re1fpga_register reg, uint8
 	if (PIOS_RE1FPGA_ClaimBus() != 0)
 		return -3;
 
-	PIOS_SPI_TransferByte(dev->spi_id, 0x7f & reg);
-	PIOS_SPI_TransferByte(dev->spi_id, data);
+	uint8_t tx[] = { 0x7f & reg, data };
+	int32_t result = PIOS_SPI_TransferBlock(dev->spi_id, tx, NULL, sizeof(tx));
 
 	PIOS_RE1FPGA_ReleaseBus();
 
-	return 0;
+	return result;
 }
 
 /**
@@ -350,35 +360,28 @@ static int32_t PIOS_RE1FPGA_WriteRegDirect(enum pios_re1fpga_register reg, uint8
  * @returns The register value
  * @param reg[in] Register address to be read
  */
-static uint8_t PIOS_RE1FPGA_ReadReg(enum pios_re1fpga_register reg)
+static int32_t PIOS_RE1FPGA_ReadReg(enum pios_re1fpga_register reg, uint8_t *data)
 {
-	uint8_t data;
-
-	PIOS_RE1FPGA_ClaimBus();
-
-	PIOS_SPI_TransferByte(dev->spi_id, 0x80 | reg); // request byte
-	data = PIOS_SPI_TransferByte(dev->spi_id, 0);   // receive response
-
+	if (PIOS_RE1FPGA_ClaimBus()) return -1;
+	uint8_t tx[] = { 0x80 | reg, 0 }, rx[2];
+	int32_t result = PIOS_SPI_TransferBlock(dev->spi_id, tx, rx, sizeof(tx));
 	PIOS_RE1FPGA_ReleaseBus();
-
-	return data;
+	if (result == 0) *data = rx[1];
+	return result;
 }
 
 
 /**
  * @brief Read all registers and update shadow registers
  */
-static void update_shadow_regs(void)
+static int32_t update_shadow_regs(void)
 {
-	dev->shadow_reg.reg_hwrev = PIOS_RE1FPGA_ReadReg(RE1FPGA_REG_HWREV);
-	dev->shadow_reg.reg_cfg = PIOS_RE1FPGA_ReadReg(RE1FPGA_REG_CFG);
-	dev->shadow_reg.reg_ctl = PIOS_RE1FPGA_ReadReg(RE1FPGA_REG_CTL);
-	dev->shadow_reg.reg_black = PIOS_RE1FPGA_ReadReg(RE1FPGA_REG_BLACK);
-	dev->shadow_reg.reg_white = PIOS_RE1FPGA_ReadReg(RE1FPGA_REG_WHITE);
-	dev->shadow_reg.reg_thr = PIOS_RE1FPGA_ReadReg(RE1FPGA_REG_THR);
-	dev->shadow_reg.reg_xcfg = PIOS_RE1FPGA_ReadReg(RE1FPGA_REG_XCFG);
-	dev->shadow_reg.reg_xcfg2 = PIOS_RE1FPGA_ReadReg(RE1FPGA_REG_XCFG2);
-	dev->shadow_reg.reg_ircfg = PIOS_RE1FPGA_ReadReg(RE1FPGA_REG_IRCFG);
+	struct re1_shadow_reg shadow;
+	uint8_t *bytes = (uint8_t *)&shadow;
+	for (unsigned reg = RE1FPGA_REG_HWREV; reg <= RE1FPGA_REG_IRCFG; ++reg)
+		if (PIOS_RE1FPGA_ReadReg(reg, &bytes[reg])) return -1;
+	dev->shadow_reg = shadow;
+	return 0;
 }
 
 /**
@@ -386,7 +389,7 @@ static void update_shadow_regs(void)
  */
 uint8_t PIOS_RE1FPGA_GetHWRevision()
 {
-	return dev->shadow_reg.reg_hwrev;
+	return PIOS_RE1FPGA_Validate(dev) ? 0 : dev->shadow_reg.reg_hwrev;
 }
 
 /**
@@ -422,12 +425,13 @@ int32_t PIOS_RE1FPGA_SetIRData(const uint8_t * ir_data, uint8_t n_bytes)
 		return -2;
 
 
-	PIOS_SPI_TransferByte(dev->spi_id, 0x7f & RE1FPGA_REG_IRDATA);
-	PIOS_SPI_TransferBlock(dev->spi_id, ir_data, NULL, n_bytes);
+	uint8_t address = RE1FPGA_REG_IRDATA;
+	int32_t result = PIOS_SPI_TransferBlock(dev->spi_id, &address, NULL, 1);
+	if (!result) result = PIOS_SPI_TransferBlock(dev->spi_id, ir_data, NULL, n_bytes);
 
 	PIOS_RE1FPGA_ReleaseBus();
 
-	return 0;
+	return result;
 }
 
 /**
@@ -643,8 +647,9 @@ void PIOS_WS2811_trigger_update(ws2811_dev_t ws2811_dev)
 
 	n_leds = MIN(ws2811_dev->max_idx + 1, 1024);
 
-	PIOS_SPI_TransferByte(dev->spi_id, 0x7f & RE1FPGA_REG_LED);
-	PIOS_SPI_TransferBlock(dev->spi_id, (uint8_t*)ws2811_dev->pixel_data, NULL,
+	uint8_t address = RE1FPGA_REG_LED;
+	if (!PIOS_SPI_TransferBlock(dev->spi_id, &address, NULL, 1))
+		PIOS_SPI_TransferBlock(dev->spi_id, (uint8_t*)ws2811_dev->pixel_data, NULL,
 							sizeof(struct ws2811_pixel_data_s) * n_leds);
 
 	PIOS_RE1FPGA_ReleaseBus();

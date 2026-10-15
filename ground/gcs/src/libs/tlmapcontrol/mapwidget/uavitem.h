@@ -28,6 +28,7 @@
 #define UAVITEM_H
 
 #include <QtSvg/QSvgRenderer>
+#include <QElapsedTimer>
 
 #include "mappointitem.h"
 #include "uavmapfollowtype.h"
@@ -235,7 +236,7 @@ namespace mapcontrol
         QGraphicsItemGroup* trail;
         QGraphicsItemGroup * trailLine;
         internals::PointLatLng lasttrailline;
-        QTime timer;
+        QElapsedTimer timer;
         bool showtrail;
         bool showtrailline;
         int trailtime;

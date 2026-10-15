@@ -81,7 +81,7 @@ private:
 class IPconnection_EXPORT IPConnectionPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.IPConnection")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.IPConnection")
 public:
     IPConnectionPlugin();
     ~IPConnectionPlugin();

@@ -1,0 +1,10 @@
+TEMPLATE = app
+TARGET = qt-compat-tests
+CONFIG += console testcase c++17
+QT += gui quick svg xml testlib
+DEFINES += QTCREATOR_UTILS_STATIC_LIB AGGREGATION_LIBRARY
+INCLUDEPATH += ../gcs/src/libs
+SOURCES += qt_compat.cpp ../gcs/src/libs/utils/svgimageprovider.cpp ../gcs/src/libs/utils/settingsxml.cpp
+SOURCES += ../gcs/src/libs/aggregation/aggregate.cpp
+SOURCES += ../gcs/src/libs/utils/xmlconfig.cpp
+HEADERS += ../gcs/src/libs/utils/svgimageprovider.h ../gcs/src/libs/aggregation/aggregate.h

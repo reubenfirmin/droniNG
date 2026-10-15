@@ -33,6 +33,8 @@
 
 #include "opmapgadgetwidget.h"
 #include "ui_opmap_widget.h"
+#include "mapstartup.h"
+#include "coreplugin/icore.h"
 #include <QInputDialog>
 #include <QApplication>
 #include <QHBoxLayout>
@@ -43,6 +45,13 @@
 #include <QDir>
 #include <QFile>
 #include <QDateTime>
+#include <QLabel>
+#include <QPushButton>
+#include <QHeaderView>
+#include <QTableView>
+#include <QToolButton>
+#include <QTimer>
+#include <QShowEvent>
 
 #include <math.h>
 
@@ -63,6 +72,7 @@
 
 #include "../pathplanner/pathplannergadgetwidget.h"
 #include "../pathplanner/waypointdialog.h"
+#include "../pathplanner/waypointplanningcontroller.h"
 
 // *************************************************************************************
 
@@ -153,6 +163,63 @@ OPMapGadgetWidget::OPMapGadgetWidget(QWidget *parent)
     // create the central map widget
 
     m_map = new mapcontrol::TLMapWidget(); // create the map object
+    m_map->setObjectName("localMapView");
+    m_map->setAccessibleName(tr("Local map"));
+    m_map->viewport()->installEventFilter(this);
+    m_startup = new MapStartup(Core::ICore::instance()->settings(), this);
+    auto *locationBar = new QFrame(this);
+    locationBar->setObjectName("frameMapLocationBar");
+    locationBar->setProperty("pageLayout", true);
+    auto *locationLayout = new QHBoxLayout(locationBar);
+    locationLayout->setContentsMargins(8, 6, 8, 6);
+    auto *locate = new QToolButton(locationBar);
+    locate->setText(tr("Current location"));
+    locate->setToolTip(tr("Show a 30 × 30 km region around your current location"));
+    m_locationStatus = new QLabel(locationBar);
+    m_locationStatus->setObjectName("mapLocationStatus");
+    m_locationStatus->setProperty("role", "support");
+    m_locationStatus->setWordWrap(true);
+    locationLayout->addWidget(locate); locationLayout->addWidget(m_locationStatus, 1);
+    m_routePlannerButton = new QPushButton(tr("Plan route"), locationBar);
+    m_routePlannerButton->setObjectName("planRouteButton");
+    m_routePlannerButton->setProperty("primary", true);
+    locationLayout->addWidget(m_routePlannerButton);
+    connect(m_routePlannerButton, &QPushButton::clicked, this, [this] {
+        if (m_routePlanner && !m_routePlanner->isHidden()) {
+            m_routePlanner->hide();
+            m_routePlannerButton->setText(tr("Plan route"));
+        } else {
+            onOpenWayPointEditorAct_triggered();
+        }
+    });
+    m_widget->verticalLayout_5->insertWidget(0, locationBar);
+    auto *planningBar = new QFrame(this);
+    planningBar->setObjectName("waypointPlanningStatus");
+    planningBar->setProperty("pageLayout", true);
+    auto *planningLayout = new QHBoxLayout(planningBar);
+    planningLayout->setContentsMargins(12, 6, 12, 6);
+    m_planningStatus = new QLabel(planningBar);
+    m_planningStatus->setObjectName("waypointPlanningMessage");
+    m_planningStatus->setProperty("role", "support");
+    m_planningStatus->setWordWrap(true);
+    m_enablePlanning = new QPushButton(tr("Enable waypoint planning"), planningBar);
+    m_enablePlanning->setObjectName("enableWaypointPlanning");
+    m_enablePlanning->setProperty("primary", true);
+    planningLayout->addWidget(m_planningStatus, 1);
+    planningLayout->addWidget(m_enablePlanning);
+    m_widget->verticalLayout_5->insertWidget(1, planningBar);
+    m_planning = pm->getObject<WaypointPlanningController>();
+    if (m_planning) {
+        connect(m_planning, &WaypointPlanningController::changed, this, &OPMapGadgetWidget::refreshWaypointPlanning);
+        connect(m_enablePlanning, &QPushButton::clicked, m_planning, &WaypointPlanningController::enablePlanning);
+    }
+    connect(locate, &QToolButton::clicked, this, [this] {
+        updateStartupLocation(); m_startup->start(m_savedLocation);
+    });
+    connect(m_startup, &MapStartup::statusChanged, m_locationStatus, &QLabel::setText);
+    connect(m_startup, &MapStartup::centerRequested, this, [this](const QPointF &location) {
+        m_startupCenter = location; fitStartupRegion();
+    });
 
     m_map->setFrameStyle(QFrame::NoFrame); // no border frame
 
@@ -251,6 +318,7 @@ OPMapGadgetWidget::OPMapGadgetWidget(QWidget *parent)
     // create various context menu (mouse right click menu) actions
 
     createActions();
+    refreshWaypointPlanning();
 
     // **************
     // connect to the UAVObject updates we require to become a bit aware of our environment:
@@ -289,12 +357,12 @@ OPMapGadgetWidget::OPMapGadgetWidget(QWidget *parent)
     // **************
     // create the desired timers
 
-    m_updateTimer = new QTimer();
+    m_updateTimer = new QTimer(this);
     m_updateTimer->setInterval(m_maxUpdateRate);
     connect(m_updateTimer, &QTimer::timeout, this, &OPMapGadgetWidget::updatePosition);
     m_updateTimer->start();
 
-    m_statusUpdateTimer = new QTimer();
+    m_statusUpdateTimer = new QTimer(this);
     m_statusUpdateTimer->setInterval(200);
     connect(m_statusUpdateTimer, &QTimer::timeout, this, &OPMapGadgetWidget::updateMousePos);
     m_statusUpdateTimer->start();
@@ -306,13 +374,18 @@ OPMapGadgetWidget::OPMapGadgetWidget(QWidget *parent)
             &OPMapGadgetWidget::updateWindspeed);
 
     m_map->setFocus();
+    connect(GPSPosition::GetInstance(uavo_mgr), &UAVObject::objectUpdated,
+            this, &OPMapGadgetWidget::updateStartupLocation);
 }
 
 // destructor
 OPMapGadgetWidget::~OPMapGadgetWidget()
 {
+    // The proxy reads map items while handling model/selection signals.
+    // Destroy it before those items, leaving the map's own cleanup connections intact.
+    delete mapProxy;
     if (m_map) {
-        disconnect(m_map, nullptr, nullptr, nullptr);
+        disconnect(m_map, nullptr, this, nullptr);
         m_map->SetShowHome(false); // doing this appears to stop the map lib crashing on exit
         m_map->SetShowUAV(false); //   "          "
     }
@@ -322,8 +395,6 @@ OPMapGadgetWidget::~OPMapGadgetWidget()
         m_map = NULL;
     }
 
-    if (!mapProxy.isNull())
-        delete mapProxy;
 }
 
 // *************************************************************************************
@@ -332,6 +403,50 @@ OPMapGadgetWidget::~OPMapGadgetWidget()
 void OPMapGadgetWidget::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
+}
+
+void OPMapGadgetWidget::initializeView(const QPointF &savedLocation)
+{
+    m_savedLocation = savedLocation;
+    m_startupCenter = savedLocation;
+    m_viewInitialized = false;
+}
+
+void OPMapGadgetWidget::showEvent(QShowEvent *event)
+{
+    QFrame::showEvent(event);
+    if (!m_viewInitialized) {
+        m_viewInitialized = true;
+        updateStartupLocation();
+        m_startup->start(m_savedLocation);
+    }
+}
+
+bool OPMapGadgetWidget::eventFilter(QObject *object, QEvent *event)
+{
+    if (object == m_map->viewport()) {
+        if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::Wheel
+            || event->type() == QEvent::KeyPress) m_startup->setUserInteracted();
+        else if (event->type() == QEvent::Resize)
+            QTimer::singleShot(0, this, &OPMapGadgetWidget::fitStartupRegion);
+    }
+    return QFrame::eventFilter(object, event);
+}
+
+void OPMapGadgetWidget::fitStartupRegion()
+{
+    if (!m_viewInitialized || !m_startup->automaticView()) return;
+    m_map->SetZoom(MapStartup::regionZoom(m_startupCenter.y(), m_map->viewport()->size()));
+    m_map->SetCurrentPosition(internals::PointLatLng(m_startupCenter.y(), m_startupCenter.x()));
+}
+
+void OPMapGadgetWidget::updateStartupLocation()
+{
+    if (!m_telemetry_connected) return;
+    const auto gps = GPSPosition::GetInstance(uavo_mgr)->getData();
+    if (gps.Status >= GPSPosition::STATUS_FIX2D) {
+        m_startup->setControllerLocation(QPointF(gps.Longitude / 1e7, gps.Latitude / 1e7));
+    }
 }
 
 void OPMapGadgetWidget::mouseMoveEvent(QMouseEvent *event)
@@ -603,8 +718,8 @@ void OPMapGadgetWidget::updatePosition()
 
     // get current GPS heading, latitude, longitude, and altitude
     gps_heading = gpsPositionData.Heading;
-    gps_latitude = gpsPositionData.Latitude;
-    gps_longitude = gpsPositionData.Longitude;
+    gps_latitude = gpsPositionData.Latitude / 1e7;
+    gps_longitude = gpsPositionData.Longitude / 1e7;
     gps_altitude = gpsPositionData.Altitude;
 
     gps_pos = internals::PointLatLng(gps_latitude, gps_longitude);
@@ -862,16 +977,19 @@ void OPMapGadgetWidget::on_toolButtonNormalMapMode_clicked()
 
 void OPMapGadgetWidget::on_toolButtonMagicWaypointMapMode_clicked()
 {
+    if (!m_planning || !m_planning->ready()) return;
     setMapMode(MagicWaypoint_MapMode);
 }
 
 void OPMapGadgetWidget::on_toolButtonHomeWaypoint_clicked()
 {
+    if (!m_planning || !m_planning->ready()) return;
     homeMagicWaypoint();
 }
 
 void OPMapGadgetWidget::on_toolButtonMoveToWP_clicked()
 {
+    if (!m_planning || !m_planning->ready()) return;
     moveToMagicWaypointPosition();
 }
 
@@ -881,6 +999,7 @@ void OPMapGadgetWidget::on_toolButtonMoveToWP_clicked()
 void OPMapGadgetWidget::onTelemetryConnect()
 {
     m_telemetry_connected = true;
+    updateStartupLocation();
 
     if (!uavo_util_mgr)
         return;
@@ -906,6 +1025,7 @@ void OPMapGadgetWidget::onTelemetryConnect()
 void OPMapGadgetWidget::onTelemetryDisconnect()
 {
     m_telemetry_connected = false;
+    m_startup->clearControllerLocation();
 }
 
 // Updates the Home position icon whenever the HomePosition object is updated
@@ -919,6 +1039,7 @@ void OPMapGadgetWidget::homePositionUpdated(UAVObject *hp)
     if (uavo_util_mgr->getHomeLocation(set, LLA) < 0)
         return; // error
     setHome(internals::PointLatLng(LLA[0], LLA[1]), LLA[2]);
+    updateStartupLocation();
 }
 
 // *************************************************************************************
@@ -1008,6 +1129,7 @@ void OPMapGadgetWidget::goHome()
 
 void OPMapGadgetWidget::zoomIn()
 {
+    m_startup->setUserInteracted();
     if (!m_widget || !m_map)
         return;
 
@@ -1023,6 +1145,7 @@ void OPMapGadgetWidget::zoomIn()
 
 void OPMapGadgetWidget::zoomOut()
 {
+    m_startup->setUserInteracted();
     if (!m_widget || !m_map)
         return;
 
@@ -1061,6 +1184,7 @@ void OPMapGadgetWidget::setMaxUpdateRate(int update_rate)
 
 void OPMapGadgetWidget::setZoom(int zoom)
 {
+    m_startup->setUserInteracted();
     if (!m_widget || !m_map)
         return;
 
@@ -1858,24 +1982,85 @@ void OPMapGadgetWidget::onUAVTrailDistanceActGroup_triggered(QAction *action)
     m_map->UAV->SetTrailDistance(trail_distance);
 }
 
-/**
- * @brief OPMapGadgetWidget::onOpenWayPointEditorAct_triggered Embed a
- * @ref PathPlannerGadgetWidget in a QDialog and display it
- */
+void OPMapGadgetWidget::refreshWaypointPlanning()
+{
+    const bool ready = m_planning && m_planning->ready();
+    m_routePlannerButton->setEnabled(ready);
+    if (m_routePlanner) m_routePlanner->setEnabled(ready);
+    m_planningStatus->setText(m_planning ? m_planning->status() : tr("Connect a controller with GPS to plan waypoints."));
+    m_enablePlanning->setVisible(m_planning && m_planning->offersSetup());
+    m_enablePlanning->setEnabled(m_planning && m_planning->canEnable());
+    for (auto *action : {wayPointEditorAct, addWayPointActFromContextMenu, addWayPointActFromThis,
+                         editWayPointAct, lockWayPointAct, deleteWayPointAct, clearWayPointsAct, homeMagicWaypointAct})
+        action->setEnabled(ready);
+    mapModeActGroup->setEnabled(ready);
+    m_widget->toolButtonMagicWaypointMapMode->setEnabled(ready);
+    m_widget->toolButtonHomeWaypoint->setEnabled(ready);
+    m_widget->toolButtonMoveToWP->setEnabled(ready);
+    if (!ready) setMapMode(Normal_MapMode);
+    mapProxy->setEditingEnabled(ready);
+}
+
 void OPMapGadgetWidget::onOpenWayPointEditorAct_triggered()
 {
-    // create dialog
-    pathPlannerDialog = new QDialog(this);
-    pathPlannerDialog->setModal(true);
-
-    // create layout dialog
-    QHBoxLayout *dialogLayout = new QHBoxLayout(pathPlannerDialog);
-    pathPlannerDialog->setLayout(dialogLayout);
-    // create elements of dialog
-    QPointer<PathPlannerGadgetWidget> widget = new PathPlannerGadgetWidget(pathPlannerDialog);
-    dialogLayout->addWidget(widget);
-    pathPlannerDialog->show();
-    pathPlannerDialog->resize(850, 300);
+    if (!m_planning || !m_planning->ready()) return;
+    m_startup->setUserInteracted();
+    setMapMode(Normal_MapMode);
+    if (!m_routePlanner) {
+        m_map->SetZoom(qMax(m_map->ZoomTotal(), 16.0));
+        auto *card = new QFrame(this);
+        card->setObjectName("routePlannerCard");
+        card->setAccessibleName(tr("Route planner"));
+        card->setProperty("uiCard", true);
+        card->setProperty("pageLayout", true);
+        auto *layout = new QVBoxLayout(card);
+        layout->setContentsMargins(16, 12, 16, 12);
+        layout->setSpacing(8);
+        auto *heading = new QLabel(tr("Route planner"), card);
+        heading->setProperty("role", "section");
+        layout->addWidget(heading);
+        auto *help = new QLabel(tr("Add a waypoint at the map centre, then drag it into position. "
+                                  "Edit altitude and speed in the table. Keep each route leg within 600 m. "
+                                  "Connect a controller with a home position to send the route."), card);
+        help->setProperty("role", "support");
+        help->setWordWrap(true);
+        layout->addWidget(help);
+        auto *editor = new PathPlannerGadgetWidget(card);
+        editor->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        editor->layout()->setContentsMargins(0, 0, 0, 0);
+        for (auto *button : editor->findChildren<QToolButton *>())
+            button->setAccessibleName(button->toolTip());
+        auto *table = editor->findChild<QTableView *>("tableView");
+        table->setAccessibleName(tr("Route waypoints"));
+        table->setMinimumHeight(120);
+        table->setMaximumHeight(160);
+        table->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+        table->setColumnHidden(FlightDataModel::NED_NORTH, true);
+        table->setColumnHidden(FlightDataModel::NED_EAST, true);
+        table->setColumnHidden(FlightDataModel::NED_DOWN, true);
+        auto *add = editor->findChild<QToolButton *>("tbAdd");
+        add->setText(tr("Add waypoint"));
+        add->setAccessibleName(tr("Add waypoint"));
+        add->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        add->setToolTip(tr("Place a waypoint at the map centre, then drag it to adjust its position"));
+        disconnect(add, nullptr, editor, nullptr);
+        connect(add, &QToolButton::clicked, this, [this] {
+            setMapMode(Normal_MapMode);
+            onAddWayPointAct_triggered(m_map->CurrentPosition());
+            selectionModel->setCurrentIndex(model->index(model->rowCount() - 1, 0),
+                                           QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+        });
+        auto *send = editor->findChild<QToolButton *>("tbSendToUAV");
+        send->setText(tr("Send to controller"));
+        send->setAccessibleName(tr("Send to controller"));
+        send->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        send->setToolTip(tr("Connect a controller with a home position to send the route"));
+        layout->addWidget(editor);
+        m_widget->verticalLayout_5->insertWidget(2, card);
+        m_routePlanner = card;
+    }
+    m_routePlanner->show();
+    m_routePlannerButton->setText(tr("Close planner"));
 }
 
 void OPMapGadgetWidget::onAddWayPointAct_triggeredFromContextMenu()
@@ -1889,6 +2074,7 @@ void OPMapGadgetWidget::onAddWayPointAct_triggeredFromThis()
 
 void OPMapGadgetWidget::onAddWayPointAct_triggered(internals::PointLatLng coord)
 {
+    if (!m_planning || !m_planning->ready()) return;
     if (!m_widget || !m_map)
         return;
 
@@ -1905,6 +2091,7 @@ void OPMapGadgetWidget::onAddWayPointAct_triggered(internals::PointLatLng coord)
   */
 void OPMapGadgetWidget::onEditWayPointAct_triggered()
 {
+    if (!m_planning || !m_planning->ready()) return;
     WaypointDialog *dialog = pm->getObject<WaypointDialog>();
     Q_ASSERT(dialog);
     if (dialog != NULL)
@@ -1917,6 +2104,7 @@ void OPMapGadgetWidget::onEditWayPointAct_triggered()
 
 void OPMapGadgetWidget::onLockWayPointAct_triggered()
 {
+    if (!m_planning || !m_planning->ready()) return;
     if (!m_widget || !m_map || !m_mouse_waypoint)
         return;
 
@@ -1924,7 +2112,7 @@ void OPMapGadgetWidget::onLockWayPointAct_triggered()
         return;
 
     bool locked = (m_mouse_waypoint->flags() & QGraphicsItem::ItemIsMovable) == 0;
-    m_mouse_waypoint->setFlag(QGraphicsItem::ItemIsMovable, locked);
+    model->setData(model->index(m_mouse_waypoint->Number(), FlightDataModel::LOCKED), !locked, Qt::EditRole);
 
     if (!locked)
         m_mouse_waypoint->picture.load(QString::fromUtf8(":/opmap/images/waypoint_marker2.png"));
@@ -1937,6 +2125,7 @@ void OPMapGadgetWidget::onLockWayPointAct_triggered()
 
 void OPMapGadgetWidget::onDeleteWayPointAct_triggered()
 {
+    if (!m_planning || !m_planning->ready()) return;
     if (!m_widget || !m_map)
         return;
 
@@ -1951,6 +2140,7 @@ void OPMapGadgetWidget::onDeleteWayPointAct_triggered()
 
 void OPMapGadgetWidget::onClearWayPointsAct_triggered()
 {
+    if (!m_planning || !m_planning->ready()) return;
 
     // First, ask to ensure this is what the user wants to do
     QMessageBox msgBox(this);
@@ -1974,6 +2164,7 @@ void OPMapGadgetWidget::onClearWayPointsAct_triggered()
 
 void OPMapGadgetWidget::onHomeMagicWaypointAct_triggered()
 {
+    if (!m_planning || !m_planning->ready()) return;
     // center the magic waypoint on the home position
     homeMagicWaypoint();
 }

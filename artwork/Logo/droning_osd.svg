@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>droniNG monochrome flight mark</title>
+  <desc>Black and white variant for firmware on-screen displays.</desc>
+  <path d="M78 78L178 178M178 78L78 178" fill="none" stroke="#000" stroke-width="22" stroke-linecap="round"/>
+  <path d="M78 78L178 178M178 78L78 178" fill="none" stroke="#fff" stroke-width="12" stroke-linecap="round"/>
+  <g fill="#000" stroke="#000" stroke-width="20">
+    <circle cx="78" cy="78" r="29"/><circle cx="178" cy="78" r="29"/>
+    <circle cx="78" cy="178" r="29"/><circle cx="178" cy="178" r="29"/>
+  </g>
+  <g fill="none" stroke="#fff" stroke-width="10">
+    <circle cx="78" cy="78" r="29"/><circle cx="178" cy="78" r="29"/>
+    <circle cx="78" cy="178" r="29"/><circle cx="178" cy="178" r="29"/>
+  </g>
+  <path d="M128 84L157 150L128 136L99 150Z" fill="#fff" stroke="#000" stroke-width="8" stroke-linejoin="round"/>
+</svg>

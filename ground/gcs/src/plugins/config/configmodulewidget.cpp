@@ -50,6 +50,93 @@ ConfigModuleWidget::ConfigModuleWidget(QWidget *parent)
     ui = new Ui::Modules();
     ui->setupUi(this);
 
+    // Alarm limits share columns across every sensor, rather than each row
+    // independently distributing its labels, values and warning switches.
+    struct AlarmRow { int row; QList<QWidget *> widgets; };
+    QList<AlarmRow> alarmRows;
+    while (ui->gridLayout->count()) {
+        int row, column, rowSpan, columnSpan;
+        ui->gridLayout->getItemPosition(0, &row, &column, &rowSpan, &columnSpan);
+        auto *item = ui->gridLayout->takeAt(0);
+        AlarmRow alarm {row, {}};
+        if (auto *layout = item->layout()) {
+            while (auto *child = layout->takeAt(0)) {
+                if (auto *widget = child->widget()) alarm.widgets.append(widget);
+                delete child;
+            }
+        }
+        delete item;
+        if (row != 0) alarmRows.append(alarm);
+    }
+    const QList<QLabel *> headings {ui->lb_Minimum, ui->lb_WarningMinimum,
+                                   ui->lb_Maximum, ui->lb_WarningMaximum};
+    for (int column = 0; column < headings.size(); ++column) {
+        headings[column]->setText(column % 2 ? tr("Warn") : column == 0 ? tr("Minimum") : tr("Maximum"));
+        headings[column]->setAlignment(column % 2 ? Qt::AlignCenter : Qt::AlignLeft | Qt::AlignVCenter);
+        ui->gridLayout->addWidget(headings[column], 0, column + 1);
+    }
+    for (const auto &alarm : alarmRows) {
+        for (auto *widget : alarm.widgets) {
+            if (auto *label = qobject_cast<QLabel *>(widget)) {
+                if (label->text().isEmpty()) { label->hide(); continue; }
+                label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+                ui->gridLayout->addWidget(label, alarm.row, 0);
+            } else {
+                const QString name = widget->objectName();
+                const bool minimum = name.contains("MIN") || name.contains("NEGDIFFERENCE");
+                const int column = qobject_cast<QAbstractSpinBox *>(widget) ? (minimum ? 1 : 3)
+                    : name == "cb_ALTITUDEBEEP" ? 1 : minimum ? 2 : 4;
+                ui->gridLayout->addWidget(widget, alarm.row, column,
+                    qobject_cast<QCheckBox *>(widget) ? Qt::AlignCenter : Qt::AlignLeft | Qt::AlignVCenter);
+            }
+        }
+    }
+    ui->gridLayout->setProperty("uniformFieldWidth", true);
+    ui->gridLayout->setRowStretch(22, 1);
+
+    // Use the same label column for voltage, current and cell detection.
+    for (auto *grid : {ui->gridLayout_2, ui->gridLayout_4}) {
+        for (int index = grid->count() - 1; index >= 0; --index) {
+            auto *item = grid->itemAt(index);
+            if (item->spacerItem()) { delete grid->takeAt(index); continue; }
+            int row, column, rows, columns;
+            grid->getItemPosition(index, &row, &column, &rows, &columns);
+            if (auto *widget = item->widget()) {
+                grid->addWidget(widget, row, column - 1, rows, columns);
+                if (column == 1) {
+                    widget->setMinimumWidth(208);
+                    if (auto *label = qobject_cast<QLabel *>(widget)) label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+                }
+            }
+        }
+        grid->setColumnMinimumWidth(0, 208);
+    }
+    ui->lblMaxCellVoltage->setMinimumWidth(208);
+    ui->lblLiveCellCount->setMinimumWidth(208);
+    ui->formLayout_6->setContentsMargins(0, 9, 9, 9);
+    while (auto *item = ui->gridLayout_3->takeAt(0)) delete item;
+    ui->gridLayout_3->setContentsMargins(0, 9, 9, 9);
+    ui->gridLayout_3->setColumnMinimumWidth(0, 208);
+    ui->lblNumBatteryCells->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    ui->lblBatteryCapacity->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    ui->gridLayout_3->addWidget(ui->lblNumBatteryCells, 0, 0);
+    ui->gridLayout_3->addWidget(ui->sb_numBatteryCells, 0, 1);
+    ui->gridLayout_3->addWidget(ui->lblBatteryCapacity, 1, 0);
+    ui->gridLayout_3->addWidget(ui->sb_batteryCapacity, 1, 1);
+    ui->frame->setFrameShape(QFrame::NoFrame);
+
+    // Related sections use one label width instead of sizing each form separately.
+    for (auto *form : {ui->formLayout_8, ui->formLayout}) {
+        for (int row = 0; row < form->rowCount(); ++row)
+            if (auto *item = form->itemAt(row, QFormLayout::LabelRole))
+                if (auto *label = item->widget()) label->setMinimumWidth(142);
+    }
+    for (auto *form : {ui->formLayout_3, ui->formLayout_7}) {
+        for (int row = 0; row < form->rowCount(); ++row)
+            if (auto *item = form->itemAt(row, QFormLayout::LabelRole))
+                if (auto *label = item->widget()) label->setMinimumWidth(136);
+    }
+
     // override anything set in .ui file by Qt Designer
     ui->moduleTab->setCurrentIndex(0);
 
@@ -271,6 +358,7 @@ void ConfigModuleWidget::toggleBatteryMonitoringGb()
  */
 void ConfigModuleWidget::updateAirspeedGroupbox(UAVObject *obj)
 {
+    if (isDirty() && obj) return;
     Q_UNUSED(obj);
 
     AirspeedSettings *airspeedSettings;
@@ -442,6 +530,7 @@ void ConfigModuleWidget::setupLedTab()
     connect(ui->btnLEDRange1End, &QPushButton::clicked, this, &ConfigModuleWidget::ledTabSetColor);
     connect(obj,
             static_cast<void (UAVDataObject::*)(bool)>(&UAVDataObject::presentOnHardwareChanged),
+            this,
             [=](bool enable) { tabEnable(ui->tabLED, enable); });
     tabEnable(ui->tabLED, obj->getIsPresentOnHardware());
 }

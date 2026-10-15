@@ -41,7 +41,7 @@ class KmlExportPlugin;
 class KmlExportPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.KmlExportPlugin")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.KmlExportPlugin")
 
 public:
     KmlExportPlugin();

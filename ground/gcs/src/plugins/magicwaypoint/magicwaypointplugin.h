@@ -34,7 +34,7 @@ class MagicWaypointGadgetFactory;
 class MagicWaypointPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.MagicWaypoint")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.MagicWaypoint")
 public:
     MagicWaypointPlugin();
     ~MagicWaypointPlugin();

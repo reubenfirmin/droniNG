@@ -28,7 +28,6 @@
 
 // for XML object
 #include <QDomDocument>
-#include <QXmlQuery>
 
 #include <QMessageBox>
 
@@ -69,7 +68,7 @@ ImportSummaryDialog::ImportSummaryDialog(QWidget *parent, bool quiet)
     signalMapper->setMapping(ui->btnSelectAll, 1);
     signalMapper->setMapping(ui->btnSelectNone, 0);
 
-    connect(signalMapper, SIGNAL(mapped(int)), this, SLOT(setCheckedState(int)));
+    connect(signalMapper, &QSignalMapper::mappedInt, this, &ImportSummaryDialog::setCheckedState);
 
     // Connect the help button
     connect(ui->helpButton, SIGNAL(clicked()), this, SLOT(openHelp()));
@@ -95,7 +94,7 @@ void ImportSummaryDialog::setUAVOSettings(UAVObjectManager *objs)
 void ImportSummaryDialog::openHelp()
 {
     QDesktopServices::openUrl(
-        QUrl("https://github.com/d-ronin/dRonin/wiki/OnlineHelp:-UAV-Settings-import-export",
+        QUrl("https://github.com/reubenfirmin/droniNG/wiki/OnlineHelp:-UAV-Settings-import-export",
              QUrl::StrictMode));
 }
 

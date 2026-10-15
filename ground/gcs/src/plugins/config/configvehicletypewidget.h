@@ -106,6 +106,7 @@ private slots:
     void bnServoTrim_clicked();
 
 protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
     void showEvent(QShowEvent *event);
     void resizeEvent(QResizeEvent *event);
 };

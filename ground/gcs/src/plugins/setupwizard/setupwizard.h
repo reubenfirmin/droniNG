@@ -49,7 +49,7 @@ class SetupWizard : public QWizard, public VehicleConfigurationSource
     Q_OBJECT
 
 public:
-    explicit SetupWizard(bool autoLaunched = false, QWidget *parent = nullptr);
+    explicit SetupWizard(QWidget *parent = nullptr);
     int nextId() const;
 
     void setControllerType(Core::IBoardType *type) { m_controllerType = type; }
@@ -114,13 +114,9 @@ public:
         return m_connectionManager;
     }
 
-signals:
-    void boardIgnored(QByteArray uuid);
-
 private slots:
     void customBackClicked();
     void pageChanged(int currId);
-    void boardIgnorePrompt();
 
 private:
     enum {
@@ -163,7 +159,6 @@ private:
     QList<actuatorChannelSettings> m_actuatorSettings;
 
     bool m_restartNeeded;
-    bool m_autoLaunched;
     bool m_back;
 
     Core::ConnectionManager *m_connectionManager;

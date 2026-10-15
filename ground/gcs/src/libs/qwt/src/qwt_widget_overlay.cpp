@@ -8,6 +8,7 @@
  *****************************************************************************/
 
 #include "qwt_widget_overlay.h"
+#include <qpainterpath.h>
 #include "qwt_painter.h"
 #include <qpainter.h>
 #include <qpaintengine.h>
@@ -218,7 +219,7 @@ void QwtWidgetOverlay::updateMask()
         draw( &painter );
         painter.end();
 
-        mask = qwtAlphaMask( image, hint.rects() );
+        mask = qwtAlphaMask( image, QVector<QRect>( hint.begin(), hint.end() ) );
 
         if ( d_data->renderMode == QwtWidgetOverlay::DrawOverlay )
         {
@@ -269,7 +270,7 @@ void QwtWidgetOverlay::paintEvent( QPaintEvent* event )
             width(), height(), qwtMaskImageFormat() );
 
         QVector<QRect> rects;
-        if ( clipRegion.rects().size() > 2000 )
+        if ( clipRegion.rectCount() > 2000 )
         {
             // the region is to complex
             painter.setClipRegion( clipRegion );
@@ -277,7 +278,7 @@ void QwtWidgetOverlay::paintEvent( QPaintEvent* event )
         }
         else
         {
-            rects = clipRegion.rects();
+            rects = QVector<QRect>( clipRegion.begin(), clipRegion.end() );
         }
 
         for ( int i = 0; i < rects.size(); i++ )

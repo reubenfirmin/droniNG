@@ -8,6 +8,7 @@
  *****************************************************************************/
 
 #include "qwt_plot_shapeitem.h"
+#include <qpainterpath.h>
 #include "qwt_scale_map.h"
 #include "qwt_painter.h"
 #include "qwt_curve_fitter.h"

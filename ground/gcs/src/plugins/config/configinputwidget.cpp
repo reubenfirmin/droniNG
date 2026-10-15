@@ -35,6 +35,7 @@
 #include "uavtalk/telemetrymanager.h"
 
 #include <QDebug>
+#include <utils/settingsstyle.h>
 #include <QStringList>
 #include <QWidget>
 #include <QTextEdit>
@@ -103,6 +104,15 @@ ConfigInputWidget::ConfigInputWidget(QWidget *parent)
     receiverActivityObj = ReceiverActivity::GetInstance(getObjectManager());
     m_config = new Ui_InputWidget();
     m_config->setupUi(this);
+
+    // Arming settings follow the same left edge as the other input tabs.
+    for (auto *row : m_config->saArmingSettings->widget()->findChildren<QHBoxLayout *>()) {
+        for (int index = row->count() - 1; index >= 0; --index)
+            if (row->itemAt(index)->spacerItem()) delete row->takeAt(index);
+        for (int index = 0; index < row->count(); ++index) row->setStretch(index, 0);
+        row->addStretch(1);
+        row->setProperty("settingsTrailingSpace", true);
+    }
 
     ExtensionSystem::PluginManager *pm = ExtensionSystem::PluginManager::instance();
     Q_ASSERT(pm);
@@ -226,7 +236,7 @@ ConfigInputWidget::ConfigInputWidget(QWidget *parent)
     m_renderer = new QSvgRenderer();
     QGraphicsScene *l_scene = m_config->graphicsView->scene();
     if (QFile::exists(":/configgadget/images/TX2.svg")
-        && m_renderer->load(QString(":/configgadget/images/TX2.svg")) && m_renderer->isValid()) {
+        && m_renderer->load(Utils::flatSvgDiagram(":/configgadget/images/TX2.svg")) && m_renderer->isValid()) {
         l_scene->clear(); // Deletes all items contained in the scene as well.
 
         m_txBackground = new QGraphicsSvgItem();
@@ -286,69 +296,69 @@ ConfigInputWidget::ConfigInputWidget(QWidget *parent)
         m_txArrows->setVisible(false);
 
         QRectF orig = m_renderer->boundsOnElement("ljoy");
-        QMatrix Matrix = m_renderer->matrixForElement("ljoy");
+        QTransform Matrix = m_renderer->transformForElement("ljoy");
         orig = Matrix.mapRect(orig);
         m_txLeftStickOrig.translate(orig.x(), orig.y());
         m_txLeftStick->setTransform(m_txLeftStickOrig, false);
 
         orig = m_renderer->boundsOnElement("arrows");
-        Matrix = m_renderer->matrixForElement("arrows");
+        Matrix = m_renderer->transformForElement("arrows");
         orig = Matrix.mapRect(orig);
         m_txArrowsOrig.translate(orig.x(), orig.y());
         m_txArrows->setTransform(m_txArrowsOrig, false);
 
         orig = m_renderer->boundsOnElement("body");
-        Matrix = m_renderer->matrixForElement("body");
+        Matrix = m_renderer->transformForElement("body");
         orig = Matrix.mapRect(orig);
         m_txMainBodyOrig.translate(orig.x(), orig.y());
         m_txMainBody->setTransform(m_txMainBodyOrig, false);
 
         orig = m_renderer->boundsOnElement("flightModeCenter");
-        Matrix = m_renderer->matrixForElement("flightModeCenter");
+        Matrix = m_renderer->transformForElement("flightModeCenter");
         orig = Matrix.mapRect(orig);
         m_txFlightModeCOrig.translate(orig.x(), orig.y());
         m_txFlightMode->setTransform(m_txFlightModeCOrig, false);
 
         orig = m_renderer->boundsOnElement("flightModeLeft");
-        Matrix = m_renderer->matrixForElement("flightModeLeft");
+        Matrix = m_renderer->transformForElement("flightModeLeft");
         orig = Matrix.mapRect(orig);
         m_txFlightModeLOrig.translate(orig.x(), orig.y());
 
         orig = m_renderer->boundsOnElement("flightModeRight");
-        Matrix = m_renderer->matrixForElement("flightModeRight");
+        Matrix = m_renderer->transformForElement("flightModeRight");
         orig = Matrix.mapRect(orig);
         m_txFlightModeROrig.translate(orig.x(), orig.y());
 
         orig = m_renderer->boundsOnElement("armedswitchright");
-        Matrix = m_renderer->matrixForElement("armedswitchright");
+        Matrix = m_renderer->transformForElement("armedswitchright");
         orig = Matrix.mapRect(orig);
         m_txArmingSwitchOrigR.translate(orig.x(), orig.y());
 
         orig = m_renderer->boundsOnElement("armedswitchleft");
-        Matrix = m_renderer->matrixForElement("armedswitchleft");
+        Matrix = m_renderer->transformForElement("armedswitchleft");
         orig = Matrix.mapRect(orig);
         m_txArmingSwitchOrigL.translate(orig.x(), orig.y());
 
         orig = m_renderer->boundsOnElement("rjoy");
-        Matrix = m_renderer->matrixForElement("rjoy");
+        Matrix = m_renderer->transformForElement("rjoy");
         orig = Matrix.mapRect(orig);
         m_txRightStickOrig.translate(orig.x(), orig.y());
         m_txRightStick->setTransform(m_txRightStickOrig, false);
 
         orig = m_renderer->boundsOnElement("access0");
-        Matrix = m_renderer->matrixForElement("access0");
+        Matrix = m_renderer->transformForElement("access0");
         orig = Matrix.mapRect(orig);
         m_txAccess0Orig.translate(orig.x(), orig.y());
         m_txAccess0->setTransform(m_txAccess0Orig, false);
 
         orig = m_renderer->boundsOnElement("access1");
-        Matrix = m_renderer->matrixForElement("access1");
+        Matrix = m_renderer->transformForElement("access1");
         orig = Matrix.mapRect(orig);
         m_txAccess1Orig.translate(orig.x(), orig.y());
         m_txAccess1->setTransform(m_txAccess1Orig, false);
 
         orig = m_renderer->boundsOnElement("access2");
-        Matrix = m_renderer->matrixForElement("access2");
+        Matrix = m_renderer->transformForElement("access2");
         orig = Matrix.mapRect(orig);
         m_txAccess2Orig.translate(orig.x(), orig.y());
         m_txAccess2->setTransform(m_txAccess2Orig, true);
@@ -1895,9 +1905,9 @@ const ConfigInputWidget::ArmingMethod
 ConfigInputWidget::armingMethodFromUavoOption(const QString &option)
 {
     // ignore stuff after plus to make switch arming cases work
-    QString opt = option.split('+', QString::SkipEmptyParts).at(0);
+    QString opt = option.split('+', Qt::SkipEmptyParts).at(0);
     foreach (const ArmingMethod &method, armingMethods) {
-        if (method.uavoOption.split('+', QString::SkipEmptyParts).at(0) == opt)
+        if (method.uavoOption.split('+', Qt::SkipEmptyParts).at(0) == opt)
             return method;
     }
     Q_ASSERT(false);

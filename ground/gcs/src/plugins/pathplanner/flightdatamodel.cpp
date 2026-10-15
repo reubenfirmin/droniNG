@@ -76,14 +76,14 @@ int FlightDataModel::columnCount(const QModelIndex &parent) const
  * @brief FlightDataModel::data Fetch the data from the model
  * @param index Specifies the row and column to fetch
  * @param role Either use Qt::DisplayRole or Qt::EditRole
- * @return The data as a variant or QVariant::Invalid for a bad role
+ * @return The data as a variant or an empty variant for a bad role
  */
 QVariant FlightDataModel::data(const QModelIndex &index, int role) const
 {
     if (role == Qt::DisplayRole || role == Qt::EditRole || role == Qt::UserRole) {
 
         if (!index.isValid() || index.row() > dataStorage.length() - 1)
-            return QVariant::Invalid;
+            return QVariant();
 
         PathPlanData *row = dataStorage.at(index.row());
 
@@ -125,7 +125,7 @@ QVariant FlightDataModel::data(const QModelIndex &index, int role) const
         }
     }
 
-    return QVariant::Invalid;
+    return QVariant();
 }
 
 /**
@@ -165,7 +165,7 @@ QVariant FlightDataModel::headerData(int section, Qt::Orientation orientation, i
             case LOCKED:
                 return QString("Locked");
             default:
-                return QVariant::Invalid;
+                return QVariant();
             }
         }
     }
@@ -712,6 +712,15 @@ bool FlightDataModel::getHomeLocation(double *homeLLA) const
         return false;
 
     HomeLocation::DataFields homeLocation = home->getData();
+    // A local draft starts at its first waypoint until a controller supplies home.
+    // Keep this origin in the draft; do not change the controller's HomeLocation.
+    if (homeLocation.Set == HomeLocation::SET_FALSE && !dataStorage.isEmpty()) {
+        const auto *origin = dataStorage.first();
+        homeLLA[0] = origin->latPosition;
+        homeLLA[1] = origin->lngPosition;
+        homeLLA[2] = origin->altitude;
+        return true;
+    }
     homeLLA[0] = homeLocation.Latitude / 1e7;
     homeLLA[1] = homeLocation.Longitude / 1e7;
     homeLLA[2] = homeLocation.Altitude;

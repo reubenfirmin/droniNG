@@ -15,10 +15,6 @@
 #include <float.h>
 #include <limits>
 
-#if QT_VERSION < 0x040601
-#define qFabs(x) ::fabs(x)
-#define qExp(x) ::exp(x)
-#endif
 
 static inline double qwtLog( double base, double value )
 {

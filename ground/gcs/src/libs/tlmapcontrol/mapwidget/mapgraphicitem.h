@@ -148,7 +148,6 @@ namespace mapcontrol
         QRectF maprect;
         bool isSelected;
         bool isMouseOverMarker;
-        QPixmap dragons;
         void SetIsMouseOverMarker(bool const& value){isMouseOverMarker = value;}
 
         qreal rotation;

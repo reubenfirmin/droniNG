@@ -225,7 +225,8 @@ namespace mapcontrol
 
     void TLMapWidget::showEvent(QShowEvent *event)
     {
-        connect(scene(),SIGNAL(sceneRectChanged(QRectF)),map,SLOT(resize(QRectF)));
+        connect(scene(),SIGNAL(sceneRectChanged(QRectF)),map,SLOT(resize(QRectF)), Qt::UniqueConnection);
+        map->resize(scene()->sceneRect());
         map->start();
         QGraphicsView::showEvent(event);
     }

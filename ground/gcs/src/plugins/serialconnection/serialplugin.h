@@ -55,6 +55,13 @@ public:
     virtual QList<Core::IDevice *> availableDevices();
     virtual QIODevice *openDevice(Core::IDevice *deviceName);
     virtual void closeDevice(const QString &deviceName);
+    QString errorString() const override { return m_error.details; }
+    Core::ConnectionError error() const override { return m_error; }
+    static Core::ConnectionError openFailure(const QString &systemLocation, int baudRate,
+                                             QSerialPort::SerialPortError error,
+                                             const QString &errorText);
+    static Core::ConnectionError groupAccessFailure(const QString &group, const QString &username,
+                                                    const QString &details);
 
     virtual QString connectionName();
     virtual QString shortName();
@@ -70,6 +77,8 @@ private:
     bool enablePolling;
     SerialPluginConfiguration *m_config;
     SerialPluginOptionsPage *m_optionspage;
+    Core::ConnectionError m_error;
+    QList<Core::IDevice *> m_devices;
 
 private slots:
     void periodic();
@@ -78,6 +87,11 @@ protected slots:
     void onEnumerationChanged();
 
 protected:
+    struct Port {
+        QString name, location, description, serialNumber, usbPath;
+        quint16 vendor = 0, product = 0;
+    };
+    virtual QList<Port> ports() const;
     bool m_deviceOpened;
 
     QTimer periodicTimer;
@@ -87,7 +101,7 @@ protected:
 class SerialPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.Serial")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.Serial")
 
 public:
     SerialPlugin();

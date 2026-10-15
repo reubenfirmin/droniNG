@@ -27,7 +27,7 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include "urlfactory.h"
-#include <QRegExp>
+#include <QRegularExpression>
 
 namespace core {
 
@@ -131,11 +131,12 @@ void UrlFactory::TryCorrectGoogleVersions()
             return;
         }
         QString html = QString(reply->readAll());
-        QRegExp reg(gMapRegex,Qt::CaseInsensitive);
-        qDebug() << "index="<<reg.indexIn(html);
-        if(reg.indexIn(html)!=-1)
+        QRegularExpression reg(gMapRegex, QRegularExpression::CaseInsensitiveOption);
+        auto match = reg.match(html);
+        qDebug() << "index=" << match.capturedStart();
+        if(match.hasMatch())
         {
-            QStringList gc = reg.capturedTexts();
+            QStringList gc = match.capturedTexts();
             VersionGoogleMap = QString("m@%1").arg(gc[1]);
             VersionGoogleMapChina = VersionGoogleMap;
 #ifdef DEBUG_URLFACTORY
@@ -143,20 +144,22 @@ void UrlFactory::TryCorrectGoogleVersions()
 #endif //DEBUG_URLFACTORY
         }
 
-        reg=QRegExp(gLabRegex,Qt::CaseInsensitive);
-        if(reg.indexIn(html)!=-1)
+        reg=QRegularExpression(gLabRegex, QRegularExpression::CaseInsensitiveOption);
+        match = reg.match(html);
+        if(match.hasMatch())
         {
-            QStringList gc=reg.capturedTexts();
+            QStringList gc=match.capturedTexts();
             VersionGoogleLabels = QString("h@%1").arg(gc[1]);
             VersionGoogleLabelsChina = VersionGoogleLabels;
 #ifdef DEBUG_URLFACTORY
             qDebug()<<"TryCorrectGoogleVersions, VersionGoogleLabels: "<<VersionGoogleLabels;
 #endif //DEBUG_URLFACTORY
         }
-        reg=QRegExp(gSatRegex,Qt::CaseInsensitive);
-        if(reg.indexIn(html)!=-1)
+        reg=QRegularExpression(gSatRegex, QRegularExpression::CaseInsensitiveOption);
+        match = reg.match(html);
+        if(match.hasMatch())
         {
-            QStringList gc=reg.capturedTexts();
+            QStringList gc=match.capturedTexts();
             VersionGoogleSatellite = gc[1];
             VersionGoogleSatelliteKorea = VersionGoogleSatellite;
             VersionGoogleSatelliteChina = "s@" + VersionGoogleSatellite;
@@ -164,10 +167,11 @@ void UrlFactory::TryCorrectGoogleVersions()
             qDebug()<<"TryCorrectGoogleVersions, VersionGoogleSatellite: "<<VersionGoogleSatellite;
 #endif //DEBUG_URLFACTORY
         }
-        reg=QRegExp(gTerRegex,Qt::CaseInsensitive);
-        if(reg.indexIn(html)!=-1)
+        reg=QRegularExpression(gTerRegex, QRegularExpression::CaseInsensitiveOption);
+        match = reg.match(html);
+        if(match.hasMatch())
         {
-            QStringList gc=reg.capturedTexts();
+            QStringList gc=match.capturedTexts();
             VersionGoogleTerrain = QString("t@%1,r@%2").arg(gc[1]).arg(gc[2]);
             VersionGoogleTerrainChina = VersionGoogleTerrain;
 #ifdef DEBUG_URLFACTORY
@@ -196,49 +200,16 @@ QString UrlFactory::MakeImageUrl(const MapType::Types &type,const Point &pos,con
     switch(type)
     {
     case MapType::GoogleMap:
-    {
-        QString server = "mt";
-        QString request = "vt";
-        QString sec1 = ""; // after &x=...
-        QString sec2 = ""; // after &zoom=...
-        GetSecGoogleWords(pos,  sec1,  sec2);
-        TryCorrectGoogleVersions();
-
-        return QString("http://%1%2.google.com/%3/lyrs=%4&hl=%5&x=%6%7&y=%8&z=%9&s=%10").arg(server).arg(GetServerNum(pos, 4)).arg(request).arg(VersionGoogleMap).arg(language).arg(pos.X()).arg(sec1).arg(pos.Y()).arg(zoom).arg(sec2);
-    }
-        break;
     case MapType::GoogleSatellite:
-    {
-        QString server = "khm";
-        QString request = "kh";
-        QString sec1 = ""; // after &x=...
-        QString sec2 = ""; // after &zoom=...
-        GetSecGoogleWords(pos,  sec1,  sec2);
-        TryCorrectGoogleVersions();
-        return QString("http://%1%2.google.com/%3/v=%4&hl=%5&x=%6%7&y=%8&z=%9&s=%10").arg(server).arg(GetServerNum(pos, 4)).arg(request).arg(VersionGoogleSatellite).arg(language).arg(pos.X()).arg(sec1).arg(pos.Y()).arg(zoom).arg(sec2);
-    }
-        break;
     case MapType::GoogleLabels:
-    {
-        QString server = "mt";
-        QString request = "vt";
-        QString sec1 = ""; // after &x=...
-        QString sec2 = ""; // after &zoom=...
-        GetSecGoogleWords(pos,  sec1,  sec2);
-        TryCorrectGoogleVersions();
-
-        return QString("http://%1%2.google.com/%3/lyrs=%4&hl=%5&x=%6%7&y=%8&z=%9&s=%10").arg(server).arg(GetServerNum(pos, 4)).arg(request).arg(VersionGoogleLabels).arg(language).arg(pos.X()).arg(sec1).arg(pos.Y()).arg(zoom).arg(sec2);
-    }
-        break;
     case MapType::GoogleTerrain:
+    case MapType::GoogleHybrid:
     {
-        QString server = "mt";
-        QString request = "vt";
-        QString sec1 = ""; // after &x=...
-        QString sec2 = ""; // after &zoom=...
-        GetSecGoogleWords(pos,  sec1,  sec2);
-        TryCorrectGoogleVersions();
-        return QString("http://%1%2.google.com/%3/v=%4&hl=%5&x=%6%7&y=%8&z=%9&s=%10").arg(server).arg(GetServerNum(pos, 4)).arg(request).arg(VersionGoogleTerrain).arg(language).arg(pos.X()).arg(sec1).arg(pos.Y()).arg(zoom).arg(sec2);
+        // Layer names resolve the current tiles without a blocking version scrape.
+        const QString layer = type == MapType::GoogleSatellite ? "s" : type == MapType::GoogleLabels ? "h"
+            : type == MapType::GoogleTerrain ? "p" : type == MapType::GoogleHybrid ? "y" : "m";
+        return QString("https://mt%1.google.com/vt?lyrs=%2&hl=%3&x=%4&y=%5&z=%6")
+            .arg(GetServerNum(pos, 4)).arg(layer).arg(language).arg(pos.X()).arg(pos.Y()).arg(zoom);
     }
         break;
     case MapType::GoogleMapChina:
@@ -536,7 +507,7 @@ QList <UrlFactory::geoCodingStruct> UrlFactory::GetLatLngFromGeocoderUrl(const Q
 #endif //DEBUG_URLFACTORY
     status = GeoCoderStatusCode::UNKNOWN_ERROR;
     QString urlEnd = url.mid(url.indexOf("xml?address=")+12,url.indexOf("&sensor")-url.indexOf("xml?address=")-12);
-    urlEnd.replace( QRegExp(
+    urlEnd.replace( QRegularExpression(
                         "[^"
                         "A-Z,a-z,0-9,"
                         "\\^,\\&,\\',\\@,"
@@ -595,7 +566,7 @@ QList <UrlFactory::geoCodingStruct> UrlFactory::GetPlacemarkFromReverseGeocoderU
 #endif //DEBUG_URLFACTORY
     status = GeoCoderStatusCode::UNKNOWN_ERROR;
     QString urlEnd = url.mid(url.indexOf("xml?latlng=")+11,url.indexOf("&sensor")-url.indexOf("xml?latlng=")-11);
-    urlEnd.replace( QRegExp(
+    urlEnd.replace( QRegularExpression(
                         "[^"
                         "A-Z,a-z,0-9,"
                         "\\^,\\&,\\',\\@,"

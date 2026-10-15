@@ -174,7 +174,8 @@ QHash<QObject *, Aggregate *> &Aggregate::aggregateMap()
 */
 QReadWriteLock &Aggregate::lock()
 {
-    static QReadWriteLock lock;
+    // Queries nest read locks, and moving a component nests write locks.
+    static QReadWriteLock lock(QReadWriteLock::Recursive);
     return lock;
 }
 

@@ -47,6 +47,8 @@
 #include "actuatorsettings.h"
 
 #include <coreplugin/coreconstants.h>
+#include <coreplugin/firmwarecatalog.h>
+#include <coreplugin/firmwareinstallimage.h>
 
 #ifdef UAVOBJECTUTIL_DEBUG
 #define UAVOBJECTUTIL_QXTLOG_DEBUG(...) qDebug() << __VA_ARGS__
@@ -667,7 +669,8 @@ bool UAVObjectUtilManager::getBoardDescriptionStruct(deviceDescriptorStruct &dev
 
 bool UAVObjectUtilManager::descriptionToStructure(QByteArray desc, deviceDescriptorStruct &struc)
 {
-    if (desc.startsWith("TlFw") || desc.startsWith("OpFw")) {
+    if (desc.size() == 100 && (desc.startsWith("TlFw") || desc.startsWith("OpFw"))) {
+        struc.description = desc;
         /*
          * This looks like a binary with a description at the end
          *  4 bytes: header: "TlFw"
@@ -702,7 +705,7 @@ bool UAVObjectUtilManager::descriptionToStructure(QByteArray desc, deviceDescrip
             gitDate = gitDate << 8;
             gitDate += desc.at(11 - i) & 0xFF;
         }
-        struc.gitDate = QDateTime::fromTime_t(gitDate).toUTC().toString("yyyyMMdd HH:mm");
+        struc.gitDate = QDateTime::fromSecsSinceEpoch(gitDate).toUTC().toString("yyyyMMdd HH:mm");
 
         QString gitTag = QString(desc.mid(14, 26));
         struc.gitTag = gitTag;
@@ -742,12 +745,16 @@ QString UAVObjectUtilManager::getGcsHash()
 }
 
 /**
- * @brief Check if firmware version hash matches GCS version hash
- * @return false if version doesn't match, true otherwise
+ * @brief Check build compatibility using protocol and firmware executable identity.
+ * GCS-only commits do not require a controller firmware update.
  */
 bool UAVObjectUtilManager::firmwareHashMatchesGcs()
 {
-    return getFirmwareHash().toLower() == getGcsHash().toLower();
+    deviceDescriptorStruct device;
+    if (!getBoardDescriptionStruct(device)
+        || device.uavoHash != Core::FirmwareInstallImage::gcsUavoHash()) return false;
+    return device.gitHash.toLower() == getGcsHash().toLower()
+        || !Core::FirmwareCatalog::matchingFirmwareDescriptor(device.description).isEmpty();
 }
 
 /**

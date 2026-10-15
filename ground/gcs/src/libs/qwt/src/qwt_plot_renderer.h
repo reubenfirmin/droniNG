@@ -117,9 +117,7 @@ public:
 
 #ifndef QWT_NO_SVG
 #ifdef QT_SVG_LIB
-#if QT_VERSION >= 0x040500
     void renderTo( QwtPlot *, QSvgGenerator & ) const;
-#endif
 #endif
 #endif
 

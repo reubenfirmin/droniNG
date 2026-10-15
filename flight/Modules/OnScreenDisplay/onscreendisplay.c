@@ -1030,16 +1030,16 @@ void introGraphics(int16_t x, int16_t y)
 #ifdef OSD_USE_BRAINFPV_LOGO
 	/* logo */
 	draw_image(x - image_brainfpv.width - 10, y - image_brainfpv.height / 2, &image_brainfpv);
-	draw_image(x + 10, y - image_dronin.height / 2, &image_dronin);
+	draw_image(x + 10, y - image_droning.height / 2, &image_droning);
 #else
-	draw_image(x - image_droninbig.width / 2, y - image_droninbig.height / 2,
-			&image_droninbig);
+	draw_image(x - image_droningbig.width / 2, y - image_droningbig.height / 2,
+			&image_droningbig);
 #endif
 }
 
 void introText(int16_t x, int16_t y)
 {
-	write_string("dRonin/" DRONIN_TARGET, x, y, 0, 0, TEXT_VA_TOP, TEXT_HA_CENTER, 0, FONT12X18);
+	write_string("droniNG/" DRONING_TARGET, x, y, 0, 0, TEXT_VA_TOP, TEXT_HA_CENTER, 0, FONT12X18);
 }
 
 void printFWVersion(int16_t x, int16_t y)
@@ -1781,6 +1781,9 @@ static void onScreenDisplayTask(__attribute__((unused)) void *parameters)
 
 	// intro
 	while (PIOS_Thread_Systime() <= BLANK_TIME + INTRO_TIME) {
+#if defined(PIOS_INCLUDE_IMPORTED)
+		PIOS_Video_RecoverSync();
+#endif
 		if (PIOS_Semaphore_Take(onScreenDisplaySemaphore, 300) == true) {
 			video_active = true;
 
@@ -1809,9 +1812,12 @@ static void onScreenDisplayTask(__attribute__((unused)) void *parameters)
 	}
 
 	// Create average altitude
-	home_baro_altitude /= frame_counter;
+	if (frame_counter) home_baro_altitude /= frame_counter;
 
 	while (1) {
+#if defined(PIOS_INCLUDE_IMPORTED)
+		PIOS_Video_RecoverSync();
+#endif
 		if (PIOS_Semaphore_Take(onScreenDisplaySemaphore, 400) == true) {
 			video_active = true;
 			now = PIOS_Thread_Systime();

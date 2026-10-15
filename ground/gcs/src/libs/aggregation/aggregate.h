@@ -50,7 +50,7 @@ public:
     void remove(QObject *component);
 
     template <typename T> T *component() {
-        QReadLocker(&lock());
+        QReadLocker locker(&lock());
         foreach (QObject *component, m_components) {
             if (T *result = qobject_cast<T *>(component))
                 return result;
@@ -59,7 +59,7 @@ public:
     }
 
     template <typename T> QList<T *> components() {
-        QReadLocker(&lock());
+        QReadLocker locker(&lock());
         QList<T *> results;
         foreach (QObject *component, m_components) {
             if (T *result = qobject_cast<T *>(component)) {
@@ -95,7 +95,7 @@ template <typename T> T *query(QObject *obj)
         return (T *)0;
     T *result = qobject_cast<T *>(obj);
     if (!result) {
-        QReadLocker(&lock());
+        QReadLocker locker(&Aggregate::lock());
         Aggregate *parentAggregation = Aggregate::parentAggregate(obj);
         result = (parentAggregation ? query<T>(parentAggregation) : 0);
     }
@@ -114,7 +114,7 @@ template <typename T> QList<T *> query_all(QObject *obj)
 {
     if (!obj)
         return QList<T *>();
-    QReadLocker(&lock());
+    QReadLocker locker(&Aggregate::lock());
     Aggregate *parentAggregation = Aggregate::parentAggregate(obj);
     QList<T *> results;
     if (parentAggregation)

@@ -243,7 +243,7 @@ void LongLongSpinBox::fixup(QString &input) const
 
 QString LongLongSpinBox::stripped(const QString &t, int *pos) const
 {
-    QStringRef text(&t);
+    QStringView text(t);
 
     if (specialValueText().size() == 0 || text != specialValueText()) {
         int from = 0;
@@ -344,14 +344,14 @@ QSize LongLongSpinBox::minimumSizeHint() const
         QString fixedContent = m_prefix + QStringLiteral("  ") + m_suffix;
         s.truncate(18);
         s += fixedContent;
-        int w = fm.width(s);
+        int w = fm.horizontalAdvance(s);
         s = textFromValue(m_max);
         s.truncate(18);
         s += fixedContent;
-        w = std::max(w, fm.width(s));
+        w = std::max(w, fm.horizontalAdvance(s));
 
         if (specialValueText().size())
-            w = qMax(w, fm.width(specialValueText()));
+            w = qMax(w, fm.horizontalAdvance(specialValueText()));
 
         w += 2; // cursor blinking space
 
@@ -359,8 +359,7 @@ QSize LongLongSpinBox::minimumSizeHint() const
         initStyleOption(&opt);
         QSize hint(w, h);
 
-        m_cachedMinSize = style()->sizeFromContents(QStyle::CT_SpinBox, &opt, hint, this)
-                .expandedTo(QApplication::globalStrut());
+        m_cachedMinSize = style()->sizeFromContents(QStyle::CT_SpinBox, &opt, hint, this);
     }
     return m_cachedMinSize;
 }

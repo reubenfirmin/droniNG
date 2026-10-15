@@ -28,6 +28,7 @@
 
 #include "../uavobjectparser.h"
 #include "generator_io.h"
+#include <QRegularExpression>
 
 // These special chars (regexp) will be removed from C/java identifiers
 #define ENUM_SPECIAL_CHARS "[\\.\\-\\s\\+/\\(\\)]"

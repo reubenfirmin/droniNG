@@ -20,6 +20,7 @@ HEADERS += \
     qwt_date_scale_engine.h \
     qwt_dyngrid_layout.h \
     qwt_global.h \
+    qwt_qt_compat.h \
     qwt_graphic.h \
     qwt_interval.h \
     qwt_interval_symbol.h \
@@ -183,11 +184,7 @@ contains(QWT_CONFIG, QwtPlot) {
         qwt_scale_widget.cpp 
 }
 
-greaterThan(QT_MAJOR_VERSION, 4) {
-
-    QT += printsupport
-    QT += concurrent
-} 
+QT += printsupport concurrent
 
 contains(QWT_CONFIG, QwtSvg) {
 
@@ -201,13 +198,6 @@ else {
     DEFINES += QWT_NO_SVG
 }
 
-contains(QWT_CONFIG, QwtOpenGL) {
-
-    QT += opengl
-
-    HEADERS += qwt_plot_glcanvas.h
-    SOURCES += qwt_plot_glcanvas.cpp
-}
 else {
 
     DEFINES += QWT_NO_OPENGL

@@ -51,7 +51,7 @@
 #include "vehicleconfigurationhelper.h"
 #include "actuatorsettings.h"
 
-SetupWizard::SetupWizard(bool autoLaunched, QWidget *parent)
+SetupWizard::SetupWizard(QWidget *parent)
     : QWizard(parent)
     , VehicleConfigurationSource()
     , m_controllerType(NULL)
@@ -60,11 +60,9 @@ SetupWizard::SetupWizard(bool autoLaunched, QWidget *parent)
     , m_escType(ESC_UNKNOWN)
     , m_calibrationPerformed(false)
     , m_restartNeeded(false)
-    , m_autoLaunched(autoLaunched)
     , m_connectionManager(nullptr)
 {
-    connect(this, &QWizard::rejected, this, &SetupWizard::boardIgnorePrompt);
-    setWindowTitle(tr("dRonin Setup Wizard"));
+    setWindowTitle(tr("droniNG Setup Wizard"));
     setOption(QWizard::IndependentPages, false);
     for (quint16 i = 0; i < ActuatorSettings::CHANNELMAX_NUMELEM; i++) {
         m_actuatorSettings << actuatorChannelSettings();
@@ -87,9 +85,7 @@ int SetupWizard::nextId() const
         UAVObjectUtilManager *utilMngr = pm->getObject<UAVObjectUtilManager>();
         Q_ASSERT(utilMngr);
 
-        const QString fwHash = utilMngr->getFirmwareHash();
-        const QString gcsHash = utilMngr->getGcsHash();
-        if (!fwHash.length() || fwHash != gcsHash) {
+        if (!utilMngr->firmwareHashMatchesGcs()) {
             qobject_cast<BoardtypeUnknown *>(page(PAGE_BOARDTYPE_UNKNOWN))
                 ->setFailureType(BoardtypeUnknown::UNKNOWN_FIRMWARE);
             return PAGE_BOARDTYPE_UNKNOWN;
@@ -367,26 +363,4 @@ bool SetupWizard::saveHardwareSettings() const
     VehicleConfigurationHelper helper(const_cast<SetupWizard *>(this));
 
     return helper.setupHardwareSettings();
-}
-
-void SetupWizard::boardIgnorePrompt()
-{
-    if (!m_autoLaunched)
-        return;
-
-    QMessageBox prompt(QMessageBox::Question, tr("Setup Wizard Cancelled"),
-                       tr("Would you like to prevent the setup wizard from automatically opening"
-                       " for the remainder of this session?"), QMessageBox::Yes | QMessageBox::No, this);
-    if (prompt.exec() == QMessageBox::No)
-        return;
-
-    ExtensionSystem::PluginManager *pm = ExtensionSystem::PluginManager::instance();
-    UAVObjectUtilManager *utilMngr = pm->getObject<UAVObjectUtilManager>();
-    if (!utilMngr) {
-        qWarning() << "Can't get UAVObjectUtilManager";
-        Q_ASSERT(false);
-        return;
-    }
-    emit boardIgnored(utilMngr->getBoardCPUSerial());
-    qInfo() << "Setup wizard will be ignored for this board";
 }

@@ -41,12 +41,8 @@
 #include <unistd.h>
 #include <ctype.h>
 
-#if !(defined(_WIN32) || defined(WIN32) || defined(__MINGW32__))
-#ifndef __APPLE__
 #include <sys/mman.h>
 #include <sched.h>
-#endif
-#endif
 
 #include "pios.h"
 
@@ -109,9 +105,7 @@ static void Usage(char *cmdName) {
 		"\t\t[-d drvname:bus:id] [-l logfile] [-I i2cdev] [-i drvname:bus]\n"
 		"\t\t[-g port] [-c confflash] [-x time] -!\n"
 		"\n"
-#if !(defined(_WIN32) || defined(WIN32) || defined(__MINGW32__))
 		"\t-f\t\t\tEnables floating point exception trapping mode\n"
-#endif
 #ifdef __linux__
 		"\t-r\t\t\tGoes realtime and pins all memory (requires root)\n"
 #endif
@@ -121,9 +115,7 @@ static void Usage(char *cmdName) {
 #ifdef PIOS_INCLUDE_SIMSENSORS_YASIM
 		"\t-y\t\t\tUse an external simulator (drhil yasim)\n"
 #endif
-#if !(defined(_WIN32) || defined(WIN32) || defined(__MINGW32__))
 		"\t-x time\t\t\tExit after time seconds\n"
-#endif
 		"\t-S drvname:serialpath\tStarts a serial driver on serialpath\n"
 		"\t\t\tAvailable drivers: gps msp lighttelemetry telemetry omnip\n\n"
 #ifdef PIOS_INCLUDE_SPI
@@ -645,7 +637,6 @@ void PIOS_SYS_Args(int argc, char *argv[]) {
 				hw_argseen = false;
 				break;
 			}
-#if !(defined(_WIN32) || defined(WIN32) || defined(__MINGW32__))
 			case 'x':
 			{
 				int timeout = atoi(optarg);
@@ -653,7 +644,6 @@ void PIOS_SYS_Args(int argc, char *argv[]) {
 				alarm(timeout);
 				break;
 			}
-#endif
 
 			default:
 				Usage(argv[0]);
@@ -674,7 +664,6 @@ void PIOS_SYS_Args(int argc, char *argv[]) {
 #include <signal.h>		/* sigaction */
 #include <fenv.h>		/* PE_* */
 
-#if !(defined(_WIN32) || defined(WIN32) || defined(__MINGW32__))
 static void sigint_handler(int signum, siginfo_t *siginfo, void *ucontext)
 {
 	printf("\nSIGINT received.  Shutting down\n");
@@ -686,7 +675,6 @@ static void sigfpe_handler(int signum, siginfo_t *siginfo, void *ucontext)
 	printf("\nSIGFPE received.  OMG!\n");
 	exit(0);
 }
-#endif
 
 void PIOS_SYS_Init(void)
 {
@@ -721,7 +709,6 @@ void PIOS_SYS_Init(void)
 	printf("Pseudo-RTC started\n");
 #endif
 
-#if !(defined(_WIN32) || defined(WIN32) || defined(__MINGW32__))
 	struct sigaction sa_int = {
 		.sa_sigaction = sigint_handler,
 		.sa_flags = SA_SIGINFO,
@@ -741,16 +728,9 @@ void PIOS_SYS_Init(void)
 
 		// Underflow is fairly harmless, do we even care in debug
 		// mode?
-#ifndef __APPLE__
 		feenableexcept(FE_DIVBYZERO | FE_UNDERFLOW | FE_OVERFLOW |
 			FE_INVALID);
-#else
-		// XXX need the right magic
-		printf("UNABLE TO DBEUG FPE ON OSX!\n");
-		exit(1);
-#endif
 	}
-#endif
 }
 
 /**

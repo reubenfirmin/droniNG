@@ -34,8 +34,8 @@
 TelemetryMonitorWidget::TelemetryMonitorWidget(QWidget *parent)
     : QGraphicsView(parent)
 {
-    setMinimumSize(200, parent->height());
-    setMaximumSize(200, parent->height());
+    setFixedSize(220, 40);
+    setAccessibleName(tr("Telemetry TX/RX and alerts"));
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -59,7 +59,7 @@ TelemetryMonitorWidget::TelemetryMonitorWidget(QWidget *parent)
         QGraphicsSvgItem *pt;
 
         QRectF orig;
-        QMatrix Matrix;
+        QTransform Matrix;
         QTransform trans;
 
         for (int i = 0; i < NODE_NUMELEM; i++) {
@@ -71,7 +71,7 @@ TelemetryMonitorWidget::TelemetryMonitorWidget(QWidget *parent)
                 pt->setElementId(name);
                 pt->setParentItem(graph);
                 orig = renderer->boundsOnElement(name);
-                Matrix = renderer->matrixForElement(name);
+                Matrix = renderer->transformForElement(name);
                 orig = Matrix.mapRect(orig);
                 trans.translate(orig.x(), orig.y());
                 pt->setTransform(trans, false);
@@ -86,7 +86,7 @@ TelemetryMonitorWidget::TelemetryMonitorWidget(QWidget *parent)
                 pt->setElementId(name);
                 pt->setParentItem(graph);
                 orig = renderer->boundsOnElement(name);
-                Matrix = renderer->matrixForElement(name);
+                Matrix = renderer->transformForElement(name);
                 orig = Matrix.mapRect(orig);
                 trans.translate(orig.x(), orig.y());
                 pt->setTransform(trans, false);
@@ -99,7 +99,7 @@ TelemetryMonitorWidget::TelemetryMonitorWidget(QWidget *parent)
         txSpeed->setFont(QFont("Helvetica", 30, 2));
         txSpeed->setParentItem(graph);
         orig = renderer->boundsOnElement("txPH");
-        Matrix = renderer->matrixForElement("txPH");
+        Matrix = renderer->transformForElement("txPH");
         orig = Matrix.mapRect(orig);
         trans.reset();
         trans.translate(orig.x(), orig.y() - 8);
@@ -110,7 +110,7 @@ TelemetryMonitorWidget::TelemetryMonitorWidget(QWidget *parent)
         rxSpeed->setParentItem(graph);
         trans.reset();
         orig = renderer->boundsOnElement("rxPH");
-        Matrix = renderer->matrixForElement("rxPH");
+        Matrix = renderer->transformForElement("rxPH");
         orig = Matrix.mapRect(orig);
         trans.translate(orig.x(), orig.y() - 8);
         rxSpeed->setTransform(trans, false);

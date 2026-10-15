@@ -26,6 +26,8 @@
  */
 #include "uploaderplugin.h"
 #include "uploadergadgetfactory.h"
+#include "firmwarebootcontroller.h"
+#include <coreplugin/icore.h>
 #include <QtPlugin>
 #include <QStringList>
 #include <extensionsystem/pluginmanager.h>
@@ -51,12 +53,12 @@ bool UploaderPlugin::initialize(const QStringList &args, QString *errMsg)
 
 void UploaderPlugin::extensionsInitialized()
 {
-    // Do nothing
+    m_firmwareBoot = new FirmwareBootController(Core::ICore::instance()->connectionManager(), this);
 }
 
 void UploaderPlugin::shutdown()
 {
-    // Do nothing
+    delete m_firmwareBoot; m_firmwareBoot = nullptr;
 }
 
 void UploaderPlugin::testStuff()

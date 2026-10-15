@@ -34,7 +34,7 @@ class QmlViewGadgetFactory;
 class QmlViewPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.QMLView")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.QMLView")
 public:
     QmlViewPlugin();
     ~QmlViewPlugin();

@@ -4,6 +4,7 @@ DEFINES += LOGGING_LIBRARY
 QT += svg
 
 include(../../gcsplugin.pri)
+include(../../libs/utils/utils.pri)
 
 include(../../plugins/coreplugin/coreplugin.pri)
 include(../../plugins/scope/scope.pri)

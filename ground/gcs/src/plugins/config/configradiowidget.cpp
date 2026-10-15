@@ -37,6 +37,46 @@ ConfigRadioWidget::ConfigRadioWidget(QWidget *parent)
 {
     ui = new Ui::radio();
     ui->setupUi(this);
+    // Keep role and telemetry choices together instead of separating them with
+    // a flexible spacer across the whole page.
+    while (auto *item = ui->gridLayout_3->takeAt(0))
+        if (!item->layout()) delete item;
+    ui->gridLayout_3->addWidget(ui->label_6, 0, 0);
+    ui->gridLayout_3->addLayout(ui->horizontalLayout_3, 0, 1, 1, 3);
+    ui->gridLayout_3->addWidget(ui->label_11, 1, 0);
+    ui->gridLayout_3->addWidget(ui->cb_tel_source, 1, 1);
+    ui->gridLayout_3->addWidget(ui->label_10, 2, 0);
+    ui->gridLayout_3->addWidget(ui->cb_rssi_source, 2, 1);
+    ui->gridLayout_3->setColumnMinimumWidth(0, 208);
+    ui->gridLayout_3->setProperty("compactForm", true);
+
+    for (auto *grid : {ui->gridLayout_9, ui->gridLayout_4, ui->gridLayout}) {
+        struct Cell { QWidget *widget; int row, column, rows, columns; };
+        QList<Cell> cells;
+        for (int index = grid->count() - 1; index >= 0; --index) {
+            auto *item = grid->itemAt(index);
+            if (item->spacerItem()) { delete grid->takeAt(index); continue; }
+            if (!item->widget()) continue;
+            int row, column, rows, columns;
+            grid->getItemPosition(index, &row, &column, &rows, &columns);
+            cells.append({item->widget(), row, column, rows, columns});
+            delete grid->takeAt(index);
+        }
+        for (const auto &cell : cells) {
+            const int column = grid == ui->gridLayout ? (cell.column < 4 ? cell.column - 2 : cell.column - 3)
+                : cell.column < 2 ? cell.column : cell.column - 1;
+            grid->addWidget(cell.widget, cell.row, column, cell.rows, cell.columns);
+            if (auto *label = qobject_cast<QLabel *>(cell.widget))
+                label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        }
+        grid->setColumnMinimumWidth(0, 208);
+        grid->setProperty("compactForm", true);
+    }
+    for (auto *row : {ui->horizontalLayout_2, ui->horizontalLayout_5}) {
+        for (int index = 0; index < row->count(); ++index)
+            if (auto *label = row->itemAt(index)->widget()) label->setFixedWidth(36);
+        row->addStretch();
+    }
 
     // Load UAVObjects to widget relations from UI file
     // using objrelation dynamic property

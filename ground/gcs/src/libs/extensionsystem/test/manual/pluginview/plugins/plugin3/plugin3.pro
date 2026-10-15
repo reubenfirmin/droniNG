@@ -8,8 +8,6 @@ include(../../../../extensionsystem_test.pri)
 
 LIBS += -L$${PWD}/../plugin2 -lplugin2
 
-macx {
-    QMAKE_LFLAGS_SONAME = -Wl,-install_name,$${PWD}/
-} else:unix {
+linux {
     QMAKE_RPATHDIR += $${PWD}/../plugin2
 }

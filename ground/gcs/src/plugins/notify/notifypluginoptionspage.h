@@ -41,8 +41,7 @@
 #include <QtCore/QSettings>
 #include <QComboBox>
 #include <QSpinBox>
-#include <QSoundEffect>
-#include <QMediaPlayer>
+#include "soundsequenceplayer.h"
 
 class NotifyTableModel;
 class NotificationItem;
@@ -94,7 +93,7 @@ private slots:
     void on_clicked_buttonSoundFolder(const QString &path);
     void on_changedIndex_UAVObject(QString val);
     void on_changedIndex_UAVField(QString val);
-    void on_changed_playButtonText(QMediaPlayer::State newstate);
+    void on_changed_playButtonText(bool playing);
 
     /**
      * Important when we change to or from "In range" value
@@ -110,7 +109,7 @@ private:
     Q_DISABLE_COPY(NotifyPluginOptionsPage)
 
     void initButtons();
-    void initPhononPlayer();
+    void initSoundPlayer();
     void initRulesTable();
 
     void setSelectedNotification(NotificationItem *ntf);
@@ -132,7 +131,7 @@ private:
     SoundNotifyPlugin *_owner;
 
     //! Media object uses to test sound playing
-    QMediaPlayer *_testSound;
+    SoundSequencePlayer *_testSound = nullptr;
 
     QScopedPointer<NotifyTableModel> _notifyRulesModel;
     QItemSelectionModel *_notifyRulesSelection;
@@ -179,7 +178,6 @@ private:
     //! if UAVObjectManager doesn't have such object, this field will be NULL
     UAVDataObject *_currUAVObject;
 
-    QMediaPlaylist *playlist;
 };
 
 #endif // NOTIFYPLUGINOPTIONSPAGE_H

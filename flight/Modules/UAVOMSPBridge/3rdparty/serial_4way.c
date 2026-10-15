@@ -24,7 +24,7 @@
 
 #ifdef  USE_SERIAL_4WAY_BLHELI_INTERFACE
 
-#ifndef DRONIN_TARGET
+#ifndef DRONING_TARGET
 
 #include "drivers/buf_writer.h"
 #include "drivers/io.h"
@@ -51,7 +51,7 @@
 #define Bit_RESET GPIO_PIN_RESET
 #endif
 
-#ifndef DRONIN_TARGET
+#ifndef DRONING_TARGET
 #define USE_TXRX_LED
 #endif
 
@@ -481,7 +481,7 @@ void esc4wayProcess(serialPort_t *mspPort)
             ioMem.D_PTR_I = ParamBuf;
 
 
-#ifdef DRONIN_TARGET
+#ifdef DRONING_TARGET
 	    PIOS_IRQ_Disable();
 #endif
 
@@ -866,7 +866,7 @@ void esc4wayProcess(serialPort_t *mspPort)
                 }
             }
 
-#ifdef DRONIN_TARGET
+#ifdef DRONING_TARGET
 	    PIOS_IRQ_Enable();
 #endif
         }

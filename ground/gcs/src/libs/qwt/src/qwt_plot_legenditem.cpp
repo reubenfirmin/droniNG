@@ -274,10 +274,7 @@ void QwtPlotLegendItem::setMargin( int margin )
  */
 int QwtPlotLegendItem::margin() const
 {
-    int left;
-    d_data->layout->getContentsMargins( &left, NULL, NULL, NULL );
-
-    return left;
+    return d_data->layout->contentsMargins().left();
 }
 
 /*!

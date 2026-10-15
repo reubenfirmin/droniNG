@@ -65,7 +65,7 @@ bool UAVObjectGeneratorGCS::generate(UAVObjectParser* parser,QString templatepat
         process_object(info);
 
         gcsObjInit.append("    objMngr->registerObject( new " + info->name + "() );\n");
-        gcsObjInit.append("    qmlRegisterType<" + info->name + ">(\"com.dronin.uavo\", 1, 0, \"" + info->name + "Class\");\n");
+        gcsObjInit.append("    qmlRegisterType<" + info->name + ">(\"com.droning.uavo\", 1, 0, \"" + info->name + "Class\");\n");
         objInc.append("#include \"" + info->namelc + ".h\"\n");
     }
 
@@ -97,11 +97,11 @@ QString UAVObjectGeneratorGCS::form_enum_name(const QString& objectName,
         s = "%1_%2";
 
         return s.arg( fieldName.toUpper() )
-            .arg( option.toUpper().replace(QRegExp(ENUM_SPECIAL_CHARS), ""));
+            .arg( option.toUpper().replace(QRegularExpression(ENUM_SPECIAL_CHARS, QRegularExpression::UseUnicodePropertiesOption), ""));
     }
 
     return s.arg( fieldName.toUpper() )
-        .arg( option.toUpper().replace(QRegExp(ENUM_SPECIAL_CHARS), ""))
+        .arg( option.toUpper().replace(QRegularExpression(ENUM_SPECIAL_CHARS, QRegularExpression::UseUnicodePropertiesOption), ""))
         .arg( objectName);
 }
 
@@ -122,13 +122,14 @@ bool UAVObjectGeneratorGCS::process_object(ObjectInfo* info)
     replaceCommonTags(outCode, info);
 
     // Replace the $(PARENT_INCLUDES) tag
-    QString parentIncludes;
+    QStringList parentIncludes;
 
     foreach (ObjectInfo *parent, info->parents) {
         parentIncludes.append( QString("#include <%1.h>\r\n").arg(parent->namelc));
     }
 
-    outInclude.replace(QString("$(PARENT_INCLUDES)"), parentIncludes);
+    parentIncludes.sort();
+    outInclude.replace(QString("$(PARENT_INCLUDES)"), parentIncludes.join(QString()));
 
     // Replace the $(DATAFIELDS) tag
     QString type;

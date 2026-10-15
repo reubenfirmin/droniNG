@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "purpose": "Original RADIX source and hardware-adapter dry run; not installable firmware",
+  "repositories": {
+    "brainfpv": {
+      "repository": "BrainFPV/betaflight",
+      "commit": "d966f1f3a12df8446a623110d753b8dd72ebeaa4",
+      "files": [
+        "LICENSE",
+        "Makefile",
+        ".gitmodules",
+        "mk/source.mk",
+        "mk/mcu/STM32F4.mk",
+        "mk/config.mk",
+        "src/main/target/RADIX/target.h",
+        "src/main/target/RADIX/target.mk",
+        "src/main/target/RADIX/target.c",
+        "src/main/target/RADIX/config.c",
+        "src/main/target/RADIX/fpga_drv.c",
+        "src/main/target/RADIX/fpga_drv.h",
+        "src/main/target/STM32F446/target.h",
+        "src/main/target/STM32F446/target.mk",
+        "src/main/target/BRAINRE1/fpga_drv.c",
+        "src/main/target/BRAINRE1/fpga_drv.h",
+        "src/main/brainfpv/brainfpv_features.h",
+        "src/main/brainfpv/brainfpv_system.c",
+        "src/main/brainfpv/brainfpv_system.h",
+        "src/main/brainfpv/video.h",
+        "src/main/brainfpv/video_quadspi.c",
+        "src/main/brainfpv/brainfpv_osd.c",
+        "src/main/brainfpv/brainfpv_osd.h",
+        "src/main/brainfpv/auto_sync_threshold.c",
+        "src/main/brainfpv/hal.h",
+        "src/main/drivers/accgyro/accgyro_spi_bmi160.c",
+        "src/main/drivers/accgyro/accgyro_spi_bmi160.h",
+        "src/main/drivers/stm32/timer_stm32f4xx.c",
+        "src/main/drivers/stm32/timer_def.h",
+        "src/main/drivers/stm32/system_stm32f4xx.c",
+        "src/main/drivers/timer_common.c",
+        "src/main/fc/init.c",
+        "src/main/startup/system_stm32f4xx.c",
+        "src/main/startup/startup_stm32f446xx_brainfpv.s",
+        "src/link/stm32_flash_f446_brainfpv.ld"
+      ]
+    }
+  }
+}

@@ -1,0 +1,27 @@
+<xml>
+  <object name="HwImported" settings="true" singleinstance="true">
+    <description>Imported controller connector settings. Changes apply after restart. Connector labels and available functions are supplied by the board profile.</description>
+    <access gcs="readwrite" flight="readwrite"/>
+    <logging updatemode="manual" period="0"/>
+    <telemetrygcs acked="true" updatemode="onchange" period="0"/>
+    <telemetryflight acked="true" updatemode="onchange" period="0"/>
+    <field name="Receiver" type="enum" elements="1" parent="HwShared.PortTypes" defaultvalue="Disabled" units="function">
+      <options><option>Disabled</option><option>S.Bus</option><option>S.Bus Non Inverted</option><option>DSM</option><option>HoTT SUMD</option><option>HoTT SUMH</option><option>SRXL</option><option>IBus</option><option>TBS Crossfire</option></options>
+    </field>
+    <field name="Telemetry" type="enum" elements="1" parent="HwShared.PortTypes" defaultvalue="Telemetry" units="TX1/RX1">
+      <options><option>Disabled</option><option>Telemetry</option><option>HoTT Telemetry</option><option>LighttelemetryTx</option><option>MavLinkTX</option></options>
+    </field>
+    <field name="GPS" type="enum" elements="1" parent="HwShared.PortTypes" defaultvalue="GPS" units="function">
+      <options><option>Disabled</option><option>GPS</option></options>
+    </field>
+    <field name="ReceiverTelemetry" type="enum" elements="1" parent="HwShared.PortTypes" defaultvalue="Disabled" units="TX6/RX6">
+      <options><option>Disabled</option><option>FrSKY Sensor Hub</option><option>FrSKY SPort Telemetry</option></options>
+    </field>
+    <field name="DSMxMode" type="enum" elements="1" parent="HwShared.DSMxMode" defaultvalue="Autodetect" units="mode"/>
+    <field name="USB_HIDPort" type="enum" elements="1" parent="HwShared.USB_HIDPort" defaultvalue="USBTelemetry" units="function"><options><option>USBTelemetry</option></options></field>
+    <field name="USB_VCPPort" type="enum" elements="1" parent="HwShared.USB_VCPPort" defaultvalue="Disabled" units="function"/>
+    <field name="VideoSyncThreshold" type="uint8" elements="1" defaultvalue="30" units=""/>
+    <field name="BuzzerType" type="enum" elements="1" defaultvalue="DC" units=""><options><option>DC</option><option>AC</option></options></field>
+    <field name="ReceiverPort" type="enum" elements="1" defaultvalue="UART6" units="connector"><options><option>UART6</option><option>UART3</option></options></field>
+  </object>
+</xml>

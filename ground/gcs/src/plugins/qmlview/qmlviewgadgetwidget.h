@@ -32,7 +32,7 @@
 #include <QQuickView>
 
 #include <QtSvg/QSvgRenderer>
-#include <QtSvg/QGraphicsSvgItem>
+#include <QGraphicsSvgItem>
 
 #include <QFile>
 #include <QTimer>

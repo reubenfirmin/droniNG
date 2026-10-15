@@ -87,8 +87,14 @@ enum opMapModeType { Normal_MapMode = 0, MagicWaypoint_MapMode = 1 };
 // ******************************************************
 
 class WindVelocityActual;
+class MapStartup;
+class WaypointPlanningController;
+class QLabel;
+class QPushButton;
 
-class OPMapGadgetWidget : public QFrame
+#include "opmap_global.h"
+
+class OPMAP_EXPORT OPMapGadgetWidget : public QFrame
 {
     Q_OBJECT
 
@@ -121,6 +127,7 @@ public:
     void setUserImageVerticalScale(double userImageVerticalScale);
     bool getGPSPosition(double &latitude, double &longitude, double &altitude);
     void setGeoCodingLanguage(QString language);
+    void initializeView(const QPointF &savedLocation);
 signals:
     void defaultLocationAndZoomChanged(double lng, double lat, double zoom);
     void overlayOpacityChanged(qreal);
@@ -131,6 +138,8 @@ public slots:
     void onTelemetryDisconnect();
 
 protected:
+    void showEvent(QShowEvent *event) override;
+    bool eventFilter(QObject *object, QEvent *event) override;
     void resizeEvent(QResizeEvent *event);
     void mouseMoveEvent(QMouseEvent *event);
     void contextMenuEvent(QContextMenuEvent *event);
@@ -138,6 +147,8 @@ protected:
 private slots:
     void wpDoubleClickEvent(WayPointItem *wp);
     void updatePosition();
+    void updateStartupLocation();
+    void fitStartupRegion();
 
     void updateMousePos();
 
@@ -223,6 +234,16 @@ private slots:
     void on_leFind_returnPressed();
 
 private:
+    void refreshWaypointPlanning();
+    WaypointPlanningController *m_planning = nullptr;
+    QLabel *m_planningStatus;
+    QPushButton *m_enablePlanning;
+    MapStartup *m_startup;
+    QLabel *m_locationStatus;
+    QPushButton *m_routePlannerButton;
+    QWidget *m_routePlanner = nullptr;
+    QPointF m_savedLocation, m_startupCenter;
+    bool m_viewInitialized = false;
     int m_min_zoom;
     int m_max_zoom;
     double m_heading; // uav heading
@@ -324,7 +345,6 @@ private:
     WayPointItem *magicWayPoint;
 
     QPointer<FlightDataModel> model;
-    QPointer<QDialog> pathPlannerDialog;
     QPointer<ModelMapProxy> mapProxy;
     QPointer<QItemSelectionModel> selectionModel;
 };

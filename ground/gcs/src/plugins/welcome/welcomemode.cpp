@@ -30,9 +30,12 @@
 #include <extensionsystem/pluginmanager.h>
 
 #include <coreplugin/icore.h>
+#include <coreplugin/connectionmanager.h>
 #include <coreplugin/coreconstants.h>
 #include <coreplugin/uniqueidmanager.h>
 #include <coreplugin/modemanager.h>
+#include <coreplugin/usbaccesssetup.h>
+#include <coreplugin/actionmanager/actionmanager.h>
 
 #include <utils/styledbar.h>
 #include <utils/pathutils.h>
@@ -44,7 +47,7 @@
 #include <QtCore/QDebug>
 
 #include <QtQuick>
-#include <QQuickView>
+#include <QQuickWidget>
 #include <QQmlEngine>
 #include <QQmlContext>
 
@@ -59,7 +62,7 @@ struct WelcomeModePrivate
 {
     WelcomeModePrivate();
 
-    QQuickView *quickView;
+    QQuickWidget *quickView;
 };
 
 WelcomeModePrivate::WelcomeModePrivate()
@@ -74,18 +77,24 @@ WelcomeMode::WelcomeMode(QString instUUID)
     : m_d(new WelcomeModePrivate)
     , m_priority(Core::Constants::P_MODE_WELCOME)
 {
-    m_d->quickView = new QQuickView;
-    m_d->quickView->setResizeMode(QQuickView::SizeRootObjectToView);
+    m_d->quickView = new QQuickWidget;
+    m_d->quickView->setResizeMode(QQuickWidget::SizeRootObjectToView);
+    m_d->quickView->setMinimumSize(64, 64);
+    m_d->quickView->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
+    auto *connections = Core::ICore::instance()->connectionManager();
+    connect(connections, &Core::ConnectionManager::deviceConnected, this, &WelcomeMode::controllerStateChanged);
+    connect(connections, &Core::ConnectionManager::deviceDisconnected, this, &WelcomeMode::controllerStateChanged);
+    connect(connections, &Core::ConnectionManager::firmwareStateChanged, this, &WelcomeMode::controllerStateChanged);
 
     m_d->quickView->engine()->rootContext()->setContextProperty("welcomePlugin", this);
+    m_d->quickView->engine()->rootContext()->setContextProperty("usbAccessSetup", new Core::UsbAccessSetup(this));
     m_d->quickView->engine()->rootContext()->setContextProperty("instHash",
-                                                                QVariant(qHash(instUUID)));
+                                                                QVariant::fromValue(qulonglong(qHash(instUUID))));
     m_d->quickView->engine()->rootContext()->setContextProperty(
         "gitHash", QVariant(Core::Constants::GCS_REVISION_SHORT_STR));
 
     QString fn = Utils::PathUtils().InsertDataPath(QString("%%DATAPATH%%/welcome/main.qml"));
     m_d->quickView->setSource(QUrl::fromLocalFile(fn));
-    m_container = NULL;
 
     connect(Core::ModeManager::instance(), &Core::ModeManager::modesChanged, this,
             &WelcomeMode::modesChanged);
@@ -115,12 +124,7 @@ int WelcomeMode::priority() const
 
 QWidget *WelcomeMode::widget()
 {
-    if (!m_container) {
-        m_container = QWidget::createWindowContainer(m_d->quickView);
-        m_container->setMinimumSize(64, 64);
-        m_container->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
-    }
-    return m_container;
+    return m_d->quickView;
 }
 
 const char *WelcomeMode::uniqueModeName() const
@@ -140,9 +144,29 @@ void WelcomeMode::openPage(const QString &page)
     Core::ModeManager::instance()->activateModeByWorkspaceName(page);
 }
 
+bool WelcomeMode::controllerConnected() const
+{
+    return Core::ICore::instance()->connectionManager()->flightDataAvailable();
+}
+
+bool WelcomeMode::controllerSetupRequired() const
+{
+    return Core::ICore::instance()->connectionManager()->controllerSetupRequired();
+}
+
+void WelcomeMode::launchSetupWizard()
+{
+    Core::ICore::instance()->connectionManager()->requestControllerSetup();
+}
+
 void WelcomeMode::triggerAction(const QString &actionId)
 {
     Core::ModeManager::instance()->triggerAction(actionId);
+}
+
+bool WelcomeMode::hasAction(const QString &actionId) const
+{
+    return Core::ICore::instance()->actionManager()->command(actionId) != nullptr;
 }
 
 void WelcomeMode::modesChanged()
@@ -153,7 +177,12 @@ void WelcomeMode::modesChanged()
     foreach (IMode *mode, modes)
         modeNames.append(mode->name());
 
-    auto buttons = m_d->quickView->rootObject()->findChild<QObject *>("modeButtons");
+    auto root = m_d->quickView->rootObject();
+    if (!root) {
+        qWarning() << "[WelcomeMode::modesChanged] Welcome QML did not load";
+        return;
+    }
+    auto buttons = root->findChild<QObject *>("modeButtons");
     if (buttons)
         buttons->setProperty("modeNames", modeNames);
     else

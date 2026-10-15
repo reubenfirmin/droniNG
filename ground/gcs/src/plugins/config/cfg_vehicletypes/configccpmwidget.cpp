@@ -28,6 +28,11 @@
 #include "physical_constants.h"
 
 #include <QDebug>
+#include <utils/settingsstyle.h>
+#include <QApplication>
+#include <QEvent>
+#include <QHeaderView>
+#include <QTimer>
 #include <QStringList>
 #include <QWidget>
 #include <QTextEdit>
@@ -52,12 +57,17 @@ ConfigCcpmWidget::ConfigCcpmWidget(QWidget *parent)
 
     m_ccpm = new Ui_CcpmWidget();
     m_ccpm->setupUi(this);
+    m_ccpm->ccpmAdvancedSettingsTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
 
     // Initialization of the swashplaye widget
     m_ccpm->SwashplateImage->setScene(new QGraphicsScene(this));
+    m_ccpm->SwashplateImage->setFixedSize(380, 380);
+    m_ccpm->SwashLvlSwashplateImage->setFixedSize(460, 460);
 
     m_ccpm->SwashLvlSwashplateImage->setScene(m_ccpm->SwashplateImage->scene());
     m_ccpm->SwashLvlSwashplateImage->setSceneRect(-50, -50, 500, 500);
+    m_ccpm->SwashplateImage->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
+    m_ccpm->SwashLvlSwashplateImage->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
     // m_ccpm->SwashLvlSwashplateImage->scale(.85,.85);
 
     // m_ccpm->SwashplateImage->setSceneRect(SwashplateImg->boundingRect());
@@ -65,30 +75,33 @@ ConfigCcpmWidget::ConfigCcpmWidget(QWidget *parent)
     // m_ccpm->SwashplateImage->scale(.85,.85);
 
     QSvgRenderer *renderer = new QSvgRenderer();
-    renderer->load(QString(":/configgadget/images/ccpm_setup.svg"));
+    renderer->load(Utils::flatSvgDiagram(":/configgadget/images/ccpm_setup.svg"));
 
     SwashplateImg = new QGraphicsSvgItem();
     SwashplateImg->setSharedRenderer(renderer);
     SwashplateImg->setElementId("Swashplate");
     SwashplateImg->setObjectName("Swashplate");
+    SwashplateImg->setOpacity(0.18);
     // SwashplateImg->setScale(0.75);
     m_ccpm->SwashplateImage->scene()->addItem(SwashplateImg);
 
-    QFont serifFont("Times", 24, QFont::Bold);
+    QFont annotationFont = QApplication::font();
+    annotationFont.setPixelSize(24);
+    annotationFont.setWeight(QFont::DemiBold);
     QPen pen; // creates a default pen
 
-    pen.setStyle(Qt::DotLine);
-    pen.setWidth(2);
-    pen.setBrush(Qt::gray);
+    pen.setStyle(Qt::DashLine);
+    pen.setWidth(1);
+    pen.setBrush(QApplication::palette().color(QPalette::Mid));
     pen.setCapStyle(Qt::RoundCap);
     pen.setJoinStyle(Qt::RoundJoin);
 
-    QBrush brush(Qt::darkBlue);
+    QBrush brush(QApplication::palette().color(QPalette::Base));
     QPen pen2; // creates a default pen
 
     // pen2.setStyle(Qt::DotLine);
     pen2.setWidth(1);
-    pen2.setBrush(Qt::blue);
+    pen2.setBrush(QApplication::palette().color(QPalette::Highlight));
     // pen2.setCapStyle(Qt::RoundCap);
     // pen2.setJoinStyle(Qt::RoundJoin);
 
@@ -110,9 +123,9 @@ ConfigCcpmWidget::ConfigCcpmWidget(QWidget *parent)
         m_ccpm->SwashplateImage->scene()->addItem(Servos[i]);
 
         ServosText[i] = new QGraphicsTextItem();
-        ServosText[i]->setDefaultTextColor(Qt::yellow);
+        ServosText[i]->setDefaultTextColor(QApplication::palette().color(QPalette::Text));
         ServosText[i]->setPlainText(QString("-"));
-        ServosText[i]->setFont(serifFont);
+        ServosText[i]->setFont(annotationFont);
 
         ServosTextCircles[i] = new QGraphicsEllipseItem(1, 1, 30, 30);
         ServosTextCircles[i]->setBrush(brush);
@@ -121,11 +134,14 @@ ConfigCcpmWidget::ConfigCcpmWidget(QWidget *parent)
         m_ccpm->SwashplateImage->scene()->addItem(ServosText[i]);
 
         SwashLvlSpinBoxes[i] = new QSpinBox;
+        SwashLvlSpinBoxes[i]->setProperty("settingsPage", true);
         m_ccpm->SwashLvlSwashplateImage->scene()->addWidget(SwashLvlSpinBoxes[i]);
         SwashLvlSpinBoxes[i]->setMaximum(10000);
         SwashLvlSpinBoxes[i]->setMinimum(0);
         SwashLvlSpinBoxes[i]->setValue(0);
     }
+    m_ccpm->SwashplateImage->viewport()->installEventFilter(this);
+    m_ccpm->SwashLvlSwashplateImage->viewport()->installEventFilter(this);
 
     // initialize our throttle mixer curve
 
@@ -453,15 +469,6 @@ void ConfigCcpmWidget::UpdateType()
     m_ccpm->ccpmAngleY->setVisible(NumServosDefined >= 3);
     m_ccpm->ccpmAngleZ->setVisible(NumServosDefined >= 4);
 
-    m_ccpm->ccpmAdvancedSettingsTable->resizeColumnsToContents();
-    for (int i = 0; i < 6; i++) {
-        m_ccpm->ccpmAdvancedSettingsTable->setColumnWidth(
-            i,
-            (m_ccpm->ccpmAdvancedSettingsTable->width()
-             - m_ccpm->ccpmAdvancedSettingsTable->verticalHeader()->width())
-                / 6);
-    }
-
     // update UI
     ccpmSwashplateUpdate();
 }
@@ -474,17 +481,17 @@ void ConfigCcpmWidget::ccpmSwashplateRedraw()
     QRect size;
     double scale, xscale, yscale;
 
-    size = m_ccpm->SwashplateImage->rect();
+    size = m_ccpm->SwashplateImage->viewport()->rect();
     xscale = size.width();
     yscale = size.height();
     scale = xscale;
     if (yscale < scale)
         scale = yscale;
-    scale /= 460.00;
+    scale /= 500.00;
     m_ccpm->SwashplateImage->resetTransform();
     m_ccpm->SwashplateImage->scale(scale, scale);
 
-    size = m_ccpm->SwashLvlSwashplateImage->rect();
+    size = m_ccpm->SwashLvlSwashplateImage->viewport()->rect();
     xscale = size.width();
     yscale = size.height();
     scale = xscale;
@@ -985,31 +992,23 @@ void ConfigCcpmWidget::saveccpmUpdate()
     saveObjectToSD(mixerSettings);
 }
 
+bool ConfigCcpmWidget::eventFilter(QObject *object, QEvent *event)
+{
+    if (event->type() == QEvent::Resize
+        && (object == m_ccpm->SwashplateImage->viewport()
+            || object == m_ccpm->SwashLvlSwashplateImage->viewport()))
+        QTimer::singleShot(0, this, &ConfigCcpmWidget::ccpmSwashplateRedraw);
+    return VehicleConfig::eventFilter(object, event);
+}
+
 void ConfigCcpmWidget::resizeEvent(QResizeEvent *event)
 {
     Q_UNUSED(event);
-    // Make the custom table columns autostretch:
-    m_ccpm->ccpmAdvancedSettingsTable->resizeColumnsToContents();
-    for (int i = 0; i < 6; i++) {
-        m_ccpm->ccpmAdvancedSettingsTable->setColumnWidth(
-            i,
-            (m_ccpm->ccpmAdvancedSettingsTable->width()
-             - m_ccpm->ccpmAdvancedSettingsTable->verticalHeader()->width())
-                / 6);
-    }
     ccpmSwashplateRedraw();
 }
 void ConfigCcpmWidget::showEvent(QShowEvent *event)
 {
     Q_UNUSED(event)
-    m_ccpm->ccpmAdvancedSettingsTable->resizeColumnsToContents();
-    for (int i = 0; i < 6; i++) {
-        m_ccpm->ccpmAdvancedSettingsTable->setColumnWidth(
-            i,
-            (m_ccpm->ccpmAdvancedSettingsTable->width()
-             - m_ccpm->ccpmAdvancedSettingsTable->verticalHeader()->width())
-                / 6);
-    }
     ccpmSwashplateRedraw();
 }
 

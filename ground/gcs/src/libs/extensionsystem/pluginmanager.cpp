@@ -35,6 +35,7 @@
 #include "iplugin.h"
 
 #include <QtCore/QMetaProperty>
+#include <QtCore/QCoreApplication>
 #include <QtCore/QDir>
 #include <QtCore/QTextStream>
 #include <QtCore/QWriteLocker>
@@ -419,6 +420,11 @@ void PluginManager::startTests()
         QCoreApplication::exit(1);
     else if (runningTests())
         QCoreApplication::exit(0);
+#else
+    if (runningTests()) {
+        qCritical() << "Tests are not included in this build; rebuild with TEST=1 or use --check-plugins.";
+        QCoreApplication::exit(2);
+    }
 #endif
 }
 

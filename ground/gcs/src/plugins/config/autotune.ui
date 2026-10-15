@@ -2,200 +2,87 @@
 <ui version="4.0">
  <class>AutotuneWidget</class>
  <widget class="QWidget" name="AutotuneWidget">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>884</width>
-    <height>757</height>
-   </rect>
-  </property>
-  <property name="sizePolicy">
-   <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-    <horstretch>0</horstretch>
-    <verstretch>0</verstretch>
-   </sizepolicy>
-  </property>
-  <property name="maximumSize">
-   <size>
-    <width>16777215</width>
-    <height>16777215</height>
-   </size>
-  </property>
-  <property name="windowTitle">
-   <string>Form</string>
-  </property>
   <layout class="QVBoxLayout" name="verticalLayout_2">
-   <property name="leftMargin">
-    <number>12</number>
-   </property>
-   <property name="topMargin">
-    <number>12</number>
-   </property>
-   <property name="rightMargin">
-    <number>12</number>
-   </property>
-   <property name="bottomMargin">
-    <number>12</number>
-   </property>
+   <property name="leftMargin"><number>12</number></property>
+   <property name="topMargin"><number>12</number></property>
+   <property name="rightMargin"><number>12</number></property>
+   <property name="bottomMargin"><number>12</number></property>
    <item>
-    <widget class="QGroupBox" name="groupBox_5">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-     <property name="title">
-      <string>Module Control</string>
-     </property>
-     <layout class="QVBoxLayout" name="verticalLayout_4">
-      <item>
-       <widget class="QTextEdit" name="textEdit">
-        <property name="maximumSize">
-         <size>
-          <width>800</width>
-          <height>16777215</height>
-         </size>
-        </property>
-        <property name="frameShape">
-         <enum>QFrame::StyledPanel</enum>
-        </property>
-        <property name="frameShadow">
-         <enum>QFrame::Sunken</enum>
-        </property>
-        <property name="html">
-         <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
-p, li { white-space: pre-wrap; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'MS Shell Dlg 2'; font-size:8.25pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;p align=&quot;center&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Lucida Grande'; font-size:20pt; font-weight:600; color:#ff0000;&quot;&gt;WARNING:&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:'Lucida Grande'; font-size:12pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Lucida Grande'; font-size:12pt;&quot;&gt;This is an advanced plugin for the GCS that is going to make your UAV wiggle automatically, so test in a large open area and be cautious of the values that it creates.&lt;br /&gt;&lt;br /&gt;Please read and understand all of the following steps before attempting an autotune.&lt;br /&gt;&lt;/span&gt;&lt;/p&gt;
-&lt;ol style=&quot;margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; -qt-list-indent: 1;&quot;&gt;&lt;li style=&quot; font-family:'Lucida Grande'; font-size:12pt;&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Go to https://vimeo.com/104806460 and watch the autotuning tutorial.&lt;/li&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:1; text-indent:0px; font-family:'Lucida Grande'; font-size:12pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;li style=&quot; font-family:'Lucida Grande'; font-size:12pt;&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;On the &lt;span style=&quot; font-style:italic;&quot;&gt;Input configuration &lt;/span&gt;page, &lt;span style=&quot; font-style:italic;&quot;&gt;Flight Mode Switch Settings tab&lt;/span&gt;, set one of your flight modes to &amp;quot;Autotune&amp;quot;.&lt;/li&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:1; text-indent:0px; font-family:'Lucida Grande'; font-size:12pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;li style=&quot; font-family:'Lucida Grande'; font-size:12pt;&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Click the &lt;span style=&quot; font-style:italic;&quot;&gt;Enable Autotune Module&lt;/span&gt; checkbox below this text, click S&lt;span style=&quot; font-style:italic;&quot;&gt;ave,&lt;/span&gt; and reboot the flight controller.&lt;br /&gt;&lt;/li&gt;
-&lt;li style=&quot; font-family:'Lucida Grande'; font-size:12pt;&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Take off, and when stable, change flight mode to autotune. Focus on keeping the UAV in the air while it's wiggling.&lt;/li&gt;
-&lt;ol type=&quot;a&quot; style=&quot;margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; -qt-list-indent: 2;&quot;&gt;&lt;li style=&quot; font-family:'Lucida Grande'; font-size:12pt;&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;In the first few seconds, nothing will happen...&lt;/li&gt;
-&lt;li style=&quot; font-family:'Lucida Grande'; font-size:12pt;&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The the UAV will start wiggling for approximately 60 seconds. It will continue to respond to your inputs, and moving the sticks won't negatively affect the tune.&lt;/li&gt;
-&lt;li style=&quot; font-family:'Lucida Grande'; font-size:12pt;&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;When the wiggling stops, the measurement phase is completed.&lt;/li&gt;&lt;/ol&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:1; text-indent:0px; font-family:'Lucida Grande'; font-size:12pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;li style=&quot; font-family:'Lucida Grande'; font-size:12pt;&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Land and disarm; the system then saves the measured properties. &lt;br /&gt;&lt;/li&gt;
-&lt;li style=&quot; font-family:'Lucida Grande'; font-size:12pt;&quot; style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Connect to GCS-- you will be guided through applying the autotune results. &lt;br /&gt;&lt;/li&gt;
-&lt;li style=&quot; font-family:'Lucida Grande'; font-size:12pt;&quot; style=&quot; margin-top:0px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Ensure that a normal flight mode (not Autotune) is selected prior to the next flight. If Autotune is left as the active mode, the flight controller will not arm.&lt;/li&gt;&lt;/ol&gt;&lt;/body&gt;&lt;/html&gt;</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="label_13">
-        <property name="text">
-         <string>After enabling the module, you must power cycle before using and configuring.</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QFrame" name="frame">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="minimumSize">
-         <size>
-          <width>0</width>
-          <height>0</height>
-         </size>
-        </property>
-        <property name="maximumSize">
-         <size>
-          <width>802</width>
-          <height>16777215</height>
-         </size>
-        </property>
-        <layout class="QHBoxLayout" name="horizontalLayout">
-         <property name="spacing">
-          <number>6</number>
-         </property>
-         <item>
-          <widget class="QCheckBox" name="enableAutoTune">
-           <property name="text">
-            <string>Enable Autotune Module</string>
-           </property>
-           <property name="checkable">
-            <bool>true</bool>
-           </property>
-           <property name="objrelation" stdset="0">
-            <stringlist>
-             <string>objname:ModuleSettings</string>
-             <string>fieldname:AdminState</string>
-             <string>element:Autotune</string>
-             <string>checkedoption:Enabled</string>
-             <string>uncheckedoption:Disabled</string>
-            </stringlist>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <spacer name="horizontalSpacer_3">
-           <property name="orientation">
-            <enum>Qt::Horizontal</enum>
-           </property>
-           <property name="sizeType">
-            <enum>QSizePolicy::Expanding</enum>
-           </property>
-           <property name="sizeHint" stdset="0">
-            <size>
-             <width>13</width>
-             <height>25</height>
-            </size>
-           </property>
-          </spacer>
-         </item>
-         <item>
-          <widget class="QPushButton" name="adjustTune">
-           <property name="text">
-            <string>Adjust previous autotune...</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QPushButton" name="fromDataFileBtn">
-           <property name="text">
-            <string>From data file...</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QPushButton" name="saveStabilizationToSD_6">
-           <property name="minimumSize">
-            <size>
-             <width>0</width>
-             <height>0</height>
-            </size>
-           </property>
-           <property name="toolTip">
-            <string>Send settings to the board and save to the non-volatile memory</string>
-           </property>
-           <property name="styleSheet">
-            <string notr="true"/>
-           </property>
-           <property name="text">
-            <string>Save</string>
-           </property>
-           <property name="objrelation" stdset="0">
-            <stringlist>
-             <string>button:save</string>
-            </stringlist>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-      </item>
-     </layout>
+    <widget class="QScrollArea" name="autotuneScrollArea">
+     <property name="widgetResizable"><bool>true</bool></property>
+     <property name="frameShape"><enum>QFrame::NoFrame</enum></property>
+     <widget class="QWidget" name="autotuneContent">
+      <layout class="QVBoxLayout" name="autotuneContentLayout">
+       <property name="spacing"><number>20</number></property>
+       <property name="leftMargin"><number>12</number></property>
+       <property name="topMargin"><number>12</number></property>
+       <property name="rightMargin"><number>12</number></property>
+       <property name="bottomMargin"><number>12</number></property>
+       <item>
+        <widget class="QLabel" name="autotuneWarning">
+         <property name="role" stdset="0"><string>notice</string></property>
+         <property name="maximumSize"><size><width>1000</width><height>16777215</height></size></property>
+         <property name="wordWrap"><bool>true</bool></property>
+         <property name="text"><string>&lt;b&gt;Autotune moves the aircraft automatically&lt;/b&gt;&lt;br/&gt;Use a large, open flying area and keep control of the aircraft throughout the measurement. Review the resulting tune before flying with it.</string></property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="autotuneInstructions">
+         <property name="maximumSize"><size><width>1000</width><height>16777215</height></size></property>
+         <property name="wordWrap"><bool>true</bool></property>
+         <property name="textInteractionFlags"><set>Qt::TextBrowserInteraction</set></property>
+         <property name="openExternalLinks"><bool>true</bool></property>
+         <property name="text"><string>&lt;h3&gt;Run an autotune&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;Read these steps before flying. The &lt;a href="https://vimeo.com/104806460"&gt;original autotuning tutorial&lt;/a&gt; demonstrates the measurement flight.&lt;/li&gt;
+&lt;li&gt;In &lt;b&gt;Input → Flight Mode Switch Settings&lt;/b&gt;, assign one switch position to &lt;b&gt;Autotune&lt;/b&gt; and keep another position available for normal flight.&lt;/li&gt;
+&lt;li&gt;Enable the Autotune module below, click &lt;b&gt;Save&lt;/b&gt;, then power cycle the flight controller.&lt;/li&gt;
+&lt;li&gt;Take off in a normal flight mode. Once stable, switch to Autotune. After a short delay, the aircraft will oscillate for approximately 60 seconds. Continue flying it with the sticks; your inputs do not spoil the measurement.&lt;/li&gt;
+&lt;li&gt;When the oscillation stops, land and disarm so the controller saves the measurements.&lt;/li&gt;
+&lt;li&gt;Reconnect to DroniNG and review the results in the guided tune dialog. Use &lt;b&gt;Adjust previous autotune&lt;/b&gt; to revisit an earlier result, or &lt;b&gt;From data file&lt;/b&gt; to load a recorded result.&lt;/li&gt;
+&lt;li&gt;Select a normal flight mode before your next flight. The controller will not arm while Autotune is selected.&lt;/li&gt;
+&lt;/ol&gt;</string></property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="groupBox_5">
+         <property name="title"><string>Autotune module</string></property>
+         <layout class="QVBoxLayout" name="verticalLayout_4">
+          <item>
+           <widget class="QCheckBox" name="enableAutoTune">
+            <property name="text"><string>Enable Autotune module</string></property>
+            <property name="objrelation" stdset="0"><stringlist>
+             <string>objname:ModuleSettings</string><string>fieldname:AdminState</string>
+             <string>element:Autotune</string><string>checkedoption:Enabled</string><string>uncheckedoption:Disabled</string>
+            </stringlist></property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="label_13">
+            <property name="wordWrap"><bool>true</bool></property>
+            <property name="text"><string>Save and power cycle the controller after enabling the module.</string></property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout">
+            <item><widget class="QPushButton" name="adjustTune"><property name="text"><string>Adjust previous autotune…</string></property></widget></item>
+            <item><widget class="QPushButton" name="fromDataFileBtn"><property name="text"><string>From data file…</string></property></widget></item>
+            <item><spacer name="actionSpace"><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item><spacer name="pageSpace"><property name="orientation"><enum>Qt::Vertical</enum></property></spacer></item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="saveStabilizationToSD_6">
+     <property name="text"><string>Save</string></property>
+     <property name="toolTip"><string>Apply settings to the controller and save them permanently.</string></property>
+     <property name="objrelation" stdset="0"><stringlist><string>button:save</string></stringlist></property>
     </widget>
    </item>
   </layout>

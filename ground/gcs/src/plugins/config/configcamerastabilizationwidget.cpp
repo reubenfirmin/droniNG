@@ -44,6 +44,18 @@ ConfigCameraStabilizationWidget::ConfigCameraStabilizationWidget(QWidget *parent
     m_camerastabilization = new Ui_CameraStabilizationWidget();
     m_camerastabilization->setupUi(this);
 
+    // Both axis tables use one label width and equal Roll/Pitch/Yaw fields.
+    for (auto *grid : findChildren<QGridLayout *>()) {
+        bool axisTable = false;
+        for (int index = 0; index < grid->count(); ++index)
+            axisTable |= qobject_cast<QComboBox *>(grid->itemAt(index)->widget()) != nullptr;
+        if (axisTable) {
+            grid->setColumnMinimumWidth(0, 180);
+            grid->setProperty("uniformFieldWidth", true);
+            grid->setProperty("fieldMinimumWidth", 140);
+        }
+    }
+
     // These widgets don't have direct relation to UAVObjects
     // and need special processing
     QComboBox *outputs[] = {

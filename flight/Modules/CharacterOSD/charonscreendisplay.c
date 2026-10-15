@@ -261,7 +261,7 @@ static void splash_screen(charosd_state_t state)
 {
 	PIOS_MAX7456_clear (state->dev);
 
-	const char *welcome_msg = "Welcome to dRonin";
+	const char *welcome_msg = "Welcome to droniNG";
 
 	SystemAlarmsData alarm;
 	SystemAlarmsGet(&alarm);

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "omnibusf4sd",
+  "name": "Omnibus F4 SD",
+  "boardType": 225,
+  "boardRevision": 1,
+  "layoutId": "omnibusf4sd-f405-rom-v1",
+  "supportLevel": "experimental",
+  "sourceLock": "flight/Betaflight/omnibusf4sd.lock.json",
+  "target": "OMNIBUSF4SD",
+  "mcu": "STM32F405xx",
+  "hseHz": 8000000,
+  "sysclkHz": 168000000,
+  "flashBytes": 1048576,
+  "ramBytes": 131072,
+  "motorCount": 4,
+  "imuOrientation": "PIOS_MPU_TOP_180DEG",
+  "layout": {
+    "vectors": [0, 16384],
+    "settings": [16384, 32768],
+    "identity": [49152, 16384],
+    "autotune": [65536, 65536],
+    "application": [131072, 917504],
+    "descriptorOffset": 1048476
+  },
+  "requiredBackends": ["MPU6000_OR_ICM20608", "BMP280_SPI", "MAX7456_OSD", "USB_UAVTalk", "GPS", "ExternalTelemetry"],
+  "limitations": ["Four PWM/OneShot outputs", "DShot, SD logging, extra motor outputs and software serial are not implemented"]
+}

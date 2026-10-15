@@ -418,6 +418,10 @@ static int32_t PIOS_BMI160_ClaimBus()
 
 	if (PIOS_SPI_ClaimBus(dev->spi_id) != 0)
 		return -2;
+	if (PIOS_SPI_SetClockSpeed(dev->spi_id, 5625000) <= 0) {
+		PIOS_SPI_ReleaseBus(dev->spi_id);
+		return -3;
+	}
 
 	PIOS_SPI_RC_PinSet(dev->spi_id, dev->slave_num, 0);
 
@@ -448,16 +452,11 @@ static int32_t PIOS_BMI160_ReleaseBus()
  */
 static uint8_t PIOS_BMI160_ReadReg(uint8_t reg)
 {
-	uint8_t data;
-
-	PIOS_BMI160_ClaimBus();
-
-	PIOS_SPI_TransferByte(dev->spi_id, 0x80 | reg); // request byte
-	data = PIOS_SPI_TransferByte(dev->spi_id, 0);   // receive response
-
+	if (PIOS_BMI160_ClaimBus()) return 0xff;
+	uint8_t tx[] = { 0x80 | reg, 0 }, rx[2];
+	int32_t result = PIOS_SPI_TransferBlock(dev->spi_id, tx, rx, sizeof(tx));
 	PIOS_BMI160_ReleaseBus();
-
-	return data;
+	return result ? 0xff : rx[1];
 }
 
 /**
@@ -471,12 +470,12 @@ static int32_t PIOS_BMI160_WriteReg(uint8_t reg, uint8_t data)
 	if (PIOS_BMI160_ClaimBus() != 0)
 		return -1;
 
-	PIOS_SPI_TransferByte(dev->spi_id, 0x7f & reg);
-	PIOS_SPI_TransferByte(dev->spi_id, data);
+	uint8_t tx[] = { 0x7f & reg, data };
+	int32_t result = PIOS_SPI_TransferBlock(dev->spi_id, tx, NULL, sizeof(tx));
 
 	PIOS_BMI160_ReleaseBus();
 
-	return 0;
+	return result;
 }
 
 /**

@@ -62,7 +62,7 @@ QwtDynGridLayout::QwtDynGridLayout( QWidget *parent,
     init();
 
     setSpacing( spacing );
-    setMargin( margin );
+    setContentsMargins( margin, margin, margin, margin );
 }
 
 /*!
@@ -82,7 +82,7 @@ void QwtDynGridLayout::init()
 {
     d_data = new QwtDynGridLayout::PrivateData;
     d_data->maxColumns = d_data->numRows = d_data->numColumns = 0;
-    d_data->expanding = 0;
+    d_data->expanding = Qt::Orientations();
 }
 
 //! Destructor

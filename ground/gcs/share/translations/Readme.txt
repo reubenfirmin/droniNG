@@ -1,21 +1,20 @@
 How To add translations to GCS
 ========================================
 
-- Coordinate over IRC to avoid duplicate work.
-	freenode.org#dronin
+- Coordinate in the issue tracker to avoid duplicate work.
+	https://github.com/reubenfirmin/droniNG/issues
 
 - Add your language to the LANGUAGES line in translations.pro.
   Don't qualify it with a country unless it is reasonable to expect
   country-specific variants.
   Skip this step if updating an existing translation, obviously.
 
-- Run "make ts". This will complain if you are not building against
-  Qt 4.6
+- Run "make gcs_ts" using the Qt 6.12.0 release SDK.
 
 - Fire up linguist and do the translation.
 
 - Check in the modified .pro file and _only_ your .ts file.
 
-- Make a merge request on the forums.
+- Open a pull request in the droniNG repository.
 
 - .qm files are generated as part of the regular build.

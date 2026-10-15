@@ -47,7 +47,23 @@ static void initTask(void);
  *          and before any other initialization.
  */
 void __early_init(void) {
-
+#if defined(PIOS_INCLUDE_ROM_BOOT)
+  /* Only invoked immediately after reset: clocks and interrupt state are
+   * still their reset defaults. Consume the existing disarmed IAP request. */
+  PIOS_IAP_Init();
+  if (PIOS_IAP_CheckRequest()) {
+    PIOS_IAP_ClearRequest();
+    const uint32_t *rom = (const uint32_t *)0x1fff0000;
+    __disable_irq();
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_SYSCFG, ENABLE);
+    SYSCFG_MemoryRemapConfig(SYSCFG_MemoryRemap_SystemFlash);
+    SCB->VTOR = 0x1fff0000;
+    __asm volatile ("msr msp, %0\n\tcpsie i\n\tbx %1"
+                    : : "r" (rom[0]), "r" (rom[1]) : "memory");
+    __builtin_unreachable();
+  }
+  if (PIOS_Boot_CheckRequest()) PIOS_IAP_ClearRequest();
+#endif
   stm32_clock_init();
 }
 
@@ -59,7 +75,7 @@ void boardInit(void) {
 }
 
 /**
-* dRonin Main function:
+* droniNG Main function:
 *
 * Initialize PiOS<BR>
 * Create the "System" task (SystemModInitializein Modules/System/systemmod.c) <BR>

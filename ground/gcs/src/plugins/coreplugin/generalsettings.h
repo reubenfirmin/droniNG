@@ -101,7 +101,6 @@ namespace Internal {
         bool m_autoSelect;
         bool m_useExpertMode;
         QPointer<QWidget> m_dialog;
-        QList<QTextCodec *> m_codecs;
         int m_proxyType;
         int m_proxyPort;
         QString m_proxyHostname;

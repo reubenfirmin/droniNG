@@ -1,6 +1,6 @@
-DRONINPATH     := $(shell cd ../.. ; pwd)
-FLIGHTPATH     = $(DRONINPATH)/flight
-TOOLS_DIR      = $(DRONINPATH)/tools
+DRONINGPATH     := $(shell cd ../.. ; pwd)
+FLIGHTPATH     = $(DRONINGPATH)/flight
+TOOLS_DIR      = $(DRONINGPATH)/tools
 ARM_SDK_DIR    = $(TOOLS_DIR)/gcc-arm-none-eabi-6-2017-q2-update
 ARM_SDK_PREFIX = $(ARM_SDK_DIR)/bin/arm-none-eabi-
 TCHAIN_PREFIX  = $(ARM_SDK_PREFIX)
@@ -18,7 +18,7 @@ CFLAGS = -mthumb -mcpu=$(MCU) -mfpu=fpv4-sp-d16 -mfloat-abi=hard \
 	 -I$(FLIGHTPATH)/Libraries/inc \
 	 -I$(FLIGHTPATH)/PiOS/inc \
 	 -I$(FLIGHTPATH)/PiOS/STM32/inc \
-	 -I$(DRONINPATH)/build/uavobject-synthetics/flight \
+	 -I$(DRONINGPATH)/build/uavobject-synthetics/flight \
 	 -I$(FLIGHTPATH)/UAVObjects/inc
 
 LDFLAGS = -Tmodule_layout.ld -nostartfiles -Xlinker -Map=output.map

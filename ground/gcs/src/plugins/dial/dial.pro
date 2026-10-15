@@ -1,6 +1,7 @@
 TEMPLATE = lib
 TARGET = DialGadget
 QT += svg
+QT += svgwidgets
 
 include(../../gcsplugin.pri)
 

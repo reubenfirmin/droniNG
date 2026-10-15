@@ -301,13 +301,13 @@ plugin_boards_brotronics.depends += plugin_uavobjectutil
 plugin_boards_brotronics.depends += plugin_uavobjectwidgetutils
 SUBDIRS += plugin_boards_brotronics
 
-# dRonin
-plugin_boards_dronin.subdir = boards_dronin
-plugin_boards_dronin.depends = plugin_coreplugin
-plugin_boards_dronin.depends = plugin_uavobjects
-plugin_boards_dronin.depends += plugin_uavobjectutil
-plugin_boards_dronin.depends += plugin_uavobjectwidgetutils
-SUBDIRS += plugin_boards_dronin
+# droniNG
+plugin_boards_droning.subdir = boards_droning
+plugin_boards_droning.depends = plugin_coreplugin
+plugin_boards_droning.depends = plugin_uavobjects
+plugin_boards_droning.depends += plugin_uavobjectutil
+plugin_boards_droning.depends += plugin_uavobjectwidgetutils
+SUBDIRS += plugin_boards_droning
 
 # DTF UHF
 plugin_boards_dtf.subdir = boards_dtf

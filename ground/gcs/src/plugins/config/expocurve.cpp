@@ -27,14 +27,13 @@
 #include "expocurve.h"
 
 #include <QFrame>
+#include <QApplication>
+#include <utils/darktheme.h>
 
 ExpoCurve::ExpoCurve(QWidget *parent)
     : QwtPlot(parent)
 {
-    QPalette palette = parent->palette();
-
-    palette.setColor(QPalette::Foreground, palette.color(QPalette::Dark));
-    palette.setColor(QPalette::Background, palette.color(QPalette::Light));
+    const QPalette plotPalette = QApplication::palette();
 
     QwtPainter::setPolylineSplitting(false);
     QwtPainter::setRoundingAlignment(false);
@@ -46,28 +45,28 @@ ExpoCurve::ExpoCurve(QWidget *parent)
 
     QFrame *f = qobject_cast<QFrame *>(canvas());
     if (f) {
-        f->setFrameStyle(QFrame::Box | QFrame::Plain);
-        f->setLineWidth(1);
-        f->setPalette(palette);
+        f->setFrameStyle(QFrame::NoFrame);
+        f->setPalette(plotPalette);
     }
+    setCanvasBackground(plotPalette.color(QPalette::Base));
 
     // Add grid lines
     QwtPlotGrid *grid = new QwtPlotGrid;
-    grid->setMajorPen(QPen(Qt::gray, 0, Qt::DashLine));
-    grid->setMinorPen(QPen(Qt::lightGray, 0, Qt::DotLine));
-    grid->setPen(QPen(Qt::darkGray, 1, Qt::DotLine));
+    grid->setMajorPen(QPen(plotPalette.color(QPalette::Midlight), 1, Qt::SolidLine));
+    grid->enableXMin(false);
+    grid->enableYMin(false);
     grid->attach(this);
 
     roll_elements.Curve.setRenderHint(QwtPlotCurve::RenderAntialiased);
-    roll_elements.Curve.setPen(QPen(QColor(41, 128, 185), 1.25, Qt::SolidLine, Qt::FlatCap));
+    roll_elements.Curve.setPen(QPen(plotPalette.color(QPalette::Highlight), 2, Qt::SolidLine, Qt::RoundCap));
     roll_elements.Curve.attach(this);
 
     pitch_elements.Curve.setRenderHint(QwtPlotCurve::RenderAntialiased);
-    pitch_elements.Curve.setPen(QPen(QColor(192, 57, 43), 1.25, Qt::SolidLine, Qt::FlatCap));
+    pitch_elements.Curve.setPen(QPen(Utils::errorColor(), 2, Qt::SolidLine, Qt::RoundCap));
     pitch_elements.Curve.attach(this);
 
     yaw_elements.Curve.setRenderHint(QwtPlotCurve::RenderAntialiased);
-    yaw_elements.Curve.setPen(QPen(QColor(39, 174, 96), 1.25, Qt::SolidLine, Qt::FlatCap));
+    yaw_elements.Curve.setPen(QPen(Utils::warningColor(), 2, Qt::SolidLine, Qt::RoundCap));
     yaw_elements.Curve.attach(this);
 
     // legend
@@ -80,10 +79,6 @@ ExpoCurve::ExpoCurve(QWidget *parent)
     // connect signal when clicked on legend entry to function that shows/hides the curve
     connect(m_legend, &QwtLegend::checked, this, &ExpoCurve::showCurve);
 
-    QPalette pal = m_legend->palette();
-    pal.setColor(m_legend->backgroundRole(), QColor(100, 100, 100)); // background colour
-    pal.setColor(QPalette::Text, QColor(0, 0, 0)); // text colour
-    m_legend->setPalette(pal);
     m_legend->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Expanding);
 
     insertLegend(m_legend, QwtPlot::RightLegend);
@@ -103,10 +98,13 @@ ExpoCurve::ExpoCurve(QWidget *parent)
     QwtText axis_title;
 
     // get the default font
-    QFont axis_title_font = this->axisTitle(yLeft).font();
-    // and only change the font size
-    axis_title_font.setPointSize(10);
+    QFont axis_title_font = QApplication::font();
+    axis_title_font.setPixelSize(12);
+    axis_title_font.setWeight(QFont::Normal);
     axis_title.setFont(axis_title_font);
+    axis_title.setColor(plotPalette.color(QPalette::PlaceholderText));
+    setAxisFont(QwtPlot::xBottom, axis_title_font);
+    setAxisFont(QwtPlot::yLeft, axis_title_font);
 
     axis_title.setText(tr("normalized stick input"));
     this->setAxisTitle(QwtPlot::xBottom, axis_title);
@@ -118,8 +116,8 @@ ExpoCurve::ExpoCurve(QWidget *parent)
     axis_title.setText(tr("rate (deg/s)"));
     this->setAxisTitle(QwtPlot::yLeft, axis_title);
 
-    this->axisWidget(QwtPlot::xBottom)->setPalette(palette);
-    this->axisWidget(QwtPlot::yLeft)->setPalette(palette);
+    this->axisWidget(QwtPlot::xBottom)->setPalette(plotPalette);
+    this->axisWidget(QwtPlot::yLeft)->setPalette(plotPalette);
 
     plotDataRoll(50, 720, 50);
     plotDataPitch(50, 720, 50);

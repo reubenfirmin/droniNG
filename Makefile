@@ -1,4 +1,4 @@
-# Makefile for dRonin project
+# Makefile for droniNG project
 .DEFAULT_GOAL := help
 
 WHEREAMI := $(dir $(lastword $(MAKEFILE_LIST)))
@@ -20,6 +20,13 @@ include $(ROOT_DIR)/make/$(OSFAMILY).mk
 
 # include the tools makefile
 include $(ROOT_DIR)/make/tools.mk
+ifdef LINUX
+include $(ROOT_DIR)/make/firmware-installer.mk
+WITH_FIRMWARE_INSTALLER ?= YES
+ifeq ($(WITH_FIRMWARE_INSTALLER),YES)
+gcs: firmware_install_bundle
+endif
+endif
 
 # Function for converting an absolute path to one relative
 # to the top of the source tree.
@@ -116,13 +123,11 @@ endif
 .PHONY: help
 help:
 	@echo
-	@echo "   This Makefile is known to work on Linux and Mac in a standard shell environment."
-	@echo "   It also works on Windows by following the instructions in make/winx86/README.txt."
+	@echo "   This Makefile supports Linux in a standard shell environment."
 	@echo
 	@echo "   Here is a summary of the available targets:"
 	@echo
 	@echo "   [Tool Installers]"
-	@echo "     qt_sdk_install       - Install the Qt tools"
 	@echo "     arm_sdk_install      - Install the GNU ARM gcc toolchain"
 	@echo "     openocd_install      - Install the OpenOCD SWD/JTAG daemon"
 	@echo "     zip_install          - Install Info-Zip compression tool"
@@ -132,12 +137,8 @@ help:
 	@echo "     android_sdk_install  - Install the Android SDK tools"
 	@echo "     gtest_install        - Install the google unit test suite"
 	@echo "     uncrustify_install   - Install the uncrustify code formatter"
-	@echo "     openssl_install      - Install the openssl libraries on windows machines"
-	@echo "     sdl_install          - Install the SDL libraries"
-ifndef WINDOWS
-	@echo "     depot_tools_install  - Install Google depot-tools for building breakpad tools"
-endif
 	@echo "     breakpad_install     - Install Google Breakpad tools for GCS crash symbol generation"
+	@echo "     breakpad_test        - Verify Linux crash capture, symbols and stack walking"
 
 	@echo
 	@echo "   [Big Hammer]"
@@ -218,9 +219,9 @@ endif
 	@echo "     uavobjects_test      - parse xml-files - check for valid, duplicate ObjId's, ... "
 	@echo
 	@echo "   [Packaging]"
-	@echo "     package_flight       - Build and package the dRonin flight firmware only"
-	@echo "     package_all_compress - Build and package all dRonin firmware and software"
-	@echo "     package_installer    - Builds a dRonin software installer"
+	@echo "     package_flight       - Build and package the droniNG flight firmware only"
+	@echo "     package_all_compress - Build and package all droniNG firmware and software"
+	@echo "     package_installer    - Builds a droniNG software installer"
 	@echo
 	@echo "   Notes:"
 	@echo "     - packages will be placed in $(PACKAGE_DIR)"
@@ -257,41 +258,54 @@ $(BUILD_DIR):
 #
 ##############################
 
-USE_MSVC ?= NO
-ifeq ($(USE_MSVC), YES)
-QT_SPEC=win32-msvc
-endif
 .PHONY: all_ground
 all_ground: gcs
 
-ifndef WINDOWS
-# unfortunately the silent linking command is broken on windows
 ifeq ($(V), 1)
 GCS_SILENT :=
 else
 GCS_SILENT := silent
 endif
+
+
+GCS_QMAKE_DEPS := $(shell find $(ROOT_DIR)/ground -name '*.pr?') $(wildcard $(ROOT_DIR)/branding/*.pri)
+GCS_QMAKE_DEPS += $(ROOT_DIR)/make/scripts/version-info.py \
+                  $(ROOT_DIR)/shared/product-version.json \
+                  $(ROOT_DIR)/make/templates/gcsversioninfotemplate.h \
+                  $(ROOT_DIR)/make/templates/gcsauthorstemplate.html \
+                  $(ROOT_DIR)/make/templates/gcsrelauthorstemplate.html \
+                  $(wildcard $(ROOT_DIR)/make/gcs-version-metadata.json)
+# Refresh compiled revision metadata after commits and checkouts, including
+# detached heads, packed refs and Git worktrees. Source archives use the
+# preserved metadata dependency above.
+ifneq ($(wildcard $(ROOT_DIR)/.git),)
+GCS_GIT_REF := $(shell git -C "$(ROOT_DIR)" symbolic-ref -q HEAD 2>/dev/null)
+GCS_QMAKE_DEPS += $(wildcard $(shell git -C "$(ROOT_DIR)" rev-parse --path-format=absolute --git-path HEAD))
+GCS_QMAKE_DEPS += $(wildcard $(shell git -C "$(ROOT_DIR)" rev-parse --path-format=absolute --git-path packed-refs))
+ifneq ($(GCS_GIT_REF),)
+GCS_QMAKE_DEPS += $(wildcard $(shell git -C "$(ROOT_DIR)" rev-parse --path-format=absolute --git-path "$(GCS_GIT_REF)"))
 endif
-
-
-GCS_QMAKE_DEPS := $(shell find $(ROOT_DIR)/ground -name '*.pr?')
+endif
 $(GCS_QMAKE_DEPS): ;
 
-$(GCS_QMAKE_MARKER): $(UAVOBJECT_MARKER) $(GCS_QMAKE_DEPS) $(SHAREDUSBIDDIR)/board_usb_ids.h
+GCS_GRAPHICS_TOOLS :=
+ifeq ($(findstring LIGHTWEIGHT_GCS,$(GCS_QMAKE_OPTS)),)
+ifneq ($(filter 6.%,$(shell $(QMAKE) -query QT_VERSION 2>/dev/null)),)
+GCS_GRAPHICS_TOOLS := tools_required_glc6
+endif
+endif
+
+$(GCS_QMAKE_MARKER): $(UAVOBJECT_MARKER) $(GCS_QMAKE_DEPS) $(SHAREDUSBIDDIR)/board_usb_ids.h | tools_required_qt $(GCS_GRAPHICS_TOOLS)
 	$(V1) mkdir -p $(BUILD_DIR)/ground/gcs
 	$(V1) ( cd $(BUILD_DIR)/ground/gcs && \
-	  $(QMAKE) $(ROOT_DIR)/ground/gcs/gcs.pro -spec $(QT_SPEC) -r CONFIG+="$(GCS_BUILD_CONF) $(GCS_SILENT)" $(GCS_QMAKE_OPTS) ; \
+	  $(QMAKE) $(ROOT_DIR)/ground/gcs/gcs.pro -spec $(QT_SPEC) -r CONFIG+="$(GCS_BUILD_CONF) $(GCS_SILENT)" $(GCS_QMAKE_OPTS) \
 	)
 	$(V1) touch $(GCS_QMAKE_MARKER)
 
 
 .PHONY: gcs
-gcs: $(GCS_QMAKE_MARKER) | tools_required_qt tools_required_breakpad
-ifeq ($(USE_MSVC), NO)
+gcs: $(GCS_QMAKE_MARKER) | tools_required_qt tools_required_breakpad $(GCS_GRAPHICS_TOOLS)
 	cd $(BUILD_DIR)/ground/gcs && $(MAKE) --no-print-directory -w
-else
-	cd $(BUILD_DIR)/ground/gcs && MAKEFLAGS= jom $(JOM_OPTIONS)
-endif
 
 .PHONY: gcs_clean
 gcs_clean:
@@ -319,28 +333,18 @@ gcs_clazy: $(UAVOBJECT_MARKER) | tools_required_qt
 	)
 
 
-ifndef WINDOWS
-# unfortunately the silent linking command is broken on windows
 ifeq ($(V), 1)
 UAVOGEN_SILENT :=
 else
 UAVOGEN_SILENT := silent
 endif
-endif
 .PHONY: uavobjgenerator
-uavobjgenerator:
+uavobjgenerator: | tools_required_qt
 	$(V1) mkdir -p $(BUILD_DIR)/ground/$@
-ifeq ($(USE_MSVC), NO)
 	$(V1) ( cd $(BUILD_DIR)/ground/$@ && \
 	  $(QMAKE) $(ROOT_DIR)/ground/uavobjgenerator/uavobjgenerator.pro -spec $(QT_SPEC) -r CONFIG+="debug $(UAVOGEN_SILENT)" && \
 	  $(MAKE) --no-print-directory -w; \
 	)
-else
-	$(V1) ( cd $(BUILD_DIR)/ground/$@ && \
-	  $(QMAKE) $(ROOT_DIR)/ground/uavobjgenerator/uavobjgenerator.pro -spec $(QT_SPEC) -r CONFIG+="debug $(UAVOGEN_SILENT)" && \
-	  MAKEFLAGS= jom $(JOM_OPTIONS); \
-	)
-endif
 
 UAVOBJECT_DEPS := $(shell find $(UAVOBJ_XML_DIR))
 $(UAVOBJECT_DEPS): ;
@@ -348,7 +352,7 @@ $(UAVOBJECT_DEPS): ;
 $(UAVOBJECT_MARKER): $(UAVOBJECT_DEPS) | uavobjgenerator
 	$(V1) mkdir -p $(UAVOBJ_OUT_DIR)
 	$(V1) ( cd $(UAVOBJ_OUT_DIR) && \
-	  $(UAVOBJGENERATOR) $(UAVOBJ_XML_DIR) $(ROOT_DIR) ; \
+	  $(UAVOBJGENERATOR) $(UAVOBJ_XML_DIR) $(ROOT_DIR) \
 	)
 	$(V1) touch $(UAVOBJECT_MARKER)
 
@@ -425,7 +429,7 @@ $(ANDROIDGCS_OUT_DIR)/bin/androidgcs-$(ANDROIDGCS_BUILD_CONF).apk: uavo-collecti
 .PHONY: androidgcs_run
 androidgcs_run: androidgcs_install
 	$(V0) @echo " AGCS RUN "
-	$(V1) $(ANDROID_ADB) shell am start -n org.dronin.androidgcs/.MainActivity
+	$(V1) $(ANDROID_ADB) shell am start -n org.droning.androidgcs/.MainActivity
 
 .PHONY: androidgcs_install
 androidgcs_install: $(ANDROIDGCS_OUT_DIR)/bin/androidgcs-$(ANDROIDGCS_BUILD_CONF).apk
@@ -444,7 +448,7 @@ androidgcs_clean:
 # later as things mature.  Better some documentation than no documentation.
 androidgcs_sign:
 	$(V0) @echo " SIGNING    $@"
-	jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 -keystore dronin.keystore androidgcs-release-unsigned.apk dronin
+	jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 -keystore droning.keystore androidgcs-release-unsigned.apk droning
 	$(ANDROID_SDK_DIR)/build-tools/20.0.0/zipalign -v 4 androidgcs-release-unsigned.apk androidgcs-release.apk
 
 # We want to take snapshots of the UAVOs at each point that they change
@@ -486,7 +490,7 @@ $$(UAVO_COLLECTION_DIR)/$(1)/uavo-xml: $$(UAVO_COLLECTION_DIR)/$(1)/uavo-xml.tar
 	$$(V1) rm -rf $$@
 	$$(V1) mkdir -p $$@
 	$$(V1) tar -C $$(call toprel, $$@) -xf $$(call toprel, $$<) || rm -rf $$@
-	$$(V1) python/dronin-canonicalize $$(call toprel, $$@)/shared/uavobjectdefinition
+	$$(V1) python/droning-canonicalize $$(call toprel, $$@)/shared/uavobjectdefinition
 	$$(V1) rm -f $$(call toprel, $$@)/shared/uavobjectdefinition/vtxconfig.xml
 
 # Last two statements are a hack for old UAVOs using mish-mash formats
@@ -533,11 +537,11 @@ $$(UAVO_COLLECTION_DIR)/$(1)/java-build/uavobjects.jar: $$(UAVO_COLLECTION_DIR)/
 		HASH=$$$$(cat $$(UAVO_COLLECTION_DIR)/$(1)/uavohash) && \
 		cd $$(UAVO_COLLECTION_DIR)/$(1)/java-build && \
 		javac -source 1.6 -target 1.6 java/*.java \
-		   $$(ROOT_DIR)/androidgcs/src/org/dronin/uavtalk/UAVDataObject.java \
-		   $$(ROOT_DIR)/androidgcs/src/org/dronin/uavtalk/UAVObject*.java \
-		   $$(ROOT_DIR)/androidgcs/src/org/dronin/uavtalk/UAVMetaObject.java \
+		   $$(ROOT_DIR)/androidgcs/src/org/droning/uavtalk/UAVDataObject.java \
+		   $$(ROOT_DIR)/androidgcs/src/org/droning/uavtalk/UAVObject*.java \
+		   $$(ROOT_DIR)/androidgcs/src/org/droning/uavtalk/UAVMetaObject.java \
 		   -d . && \
-		find ./org/dronin/uavtalk/uavobjects -type f -name '*.class' > classlist.txt && \
+		find ./org/droning/uavtalk/uavobjects -type f -name '*.class' > classlist.txt && \
 		jar cf tmp_uavobjects.jar @classlist.txt && \
 		$$(ANDROID_DX) \
 			--dex \
@@ -847,6 +851,7 @@ ef_$(1)_%: $(5)
 		DFU_CMD="$(DFUUTIL_DIR)/bin/dfu-util" \
 		\
 		ROOT_DIR=$(ROOT_DIR) \
+		BUILD_DIR=$(BUILD_DIR) \
 		BOARD_ROOT_DIR=$$(BOARD_ROOT_DIR) \
 		BOARD_INFO_DIR=$$(BOARD_ROOT_DIR)/board-info \
 		TARGET=$$(TARGET) \
@@ -920,10 +925,9 @@ flightlib_armhardfp_clean:
 	$(V1) [ ! -d "$(FLIGHTLIB_HARD_OUT_DIR)" ] || $(RM) -rf "$(FLIGHTLIB_HARD_OUT_DIR)"
 
 
-.PHONY: usb_id_header usb_id_udev usb_id_windriver
+.PHONY: usb_id_header usb_id_udev
 usb_id_header: $(SHAREDUSBIDDIR)/board_usb_ids.h
-usb_id_udev: $(SHAREDUSBIDDIR)/dronin.udev
-usb_id_windriver: $(SHAREDUSBIDDIR)/dronin_cdc.inf
+usb_id_udev: $(SHAREDUSBIDDIR)/droning.udev
 
 $(SHAREDUSBIDDIR):
 	$(V1) mkdir -p "$@"
@@ -932,13 +936,9 @@ $(SHAREDUSBIDDIR)/board_usb_ids.h: | $(SHAREDUSBIDDIR)
 $(SHAREDUSBIDDIR)/board_usb_ids.h: $(ROOT_DIR)/shared/usb_ids/usb_ids.json
 	$(V1) $(ROOT_DIR)/shared/usb_ids/generate_usb_files.py -i "$<" -c "$@"
 
-$(SHAREDUSBIDDIR)/dronin.udev: | $(SHAREDUSBIDDIR)
-$(SHAREDUSBIDDIR)/dronin.udev: $(ROOT_DIR)/shared/usb_ids/usb_ids.json
+$(SHAREDUSBIDDIR)/droning.udev: | $(SHAREDUSBIDDIR)
+$(SHAREDUSBIDDIR)/droning.udev: $(ROOT_DIR)/shared/usb_ids/usb_ids.json $(ROOT_DIR)/shared/usb_ids/generate_usb_files.py
 	$(V1) $(ROOT_DIR)/shared/usb_ids/generate_usb_files.py -i "$<" -u "$@"
-
-$(SHAREDUSBIDDIR)/dronin_cdc.inf: | $(SHAREDUSBIDDIR)
-$(SHAREDUSBIDDIR)/dronin_cdc.inf: $(ROOT_DIR)/shared/usb_ids/usb_ids.json
-	$(V1) $(ROOT_DIR)/shared/usb_ids/generate_usb_files.py -i "$<" -d "$@"
 
 # $(1) = Canonical board name all in lower case (e.g. coptercontrol)
 define BOARD_PHONY_TEMPLATE
@@ -1014,7 +1014,7 @@ $(foreach board, $(FW_BOARDS), $(eval $(call FW_TEMPLATE,$(board),$($(board)_fri
 $(foreach board, $(BL_BOARDS), $(eval $(call BL_TEMPLATE,$(board),$($(board)_cpuarch),$($(board)_short))))
 
 # Expand the entire-flash rules
-$(foreach board, $(EF_BOARDS), $(eval $(call EF_TEMPLATE,$(board),$($(board)_friendly),$($(board)_short),$($(board)_bootloader))))
+$(foreach board, $(filter-out radix omnibusf4sd,$(EF_BOARDS)), $(eval $(call EF_TEMPLATE,$(board),$($(board)_friendly),$($(board)_short),$($(board)_bootloader))))
 
 # Expand the upgrader rules
 $(foreach board, $(UP_BOARDS), $(eval $(call UP_TEMPLATE,$(board),$($(board)_cpuarch),$($(board)_short))))
@@ -1123,21 +1123,24 @@ python_ut_ins:
 
 .PHONY: gcs_ut_test
 
+gcs_ut_test: GCS_TEST_ENV:=$(abspath $(BUILD_DIR)/gcs-test-env)
+
 ifeq ($(LINUX),1)
-  gcs_ut_test: GCS_BIN:=$(BUILD_DIR)/ground/gcs/bin/drgcs
+  gcs_ut_test: GCS_BIN:=$(BUILD_DIR)/ground/gcs/bin/droning-gcs
 ifeq ($(DISPLAY)x,x)
   gcs_ut_test: XVFB_CMD:=xvfb-run --server-args "-screen 0 1280x1024x24" -a timeout -k 3 400
 endif
-else ifeq ($(MACOSX),1)
-  gcs_ut_test: GCS_BIN:="$(BUILD_DIR)/ground/gcs/bin/dRonin-GCS.app/Contents/MacOS/dRonin-GCS"
-else ifeq ($(WINDOWS),1)
-  gcs_ut_test: GCS_BIN:="$(BUILD_DIR)/ground/gcs/bin/drgcs.exe"
 endif
 
 gcs_ut_test:
-	$(V0) @echo "  GCS_UT drgcs"
-	$(V1) cp "$(ROOT_DIR)/ground/gcs/share/default_configurations/developer.xml" "$(BUILD_DIR)/gcs_ut.xml"
-	$(V1) $(XVFB_CMD) $(GCS_BIN) -t all -n RawHID -n UsageStats -n RfmBindWizard -n Uploader -m "$(BUILD_DIR)/gcs_ut.xml"
+	$(V0) @echo "  GCS_UT droning-gcs"
+	$(V1) mkdir -p "$(GCS_TEST_ENV)/config" "$(GCS_TEST_ENV)/data" "$(GCS_TEST_ENV)/cache" "$(GCS_TEST_ENV)/runtime" "$(GCS_TEST_ENV)/tmp"
+	$(V1) chmod 700 "$(GCS_TEST_ENV)/runtime"
+	$(V1) cp "$(ROOT_DIR)/ground/gcs/share/default_configurations/developer.xml" "$(GCS_TEST_ENV)/gcs_ut.xml"
+	$(V1) env XDG_CONFIG_HOME="$(GCS_TEST_ENV)/config" XDG_DATA_HOME="$(GCS_TEST_ENV)/data" \
+	  XDG_CACHE_HOME="$(GCS_TEST_ENV)/cache" XDG_RUNTIME_DIR="$(GCS_TEST_ENV)/runtime" \
+	  TMPDIR="$(GCS_TEST_ENV)/tmp" QT_FORCE_STDERR_LOGGING=1 \
+	  $(XVFB_CMD) $(GCS_BIN) -t all -n RawHID -n UsageStats -n SetupWizard -n Uploader -m "$(GCS_TEST_ENV)/gcs_ut.xml"
 
 # Disable parallel make when the all_ut_run target is requested otherwise the TAP
 # output is interleaved with the rest of the make output.

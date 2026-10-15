@@ -169,9 +169,9 @@ static int crsftelem_create_gps(uint8_t *buf)
 			buf[pos++] = CRSF_PAYLOAD_LEN(CRSF_PAYLOAD_GPS);
 			buf[pos++] = CRSF_FRAME_GPS;
 
-			// Latitude (x10^7, as dRonin)
+			// Latitude (x10^7, as droniNG)
 			WRITE_VAL32(buf, pos, (int32_t)gpsData.Latitude);
-			// Longitude (x10^7, as dRonin)
+			// Longitude (x10^7, as droniNG)
 			WRITE_VAL32(buf, pos, (int32_t)gpsData.Longitude);
 			// Groundspeed (apparently tenth of km/h)
 			WRITE_VAL16(buf, pos, (uint16_t)(gpsData.Groundspeed*10.0f));

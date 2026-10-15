@@ -15,14 +15,16 @@ HEADERS += notifyplugin.h \
     notifyitemdelegate.h \
     notifytablemodel.h \
     notificationitem.h \
-    notifylogging.h
+    notifylogging.h \
+    soundsequenceplayer.h
 
 SOURCES += notifyplugin.cpp \
     notifypluginoptionspage.cpp \
     notifyitemdelegate.cpp \
     notifytablemodel.cpp \
     notificationitem.cpp \
-    notifylogging.cpp
+    notifylogging.cpp \
+    soundsequenceplayer.cpp
  
 OTHER_FILES += NotifyPlugin.pluginspec
 

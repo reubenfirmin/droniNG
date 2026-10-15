@@ -48,7 +48,7 @@ Plot2dData::Plot2dData(QString p_uavObject, QString p_uavFieldName)
     if (p_uavFieldName.contains(
             "-")) // For fields with multiple indices, '-' followed by an index indicates which one
     {
-        QStringList fieldSubfield = p_uavFieldName.split("-", QString::SkipEmptyParts);
+        QStringList fieldSubfield = p_uavFieldName.split("-", Qt::SkipEmptyParts);
         uavFieldName = fieldSubfield.at(0);
         uavSubFieldName = fieldSubfield.at(1);
         haveSubField = true;
@@ -85,7 +85,7 @@ Plot3dData::Plot3dData(QString p_uavObject, QString p_uavFieldName)
     if (p_uavFieldName.contains(
             "-")) // For fields with multiple indices, '-' followed by an index indicates which one
     {
-        QStringList fieldSubfield = p_uavFieldName.split("-", QString::SkipEmptyParts);
+        QStringList fieldSubfield = p_uavFieldName.split("-", Qt::SkipEmptyParts);
         uavFieldName = fieldSubfield.at(0);
         uavSubFieldName = fieldSubfield.at(1);
         haveSubField = true;
@@ -152,8 +152,7 @@ double PlotData::valueAsDouble(UAVObject *obj, UAVObjectField *field, bool haveS
     QVariant value;
 
     if (haveSubField) {
-        int indexOfSubField = field->getElementNames().indexOf(
-            QRegExp(uavSubFieldName, Qt::CaseSensitive, QRegExp::FixedString));
+        int indexOfSubField = field->getElementNames().indexOf(uavSubFieldName);
         value = field->getValue(indexOfSubField);
     } else
         value = field->getValue();

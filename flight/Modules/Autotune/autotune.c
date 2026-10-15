@@ -220,6 +220,11 @@ static int autotune_save_averaging() {
 	}
 
 
+	uint32_t partition_size;
+	if (PIOS_FLASH_get_partition_size(part_id, &partition_size) ||
+		partition_size < sizeof(struct at_flash_header) ||
+		decim_wiggle_points > (partition_size - sizeof(struct at_flash_header)) / sizeof(*at_averages))
+		return -6;
 	if (PIOS_FLASH_start_transaction(part_id)) {
 		return -2;
 	}

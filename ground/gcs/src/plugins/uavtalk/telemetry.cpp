@@ -36,7 +36,8 @@
 #include "telemetry.h"
 #include "hwtaulink.h"
 #include "objectpersistence.h"
-#include <QTime>
+#include <QElapsedTimer>
+#include <QRandomGenerator>
 #include <QtGlobal>
 #include <stdlib.h>
 #include <QDebug>
@@ -170,8 +171,9 @@ void Telemetry::setUpdatePeriod(UAVObject *obj, qint32 periodMs)
     for (QVector<ObjectTimeInfo>::iterator iter = objList.begin(); iter != iterEnd; ++iter) {
         if (iter->obj->getObjID() == objID) {
             iter->updatePeriodMs = periodMs;
-            iter->timeToNextUpdateMs = quint32((float)periodMs * (float)qrand()
-                                               / (float)RAND_MAX); // avoid bunching of updates
+            // Stagger periodic updates without using the removed global qrand.
+            iter->timeToNextUpdateMs = periodMs > 0
+                ? QRandomGenerator::global()->bounded(quint32(periodMs)) : 0;
         }
     }
 }
@@ -524,6 +526,10 @@ void Telemetry::processObjectTransaction(ObjectTransactionInfo *transInfo)
 void Telemetry::processObjectUpdates(UAVObject *obj, EventMask event, bool allInstances,
                                      bool priority)
 {
+    // Suppress both explicit handshake requests and the periodic GCS heartbeat
+    // after identifying a port that speaks MSP. Incoming objects still flow.
+    if (!connectionRequestsEnabled && obj->getObjID() == GCSTelemetryStats::OBJID
+        && event != EV_UNPACKED) return;
     // Push event into queue
     ObjectQueueInfo objInfo;
     objInfo.obj = obj;
@@ -656,7 +662,7 @@ void Telemetry::processPeriodicUpdates()
     // Also calculate smallest delay to next update (will be used for setting timeToNextUpdateMs)
     qint32 minDelay = MAX_UPDATE_PERIOD_MS;
     qint32 elapsedMs = 0;
-    QTime time;
+    QElapsedTimer time;
     qint32 offset;
 
     const QVector<ObjectTimeInfo>::iterator objInfoEnd = objList.end();

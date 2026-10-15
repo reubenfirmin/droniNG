@@ -34,7 +34,7 @@ class ScopeGadgetFactory;
 class ScopePlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.ScopeGadget")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.ScopeGadget")
 public:
     ScopePlugin();
     ~ScopePlugin();

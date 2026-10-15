@@ -39,7 +39,7 @@ class PathPlannerGadgetFactory;
 class PathPlannerPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.PathPlanner")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.PathPlanner")
 public:
     PathPlannerPlugin();
     ~PathPlannerPlugin();

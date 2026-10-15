@@ -8,6 +8,7 @@
  *****************************************************************************/
 
 #include "qwt_dial.h"
+#include "qwt_qt_compat.h"
 #include "qwt_dial_needle.h"
 #include "qwt_math.h"
 #include "qwt_scale_engine.h"
@@ -316,7 +317,7 @@ void QwtDial::paintEvent( QPaintEvent *event )
     painter.setClipRegion( event->region() );
 
     QStyleOption opt;
-    opt.init(this);
+    opt.initFrom(this);
     style()->drawPrimitive(QStyle::PE_Widget, &opt, &painter, this);
 
     if ( d_data->mode == QwtDial::RotateScale )
@@ -693,7 +694,7 @@ QSize QwtDial::sizeHint() const
 
     QSize hint( d, d ); 
     if ( !isReadOnly() )
-        hint = hint.expandedTo( QApplication::globalStrut() );
+        hint = hint.expandedTo( qwtGlobalStrut() );
 
     return hint;
 }
@@ -832,7 +833,7 @@ void QwtDial::changeEvent( QEvent *event )
 void QwtDial::wheelEvent( QWheelEvent *event )
 {
     const QRegion region( innerRect(), QRegion::Ellipse );
-    if ( region.contains( event->pos() ) )
+    if ( region.contains( qwtWheelPosition( event ) ) )
         QwtAbstractSlider::wheelEvent( event );
 }
 

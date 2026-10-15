@@ -32,7 +32,7 @@
 class QuantecPlugin : public ExtensionSystem::IPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.dronin.plugins.Quantec")
+    Q_PLUGIN_METADATA(IID "org.droning.plugins.Quantec")
 
 public:
     QuantecPlugin();

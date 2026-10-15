@@ -53,7 +53,7 @@ void TimeSeriesPlotData::plotNewData(PlotData *plot2dData, ScopeConfig *scopeCon
         curve->setSamples(*xData, *yData);
 
     QDateTime NOW = QDateTime::currentDateTime();
-    double toTime = NOW.toTime_t();
+    double toTime = NOW.toSecsSinceEpoch();
     toTime += NOW.time().msec() / 1000.0;
 
     scopeGadgetWidget->setAxisScale(QwtPlot::xBottom, toTime - m_xWindowSize, toTime);
@@ -195,7 +195,7 @@ bool TimeSeriesPlotData::append(UAVObject *obj)
                 yData->append(currentValue);
             }
 
-            double valueX = NOW.toTime_t() + NOW.time().msec() / 1000.0;
+            double valueX = NOW.toSecsSinceEpoch() + NOW.time().msec() / 1000.0;
             xData->append(valueX);
 
             // Remove stale data

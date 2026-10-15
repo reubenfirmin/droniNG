@@ -129,8 +129,29 @@ void UAVTalk::processInputStream()
         filledBytes += bytes;
         stats.rxBytes += bytes;
 
+        if (firmwareProbe.active()) {
+            sendFirmwareProbe(firmwareProbe.receive(QByteArray(
+                reinterpret_cast<const char *>(rxBuffer + filledBytes - bytes), bytes)));
+        }
+
         while (processInput());
     }
+}
+
+void UAVTalk::probeFirmware()
+{
+    sendFirmwareProbe(firmwareProbe.start());
+}
+
+void UAVTalk::sendFirmwareProbe(const QByteArray &requests)
+{
+    if (requests.isEmpty())
+        return;
+    const qint64 written = io && io->isWritable() ? io->write(requests) : -1;
+    if (written > 0)
+        stats.txBytes += written;
+    if (written != requests.size())
+        ++stats.txErrors;
 }
 
 /**
@@ -238,7 +259,11 @@ bool UAVTalk::processInput()
         return true;
     }
 
-    if (hdr->size < sizeof(UAVTalkHeader)) {
+    // The two size bytes form a little-endian length, excluding the CRC.
+    // The high byte was historically named resv, but cannot be ignored.
+    const unsigned int packetSize = hdr->size | (unsigned(hdr->resv) << 8);
+    if (packetSize < sizeof(UAVTalkHeader)
+        || packetSize + CHECKSUM_LENGTH > MAX_PACKET_LENGTH) {
         startOffset++;
         stats.rxErrors++;
 
@@ -249,12 +274,12 @@ bool UAVTalk::processInput()
      * Size doesn't include CRC, so add one.
      */
 
-    if ((hdr->size + 1u) > bytesAvail) {
+    if ((packetSize + CHECKSUM_LENGTH) > bytesAvail) {
         return false;
     }
 
-    quint8 ourCrc = updateCRC(0, rxBuffer + startOffset, hdr->size);
-    quint8 *theirCrc = rxBuffer + startOffset + hdr->size;
+    quint8 ourCrc = updateCRC(0, rxBuffer + startOffset, packetSize);
+    quint8 *theirCrc = rxBuffer + startOffset + packetSize;
 
     if (ourCrc != *theirCrc) {
         /* Since we can't trust hdr->size for sure, we should just skip
@@ -268,12 +293,12 @@ bool UAVTalk::processInput()
     }
 
     quint8 *payload = rxBuffer + startOffset + sizeof(*hdr);
-    unsigned int payloadBytes = hdr->size - sizeof(*hdr);
+    unsigned int payloadBytes = packetSize - sizeof(*hdr);
 
     /* At this point, we'll advance startOffset for the entire length of
      * frame, and not touch startOffset again this function!
      */
-    startOffset += hdr->size + 1;
+    startOffset += packetSize + CHECKSUM_LENGTH;
 
     /* OK, we have a complete frame as encoded on the wire.  Time to do things
      * with it.
@@ -283,7 +308,11 @@ bool UAVTalk::processInput()
     quint32 rxObjId = qFromLittleEndian(hdr->objId);
 
     if (rxType == TYPE_FILEDATA) {
-        return receiveFileChunk(rxObjId, payload, payloadBytes);
+        if (!receiveFileChunk(rxObjId, payload, payloadBytes))
+            ++stats.rxErrors;
+        // This frame was consumed. Continue parsing bytes already buffered,
+        // even if the file-data payload was malformed.
+        return true;
     }
 
     UAVObject *rxObj = objMngr->getObject(rxObjId);
@@ -306,6 +335,10 @@ bool UAVTalk::processInput()
         if ((rxType != TYPE_NACK) || (payloadBytes == 2)) {
             /* Receiving the instid is optional on an nack-- can just mean
              * "nack everything" */
+            if (payloadBytes < 2) {
+                ++stats.rxErrors;
+                return true;
+            }
             rxInstId = *(payload++);
             rxInstId |= *(payload++) << 8;
 
@@ -332,7 +365,10 @@ bool UAVTalk::processInput()
         }
     }
 
-    receiveObject(rxType, rxObjId, rxInstId, payload, payloadBytes);
+    if (!receiveObject(rxType, rxObjId, rxInstId, payload, payloadBytes)) {
+        ++stats.rxErrors;
+        return true;
+    }
     stats.rxObjectBytes += payloadBytes;
     stats.rxObjects++;
 
@@ -386,9 +422,9 @@ bool UAVTalk::receiveObject(quint8 type, quint32 objId, quint16 instId, quint8 *
             if (obj != nullptr) {
                 transmitObject(obj, TYPE_ACK, false);
             } else {
-                UAVTALK_QXTLOG_DEBUG(QString("[uavtalk.cpp  ] Received an acknowledged UAVObject "
-                                             "update for a UAVObject we don't know about:")
-                                         .arg(obj->getName()));
+                UAVTALK_QXTLOG_DEBUG(QString("[uavtalk.cpp  ] Could not accept acknowledged "
+                                             "UAVObject update: OBJID:%0 INSTID:%1")
+                                         .arg(objId).arg(instId));
                 transmitNack(objId);
                 error = true;
             }
@@ -444,20 +480,18 @@ bool UAVTalk::receiveObject(quint8 type, quint32 objId, quint16 instId, quint8 *
         if (!allInstances) {
             // Get object
             obj = objMngr->getObject(objId, instId);
-            UAVTALK_QXTLOG_DEBUG(
-                QString("[uavtalk.cpp  ] Got ack for instance:%0 of UAVObject:%1 with ID:%2")
-                    .arg(instId)
-                    .arg(obj->getName())
-                    .arg(QString(QString("0x") + QString::number(objId, 16).toUpper())));
             // Check if we actually know this object (tiny chance the ObjID
             // could be unknown and got through CRC check...)
             if (obj != nullptr) {
                 UAVTALK_QXTLOG_DEBUG(
-                    QString("[uavtalk.cpp  ] UAVObject name:%0").arg(obj->getName()));
+                    QString("[uavtalk.cpp  ] Got ack for instance:%0 of UAVObject:%1 with ID:%2")
+                        .arg(instId).arg(obj->getName()).arg(objId));
                 emit ackReceived(obj);
             } else {
                 error = true;
             }
+        } else {
+            error = true;
         }
         break;
     default:
@@ -491,6 +525,7 @@ UAVObject *UAVTalk::updateObject(quint32 objId, quint16 instId, quint8 *data)
         // Create a new instance, unpack and register
         UAVDataObject *instobj = dobj->clone(instId);
         if (!objMngr->registerObject(instobj)) {
+            delete instobj;
             return nullptr;
         }
         instobj->unpack(data);
@@ -524,7 +559,8 @@ bool UAVTalk::transmitObject(UAVObject *obj, quint8 type, bool allInstances)
             // Send all instances
             for (quint32 instId = 0; instId < numInst; ++instId) {
                 UAVObject *inst = objMngr->getObject(obj->getObjID(), instId);
-                transmitSingleObject(inst, type, false);
+                if (!transmitSingleObject(inst, type, false))
+                    return false;
             }
             return true;
         } else {
@@ -578,10 +614,14 @@ bool UAVTalk::transmitFrame(quint32 length, bool incrTxObj)
     txBuffer[length] = updateCRC(0, txBuffer, length);
 
     // QFileDevice, used for saving logs, has quite a large buffer, we're not worried about it blocking
-    bool blocked = canBlock && io->bytesToWrite() >= TX_BACKLOG_SIZE;
+    bool blocked = canBlock && !io.isNull() && io->bytesToWrite() >= TX_BACKLOG_SIZE;
 
     if (!io.isNull() && io->isWritable() && !blocked) {
-        io->write(reinterpret_cast<const char *>(txBuffer), length + CHECKSUM_LENGTH);
+        if (io->write(reinterpret_cast<const char *>(txBuffer), length + CHECKSUM_LENGTH)
+            != qint64(length + CHECKSUM_LENGTH)) {
+            ++stats.txErrors;
+            return false;
+        }
     } else {
         UAVTALK_QXTLOG_DEBUG("UAVTalk: TX refused");
         ++stats.txErrors;

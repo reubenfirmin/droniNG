@@ -1,5 +1,7 @@
 TOOLS_DIR = $$PWD/../tools
 
+!linux:error("droniNG desktop builds support Linux only")
+
 # if ccache is in CONFIG, use it
 ccache {
     *-g++*|*-clang* {
@@ -8,9 +10,8 @@ ccache {
     }
 }
 
-DR_QT_MAJOR_VERSION=5
-DR_QT_MINOR_VERSION=9
-DR_QT_PATCH_VERSION=2
+!equals(QT_MAJOR_VERSION, 6):error("Qt 6 is required; release target is Qt 6.12.0")
+lessThan(QT_MINOR_VERSION, 10):error("Qt 6.10+ required; release target is Qt 6.12.0")
 
 # Must match make/tools.mk
-BREAKPAD = $$TOOLS_DIR/breakpad/20170922
+BREAKPAD = $$TOOLS_DIR/breakpad/6598c9c33fc02da7805401f3b0f1a733e6a24071

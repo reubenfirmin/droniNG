@@ -1,5 +1,10 @@
-Thanks for considering contributing to dRonin.  The more the merrier!
+Contributions to droniNG are welcome.
 
-Please see our documentation on [writing good bug reports](https://dronin.readme.io/docs/writing-good-bug-reports) if you're opening an issue.
+Open issues in the [droniNG issue tracker](https://github.com/reubenfirmin/droniNG/issues).
+Include the Linux distribution, Qt version, flight controller target, and steps
+to reproduce the problem, along with relevant logs.
 
-If you're contributing code / opening a pull request, please be sure to check out [our coding standards](https://github.com/d-ronin/dRonin/wiki/Development-Coding-standards).
+Follow the existing code style and the
+[upstream coding standards](https://github.com/d-ronin/dRonin/wiki/Development-Coding-standards).
+See the [Qt modernization plan](../QT_MODERNIZATION_PLAN.md) for the current
+desktop build requirements and validation.

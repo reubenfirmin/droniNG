@@ -1590,6 +1590,9 @@ margin:1px;</string>
 	background-position: center left;
 	background-origin: content;
 }
+QFrame[hasWarning=&quot;true&quot;] QLabel {
+    color: #202326;
+}
 </string>
          </property>
          <property name="frameShape">
@@ -2411,7 +2414,7 @@ margin:1px;</string>
        <property name="objrelation" stdset="0">
         <stringlist notr="true">
          <string>button:help</string>
-         <string>url:https://github.com/d-ronin/dRonin/wiki/OnlineHelp:-Input-Configuration</string>
+         <string>url:https://github.com/reubenfirmin/droniNG/wiki/OnlineHelp:-Input-Configuration</string>
         </stringlist>
        </property>
       </widget>

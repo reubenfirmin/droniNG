@@ -708,7 +708,7 @@ QString UAVObjectParser::processObjectFields(QDomNode& childNode, ObjectInfo* in
     elemAttr = elemAttributes.namedItem("elementnames");
     if ( !elemAttr.isNull() ) {
         // Get element names
-        QStringList names = elemAttr.nodeValue().split(",", QString::SkipEmptyParts);
+        QStringList names = elemAttr.nodeValue().split(",", Qt::SkipEmptyParts);
         for (int n = 0; n < names.length(); ++n)
             names[n] = names[n].trimmed();
 
@@ -784,7 +784,7 @@ QString UAVObjectParser::processObjectFields(QDomNode& childNode, ObjectInfo* in
         field->defaultValues = QStringList();
     }
     else  {
-        QStringList defaults = elemAttr.nodeValue().split(",", QString::SkipEmptyParts);
+        QStringList defaults = elemAttr.nodeValue().split(",", Qt::SkipEmptyParts);
         for (int n = 0; n < defaults.length(); ++n)
             defaults[n] = defaults[n].trimmed();
 

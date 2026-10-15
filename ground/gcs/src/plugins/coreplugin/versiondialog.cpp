@@ -81,22 +81,11 @@ VersionDialog::VersionDialog(QWidget *parent)
     QString uavoHashStr;
 #ifdef UAVO_HASH
     //: This gets conditionally inserted as argument %11 into the description string.
-    QByteArray uavoHashArray;
     QString uavoHash = QString::fromLatin1(Core::Constants::UAVOSHA1_STR);
-    uavoHash.chop(2);
-    uavoHash.remove(0, 2);
-    uavoHash = uavoHash.trimmed();
-    bool ok;
-    foreach (QString str, uavoHash.split(",")) {
-        uavoHashArray.append(str.toInt(&ok, 16));
-    }
-    QString gcsUavoHashStr;
-    foreach (char i, uavoHashArray) {
-        gcsUavoHashStr.append(QString::number(i, 16).right(2));
-    }
-    uavoHashStr = tr("UAVO hash %1<br/>").arg(gcsUavoHashStr.left(8));
+    uavoHash.remove("0x").remove(',');
+    uavoHashStr = tr("UAVO hash %1<br/>").arg(uavoHash.left(8));
 #endif
-    const QString version_name = tr("<h3><center>" GCS_PROJECT_BRANDING_PRETTY "GCS<center></h3>"
+    const QString version_name = tr("<h3><center>" GCS_PROJECT_BRANDING_PRETTY " GCS</center></h3>"
                                     "<h4><center>%1: %2</center></h4>")
                                      .arg(versionName, versionHash);
     const QString version_description =
@@ -114,6 +103,7 @@ VersionDialog::VersionDialog(QWidget *parent)
     QString copyright =
         tr("Copyright %0 %1, 2012-2015 Tau Labs, 2010-2012 OpenPilot. All rights reserved.<br/>"
            "<br/>"
+           "This fork is based on dRonin.<br/>"
            "Between 2010 and 2012, a significant part of this application was designed "
            "and implemented within the OpenPilot project.<br/>"
            "This work was further based on work from the Nokia Corporation for Qt Creator.<br/>"

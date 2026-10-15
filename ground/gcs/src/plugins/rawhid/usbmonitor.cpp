@@ -72,8 +72,7 @@ USBMonitor::~USBMonitor()
 
 void USBMonitor::periodic()
 {
-    // This is here to catch recursion, from the process_pending_events in
-    // hidapi on OS X.
+    // Guard against reentrant enumeration.
     if (enumerating) {
         return;
     }

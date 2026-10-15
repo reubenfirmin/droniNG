@@ -30,6 +30,7 @@
 
 #include "math.h"
 #include <QDebug>
+#include <utils/settingsstyle.h>
 #include <QTimer>
 #include <QStringList>
 #include <QWidget>
@@ -78,12 +79,22 @@ ConfigAttitudeWidget::ConfigAttitudeWidget(QWidget *parent)
 {
     m_ui->setupUi(this);
 
+    m_ui->gridLayout_3->removeWidget(m_ui->levelingStart);
+    m_ui->gridLayout_3->removeWidget(m_ui->levelingAndBiasStart);
+    auto *levelActions = new QHBoxLayout();
+    levelActions->addWidget(m_ui->levelingStart);
+    levelActions->addWidget(m_ui->levelingAndBiasStart);
+    levelActions->addStretch();
+    m_ui->gridLayout_3->addLayout(levelActions, 2, 0, 1, 4);
+    m_ui->horizontalLayout_5->addStretch();
+    m_ui->horizontalLayout->addStretch();
+
     // Initialization of the Paper plane widget
     m_ui->sixPointHelp->setScene(new QGraphicsScene(this));
 
     paperplane = new QGraphicsSvgItem();
     paperplane->setSharedRenderer(new QSvgRenderer());
-    paperplane->renderer()->load(QString(":/configgadget/images/paper-plane.svg"));
+    paperplane->renderer()->load(Utils::flatSvgDiagram(":/configgadget/images/paper-plane.svg"));
     paperplane->setElementId("plane-horizontal");
     m_ui->sixPointHelp->scene()->addItem(paperplane);
     m_ui->sixPointHelp->setSceneRect(paperplane->boundingRect());

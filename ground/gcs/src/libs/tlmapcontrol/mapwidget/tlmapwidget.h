@@ -35,7 +35,7 @@
 #include "configuration.h"
 #include <QObject>
 #include "waypointitem.h"
-#include "QtSvg/QGraphicsSvgItem"
+#include <QGraphicsSvgItem>
 #include "uavitem.h"
 #include "gpsitem.h"
 #include "homeitem.h"

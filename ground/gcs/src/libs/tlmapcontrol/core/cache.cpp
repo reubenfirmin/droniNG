@@ -27,6 +27,12 @@
 #include "cache.h"
 #include "utils/pathutils.h"
 #include <QSettings>
+#include <QStringConverter>
+
+static void useUtf8(QTextStream &stream)
+{
+    stream.setEncoding(QStringConverter::Utf8);
+}
 
 namespace core {
     Cache* Cache::m_pInstance=nullptr;
@@ -78,7 +84,7 @@ namespace core {
             if (file.open(QIODevice::ReadOnly))
             {
                 QTextStream stream(&file);
-                stream.setCodec("UTF-8");
+                useUtf8(stream);
                 ret = stream.readAll();
             }
         }
@@ -122,7 +128,7 @@ namespace core {
             qDebug()<<"CacheGeocoder: File Opened!!!:"<<filename;
 #endif //DEBUG_CACHE
             QTextStream stream(&file);
-            stream.setCodec("UTF-8");
+            useUtf8(stream);
             stream<<content;
         }
     }
@@ -146,7 +152,7 @@ namespace core {
             if (file.open(QIODevice::ReadOnly))
             {
                 QTextStream stream(&file);
-                stream.setCodec("UTF-8");
+                useUtf8(stream);
                 ret = stream.readAll();
             }
         }
@@ -190,7 +196,7 @@ namespace core {
             qDebug()<<"CachePlacemark: File Opened!!!:"<<filename;
 #endif //DEBUG_CACHE
             QTextStream stream(&file);
-            stream.setCodec("UTF-8");
+            useUtf8(stream);
             stream<<content;
         }
     }

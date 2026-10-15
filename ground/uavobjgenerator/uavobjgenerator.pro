@@ -3,16 +3,6 @@ include(../tools.pri)
 QT += xml
 QT -= gui
 
-macx {
-    QMAKE_MACOSX_DEPLOYMENT_TARGET=10.9
-}
-
-# we are a bit looser on Qt release for uavogen
-# lets doc builders etc. use PPAs which always carry only latest patch release
-!equals(QT_MAJOR_VERSION, $$DR_QT_MAJOR_VERSION) | !equals(QT_MINOR_VERSION, $$DR_QT_MINOR_VERSION) | lessThan(QT_PATCH_VERSION, $$DR_QT_PATCH_VERSION) {
-    error("Qt $${DR_QT_MAJOR_VERSION}.$${DR_QT_MINOR_VERSION}.$${DR_QT_PATCH_VERSION}+ required (Qt $${QT_MAJOR_VERSION}.$${QT_MINOR_VERSION}.$${QT_PATCH_VERSION} installed). Please run 'make qt_sdk_install'.")
-}
-
 DEFINES += QT_DEPRECATED_WARNINGS
 
 cache()
@@ -20,7 +10,7 @@ cache()
 TARGET = uavobjgenerator
 CONFIG += console
 # use ISO C++ (no GNU extensions) to ensure maximum portability
-CONFIG += c++11 strict_c++
+CONFIG += c++17 strict_c++
 CONFIG -= app_bundle
 TEMPLATE = app
 SOURCES += main.cpp \

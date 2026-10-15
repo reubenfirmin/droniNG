@@ -1,0 +1,42 @@
+{
+  "scope": "host mock only; no MCU binary, IRQ, RTOS, physical SPI or timing validation",
+  "repositories": {
+    "config": {
+      "repository": "betaflight/config",
+      "commit": "e1d87e7ecf6717bd3806a08400aeb892cd1d1fc3"
+    },
+    "betaflight": {
+      "repository": "betaflight/betaflight",
+      "commit": "4fc1520c5a5decddc8ef07ad57c0e766ea8747ba"
+    }
+  },
+  "compiler": "cc (GCC) 15.3.1 20260722 (Red Hat 15.3.1-1)",
+  "results": [
+    {
+      "mode": "internal_clock",
+      "status": "passed",
+      "undefined_behavior_sanitizer": true,
+      "message": "PASS: upstream ICM42688 + PiOS SPI mock, internal clock",
+      "sanitizer_mode": "trap on undefined behavior",
+      "host_upstream_object_bytes": {
+        "text": 1974,
+        "data": 0,
+        "bss": 0
+      },
+      "object_size_scope": "host object only, excludes bridge; not ARM flash/RAM estimate"
+    },
+    {
+      "mode": "external_clock",
+      "status": "passed",
+      "undefined_behavior_sanitizer": true,
+      "message": "PASS: upstream ICM42688 + PiOS SPI mock, external-clock success and fallback",
+      "sanitizer_mode": "trap on undefined behavior",
+      "host_upstream_object_bytes": {
+        "text": 2182,
+        "data": 0,
+        "bss": 8
+      },
+      "object_size_scope": "host object only, excludes bridge; not ARM flash/RAM estimate"
+    }
+  ]
+}

@@ -1,11 +1,11 @@
 TEMPLATE = lib
 QT += xml
 QT += widgets
-QT += xmlpatterns
 TARGET = UAVSettingsImportExport
 DEFINES += UAVSETTINGSIMPORTEXPORT_LIBRARY
 
 include(../../gcsplugin.pri)
+include(../../libs/utils/utils.pri)
 
 include(../../plugins/coreplugin/coreplugin.pri)
 include(../../plugins/uavobjects/uavobjects.pri)

@@ -35,6 +35,7 @@
 #include <QDebug>
 #include <QtPlugin>
 #include <QStringList>
+#include <QRegularExpression>
 
 #include <extensionsystem/pluginmanager.h>
 
@@ -45,15 +46,15 @@ static const QString VERSION = "1.0.0";
 //#define DEBUG_NOTIFIES
 
 SoundNotifyPlugin::SoundNotifyPlugin()
+    : enableSound(false), _nowPlayingNotification(nullptr), soundPlayer(nullptr),
+      mop(nullptr), telMngr(nullptr)
 {
-    phonon.mo = NULL;
 }
 
 SoundNotifyPlugin::~SoundNotifyPlugin()
 {
     Core::ICore::instance()->saveSettings(this);
-    if (phonon.mo != NULL)
-        delete phonon.mo;
+    delete soundPlayer;
 }
 
 bool SoundNotifyPlugin::initialize(const QStringList &args, QString *errMsg)
@@ -180,10 +181,9 @@ void SoundNotifyPlugin::connectNotifications()
             disconnect(obj, &UAVObject::objectUpdated, this,
                        &SoundNotifyPlugin::on_arrived_Notification);
     }
-    if (phonon.mo != NULL) {
-        delete phonon.mo;
-        phonon.mo = NULL;
-    }
+    delete soundPlayer;
+    soundPlayer = nullptr;
+    _nowPlayingNotification = nullptr;
 
     if (!enableSound)
         return;
@@ -225,9 +225,8 @@ void SoundNotifyPlugin::connectNotifications()
     if (_notificationList.isEmpty())
         return;
     // set notification message to current event
-    phonon.mo = new QMediaPlayer;
-    phonon.firstPlay = true;
-    connect(phonon.mo, &QMediaPlayer::stateChanged, this, &SoundNotifyPlugin::stateChanged);
+    soundPlayer = new SoundSequencePlayer(this);
+    connect(soundPlayer, &SoundSequencePlayer::finished, this, &SoundNotifyPlugin::soundFinished);
 }
 
 void SoundNotifyPlugin::on_arrived_Notification(UAVObject *object)
@@ -309,30 +308,15 @@ void SoundNotifyPlugin::on_expiredTimer_Notification()
     }
 }
 
-void SoundNotifyPlugin::stateChanged(QMediaPlayer::State newstate)
+void SoundNotifyPlugin::soundFinished()
 {
-// qNotifyDebug() << "File length (ms): " << phonon.mo->totalTime();
-
-#ifndef Q_OS_WIN
-// This is a hack to force Linux to wait until the end of the
-// wav file before moving to the next in the queue.
-// I wish I did not have to go through a #define, but I did not
-// manage to make this work on both platforms any other way!
-#endif
-    if ((newstate == QMediaPlayer::PausedState) || (newstate == QMediaPlayer::StoppedState)) {
-        qNotifyDebug() << "New State: " << QVariant(newstate).toString();
-
-        // assignment to NULL needed to detect that palying is finished
-        // it's useful in repeat timer handler, where we can detect
-        // that notification has not overlap with itself
-        _nowPlayingNotification = NULL;
-
-        if (!_pendingNotifications.isEmpty()) {
-            NotificationItem *notification = _pendingNotifications.takeFirst();
-            qNotifyDebug_if(notification) << "play audioFree - " << notification->toString();
-            playNotification(notification);
-            qNotifyDebug() << "end playNotification";
-        }
+    // Release the notification only after all its clips have finished.
+    _nowPlayingNotification = nullptr;
+    if (!_pendingNotifications.isEmpty()) {
+        NotificationItem *notification = _pendingNotifications.takeFirst();
+        qNotifyDebug_if(notification) << "play audioFree - " << notification->toString();
+        playNotification(notification);
+        qNotifyDebug() << "end playNotification";
     }
 }
 
@@ -446,18 +430,17 @@ void SoundNotifyPlugin::checkNotificationRule(NotificationItem *notification, UA
 
 bool SoundNotifyPlugin::playNotification(NotificationItem *notification)
 {
-    playlist = new QMediaPlaylist;
     if (!notification)
         return false;
 
-    // Check: race condition, if phonon.mo got deleted don't go further
-    if (phonon.mo == NULL)
+    if (soundPlayer == nullptr)
         return false;
 
-    // qNotifyDebug() << "Phonon State: " << phonon.mo->state();
+    const QStringList sequence = notification->toSoundList();
+    if (sequence.isEmpty())
+        return false;
 
-    if ((phonon.mo->state() == QMediaPlayer::PausedState)
-        || (phonon.mo->state() == QMediaPlayer::StoppedState) || phonon.firstPlay) {
+    if (!soundPlayer->isPlaying()) {
         _nowPlayingNotification = notification;
         notification->stopExpireTimer();
 
@@ -468,13 +451,12 @@ bool SoundNotifyPlugin::playNotification(NotificationItem *notification)
             notification->setCurrentUpdatePlayed(true);
         else {
             if (notification->retryValue() != NotificationItem::repeatInstantly) {
-                QRegExp rxlen("(\\d+)");
+                const QRegularExpression rxlen("(\\d+)");
                 QString value;
                 int timer_value = 0;
-                int pos =
-                    rxlen.indexIn(NotificationItem::retryValues.at(notification->retryValue()));
-                if (pos > -1) {
-                    value = rxlen.cap(1); // "189"
+                const auto match = rxlen.match(NotificationItem::retryValues.at(notification->retryValue()));
+                if (match.hasMatch()) {
+                    value = match.captured(1);
 
                     // needs to correct repeat timer value,
                     // acording to message play duration,
@@ -492,18 +474,10 @@ bool SoundNotifyPlugin::playNotification(NotificationItem *notification)
                         &SoundNotifyPlugin::on_timerRepeated_Notification, Qt::UniqueConnection);
             }
         }
-        phonon.mo->stop();
         qNotifyDebug() << "play: " << notification->toString();
-        foreach (QString item, notification->toSoundList()) {
-            playlist->addMedia(QUrl::fromLocalFile(item));
-        }
         qNotifyDebug() << "begin play";
-        phonon.mo->setPlaylist(playlist);
-        phonon.mo->play();
+        soundPlayer->play(sequence);
         qNotifyDebug() << "end play";
-        phonon.firstPlay =
-            false; // On Linux, you sometimes have to nudge Phonon to play 1 time before
-        // the state is not "Loading" anymore.
         return true;
     }
 

@@ -1,0 +1,15 @@
+<xml>
+  <object name="BoardProfile" settings="false" singleinstance="true">
+    <description>Read-only identity of the generated controller profile and flash layout.</description>
+    <access gcs="readonly" flight="readwrite"/>
+    <logging updatemode="manual" period="0"/>
+    <telemetrygcs acked="true" updatemode="manual" period="0"/>
+    <telemetryflight acked="true" updatemode="onchange" period="0"/>
+    <field name="SchemaVersion" type="uint8" elements="1" defaultvalue="1" units=""/>
+    <field name="ProfileId" type="uint8" elements="32" defaultvalue="0" units="ASCII"/>
+    <field name="LayoutId" type="uint8" elements="32" defaultvalue="0" units="ASCII"/>
+    <field name="ProfileHash" type="uint8" elements="32" defaultvalue="0" units="SHA256"/>
+    <field name="FPGARevision" type="uint8" elements="1" defaultvalue="0" units=""/>
+    <field name="SupportLevel" type="enum" elements="1" defaultvalue="Experimental" units=""><options><option>Experimental</option><option>Validated</option></options></field>
+  </object>
+</xml>

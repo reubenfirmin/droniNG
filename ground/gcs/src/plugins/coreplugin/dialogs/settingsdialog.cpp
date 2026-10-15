@@ -87,11 +87,7 @@ SettingsDialog::SettingsDialog(QWidget *parent, const QString &categoryId, const
     , m_windowHeight(0)
 {
     setupUi(this);
-#ifdef Q_OS_MAC
-    setWindowTitle(tr("Preferences"));
-#else
     setWindowTitle(tr("Options"));
-#endif
     QString initialCategory = categoryId;
     QString initialPage = pageId;
     qDebug() << "SettingsDialog constructor initial category: " << initialCategory
@@ -145,7 +141,7 @@ SettingsDialog::SettingsDialog(QWidget *parent, const QString &categoryId, const
 
         QTreeWidgetItem *item = new QTreeWidgetItem;
         item->setText(0, page->trName());
-        item->setData(0, Qt::UserRole, qVariantFromValue(pageData));
+        item->setData(0, Qt::UserRole, QVariant::fromValue(pageData));
 
         QString trCategories = page->trCategory();
         QString currentCategory = page->category();
@@ -161,13 +157,13 @@ SettingsDialog::SettingsDialog(QWidget *parent, const QString &categoryId, const
                     QTreeWidgetItem *separator = new QTreeWidgetItem(pageTree);
                     separator->setFlags(separator->flags() & ~Qt::ItemIsSelectable
                                         & ~Qt::ItemIsEnabled);
-                    separator->setText(0, QString(30, 0xB7));
+                    separator->setText(0, QString(30, QChar(u'\u00b7')));
                 }
             }
             categoryItem = new QTreeWidgetItem(pageTree);
             categoryItem->setIcon(0, page->icon());
             categoryItem->setText(0, trCategories);
-            categoryItem->setData(0, Qt::UserRole, qVariantFromValue(pageData));
+            categoryItem->setData(0, Qt::UserRole, QVariant::fromValue(pageData));
             categories.insert(currentCategory, categoryItem);
         }
 
@@ -314,7 +310,7 @@ void SettingsDialog::insertPage(IOptionsPage *page)
 
     QTreeWidgetItem *item = new QTreeWidgetItem;
     item->setText(0, page->trName());
-    item->setData(0, Qt::UserRole, qVariantFromValue(pageData));
+    item->setData(0, Qt::UserRole, QVariant::fromValue(pageData));
 
     categoryItem->addChild(item);
     categoryItemList->append(item);

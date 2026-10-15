@@ -31,6 +31,8 @@
 
 #include "uavdataobject.h"
 #include "uavobjectfield.h"
+#include "attitudeactual.h"
+#include "waypoint.h"
 
 #include <QTest>
 #include <memory>
@@ -62,6 +64,45 @@ void UAVObjectsPlugin::testIntFields()
     QVERIFY(field->getValue(1).toUInt() == 0);
     QVERIFY(!field->isDefaultValue(0));
     QVERIFY(field->isDefaultValue(1));
+}
+
+void UAVObjectsPlugin::testObjectLookup()
+{
+    UAVObjectManager manager;
+    AttitudeActual attitudeObject;
+    auto *attitude = &attitudeObject;
+    QVERIFY(manager.registerObject(attitude));
+    QCOMPARE(manager.getObject(QStringLiteral("AttitudeActual")), attitude);
+    QCOMPARE(manager.getObject(AttitudeActual::OBJID), attitude);
+    QCOMPARE(manager.getObjectInstancesVector(QStringLiteral("AttitudeActual")),
+             manager.getObjectInstancesVector(AttitudeActual::OBJID));
+    QCOMPARE(manager.getNumInstances(QStringLiteral("AttitudeActual")), 1);
+
+    Waypoint firstObject;
+    auto *first = &firstObject;
+    std::unique_ptr<UAVDataObject> secondObject(first->clone(1));
+    auto *second = secondObject.get();
+    QVERIFY(manager.registerObject(first));
+    QVERIFY(manager.registerObject(second));
+    QVERIFY(first->getInstID() != second->getInstID());
+    QCOMPARE(manager.getObject(QStringLiteral("Waypoint"), second->getInstID()), second);
+    QCOMPARE(manager.getObject(Waypoint::OBJID, second->getInstID()), second);
+    QCOMPARE(manager.getNumInstances(QStringLiteral("Waypoint")), 2);
+    QCOMPARE(manager.getNumInstances(Waypoint::OBJID), 2);
+    const QVector<UAVObject *> instances{first, second};
+    QCOMPARE(manager.getObjectInstancesVector(QStringLiteral("Waypoint")), instances);
+    QCOMPARE(manager.getObjectInstancesVector(Waypoint::OBJID), instances);
+    QVERIFY(manager.unRegisterObject(second));
+    QCOMPARE(manager.getNumInstances(QStringLiteral("Waypoint")), 1);
+    QVERIFY(manager.getObject(QStringLiteral("Waypoint"), 1) == nullptr);
+    QVERIFY(manager.getObject(Waypoint::OBJID, 1) == nullptr);
+    QVERIFY(manager.getObject(QStringLiteral("MissingObject")) == nullptr);
+    QVERIFY(manager.getObject(QString()) == nullptr);
+    QVERIFY(manager.getObject(quint32(0)) == nullptr);
+    QVERIFY(manager.getObjectInstancesVector(QStringLiteral("MissingObject")).isEmpty());
+    QVERIFY(manager.getObjectInstancesVector(quint32(0)).isEmpty());
+    QCOMPARE(manager.getNumInstances(QStringLiteral("MissingObject")), -1);
+    QCOMPARE(manager.getNumInstances(quint32(0)), -1);
 }
 
 /**

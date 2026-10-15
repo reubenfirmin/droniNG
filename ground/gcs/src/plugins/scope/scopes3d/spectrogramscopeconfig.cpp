@@ -277,7 +277,7 @@ void SpectrogramScopeConfig::loadConfiguration(ScopeGadgetWidget *scopeGadgetWid
     QDateTime NOW =
         QDateTime::currentDateTime(); // TODO: Upgrade this to show UAVO time and not system time
     for (uint i = 0; i < timeHorizon; i++) {
-        spectrogramData->timeDataHistory->append(NOW.toTime_t() + NOW.time().msec() / 1000.0 + i);
+        spectrogramData->timeDataHistory->append(NOW.toSecsSinceEpoch() + NOW.time().msec() / 1000.0 + i);
     }
 
     if (((double)windowWidth) * timeHorizon < (double)10000000.0

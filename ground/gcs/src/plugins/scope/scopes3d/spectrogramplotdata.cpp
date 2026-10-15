@@ -316,7 +316,7 @@ bool SpectrogramData::append(UAVObject *multiObj)
                 }
             }
 
-            timeDataHistory->append(NOW.toTime_t() + NOW.time().msec() / 1000.0);
+            timeDataHistory->append(NOW.toSecsSinceEpoch() + NOW.time().msec() / 1000.0);
             while (timeDataHistory->back() - timeDataHistory->front() > timeHorizon) {
                 timeDataHistory->pop_front();
                 zDataHistory->remove(0, fminl(windowWidth, zDataHistory->size()));

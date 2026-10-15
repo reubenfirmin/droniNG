@@ -82,12 +82,6 @@ QWT_CONFIG     += QwtWidgets
 QWT_CONFIG     += QwtSvg
 
 ######################################################################
-# If you want to use a OpenGL plot canvas
-######################################################################
-
-# QWT_CONFIG     += QwtOpenGL
-
-######################################################################
 # You can use the MathML renderer of the Qt solutions package to 
 # enable MathML support in Qwt. Because of license implications
 # the ( modified ) code of the MML Widget solution is included and
@@ -111,16 +105,11 @@ QWT_CONFIG     += QwtMathML
 # of linking it against the shared Qwt library. Has no effect
 # when QwtDesigner or QwtDll are not both enabled.
 #
-# On systems where rpath is supported ( all Unixoids ) the 
-# location of the installed Qwt library is compiled into the plugin,
-# but on Windows it might be easier to have a self contained
-# plugin to avoid any hassle with configuring the runtime
-# environment of the designer/creator.
+# On systems where rpath is supported, the location of the installed
+# Qwt library is compiled into the plugin.
 ######################################################################
 
-win32 {
 #    QWT_CONFIG     += QwtDesignerSelfContained
-}
 
 ######################################################################
 # If you want to auto build the examples, enable the line below
@@ -139,16 +128,6 @@ win32 {
 ######################################################################
 
 # QWT_CONFIG     += QwtPlayground
-
-######################################################################
-# When Qt has been built as framework qmake wants 
-# to link frameworks instead of regular libs
-######################################################################
-
-macx:!static:CONFIG(qt_framework, qt_framework|qt_no_framework) {
-
-#    QWT_CONFIG += QwtFramework
-}  
 
 ######################################################################
 # Create and install pc files for pkg-config

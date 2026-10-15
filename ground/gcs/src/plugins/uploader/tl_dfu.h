@@ -92,7 +92,7 @@ class DFUObject : public QThread
 
 public:
     static quint32 CRCFromQBArray(QByteArray array, quint32 Size);
-    DFUObject();
+    explicit DFUObject(int replyTimeoutMs = 10000);
     ~DFUObject();
 
     // Service commands:
@@ -106,6 +106,7 @@ public:
     bool DownloadPartitionThreaded(QByteArray *firmwareArray, dfu_partition_label partition,
                                    int size);
     bool WipePartition(dfu_partition_label partition);
+    bool WipePartitionThreaded(QByteArray *readback, dfu_partition_label partition, int size);
     QByteArray DownloadDescriptionAsByteArray(int const &numberOfChars);
 
 public slots:
@@ -136,15 +137,16 @@ private:
 
     // USB coms:
     int SendData(bl_messages);
-    int ReceiveData(bl_messages &data, int timeoutMS = 10000);
+    int ReceiveData(bl_messages &data, int timeoutMS = -1);
     hid_device *m_hidHandle;
+    int m_replyTimeoutMs;
 
     bool StartUpload(qint32 const &numberOfBytes, const dfu_partition_label &label, quint32 crc);
     bool UploadData(qint32 const &numberOfPackets, QByteArray &data);
 
     typedef struct ThreadJobStruc
     {
-        enum Actions { Download, Upload };
+        enum Actions { Download, Upload, WipeAndRead };
         qint32 requestSize;
         dfu_partition_label requestTransferType;
         QByteArray *requestStorage;
