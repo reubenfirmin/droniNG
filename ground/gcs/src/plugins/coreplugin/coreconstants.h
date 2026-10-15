@@ -40,7 +40,7 @@ namespace Constants {
     const char t[] = __DATE__;
     const char *const GCS_YEAR = t + 7;
 
-    const char *const GCS_HELP = "https://reubenfirmin.github.io/droniNG/";
+    const char *const GCS_HELP = "https://github.com/reubenfirmin/droniNG/wiki";
 #ifdef GCS_REVISION
     const char *const GCS_REVISION_STR = GCS_REVISION;
     const char *const UAVOSHA1_STR = UAVO_HASH_STR;

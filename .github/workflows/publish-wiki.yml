@@ -5,8 +5,7 @@ on:
     branches: [main]
     paths:
       - 'docs/wiki/**'
-      - 'docs/build_wiki.py'
-      - 'docs/wiki-site.css'
+      - 'docs/validate_wiki.py'
       - 'docs/wiki-requirements.txt'
       - 'ground/tests/wiki_site.py'
       - 'ground/gcs/**'
@@ -14,8 +13,7 @@ on:
   pull_request:
     paths:
       - 'docs/wiki/**'
-      - 'docs/build_wiki.py'
-      - 'docs/wiki-site.css'
+      - 'docs/validate_wiki.py'
       - 'docs/wiki-requirements.txt'
       - 'ground/tests/wiki_site.py'
       - 'ground/gcs/**'
@@ -30,33 +28,54 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  validate:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-      - name: Install Markdown renderer
+      - name: Install Markdown parser
         run: python3 -m pip install -r docs/wiki-requirements.txt
-      - name: Test wiki builder
+      - name: Test wiki validation
         run: python3 ground/tests/wiki_site.py
-      - name: Build and validate pages and screenshots
-        run: python3 docs/build_wiki.py --output build/wiki-site
-      - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
-        with:
-          path: build/wiki-site
+      - name: Validate guides, screenshots and application Help links
+        run: python3 docs/validate_wiki.py
 
   publish:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: build
+    needs: validate
     runs-on: ubuntu-24.04
     permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      contents: write
     steps:
-      - name: Publish wiki
-        id: deployment
-        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Publish Markdown and screenshots to GitHub Wiki
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WIKI_REPOSITORY: ${{ github.repository }}
+          WIKI_SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          wiki_checkout="$RUNNER_TEMP/droning-wiki"
+          wiki_url="https://github.com/$WIKI_REPOSITORY/wiki"
+          if ! git -c credential.helper= -c 'credential.helper=!gh auth git-credential' \
+              clone "https://github.com/$WIKI_REPOSITORY.wiki.git" "$wiki_checkout"; then
+            echo "::error::Cannot clone the wiki. Enable Wiki in repository settings and save its first Home page at $wiki_url. The publishing job requires contents: write."
+            exit 1
+          fi
+          rsync -a --delete --exclude='.git/' docs/wiki/ "$wiki_checkout/"
+          git -C "$wiki_checkout" add --all
+          if git -C "$wiki_checkout" diff --cached --quiet; then
+            echo "Wiki is already current: $wiki_url" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git -C "$wiki_checkout" \
+            -c user.name='github-actions[bot]' \
+            -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -m "Update help from $WIKI_SOURCE_SHA"
+          git -C "$wiki_checkout" \
+            -c credential.helper= -c 'credential.helper=!gh auth git-credential' \
+            push origin HEAD
+          echo "Published [droniNG Wiki]($wiki_url) from $WIKI_SOURCE_SHA." >> "$GITHUB_STEP_SUMMARY"
