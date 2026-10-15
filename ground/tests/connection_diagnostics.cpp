@@ -3640,7 +3640,7 @@ private slots:
                 const auto relation = button->property("objrelation").toStringList();
                 for (const auto &entry : relation)
                     if (entry.startsWith("url:"))
-                        QVERIFY2(entry.startsWith("url:https://reubenfirmin.github.io/droniNG/"),
+                        QVERIFY2(entry.startsWith("url:https://github.com/reubenfirmin/droniNG/wiki/"),
                                  qPrintable(entry));
             }
             for (auto *scroll : tabs->currentWidget()->findChildren<QScrollArea *>()) {

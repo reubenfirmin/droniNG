@@ -4886,7 +4886,7 @@
        <property name="objrelation" stdset="0">
         <stringlist>
          <string>button:help</string>
-         <string>url:https://reubenfirmin.github.io/droniNG/OnlineHelp:-Modules.html</string>
+         <string>url:https://github.com/reubenfirmin/droniNG/wiki/OnlineHelp:-Modules</string>
         </stringlist>
        </property>
       </widget>

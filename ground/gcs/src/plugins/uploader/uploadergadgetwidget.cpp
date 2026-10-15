@@ -1661,7 +1661,7 @@ void UploaderGadgetWidget::setUploaderStatus(const uploader::UploaderStatus &val
 void UploaderGadgetWidget::openHelp()
 {
     QDesktopServices::openUrl(QUrl(
-        "https://reubenfirmin.github.io/droniNG/OnlineHelp:-Uploader-Plugin.html", QUrl::StrictMode));
+        "https://github.com/reubenfirmin/droniNG/wiki/OnlineHelp:-Uploader-Plugin", QUrl::StrictMode));
 }
 
 QString UploaderGadgetWidget::getImagePath(QString boardName, QString imageType)
