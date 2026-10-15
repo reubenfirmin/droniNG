@@ -6901,7 +6901,7 @@ new home location unless it is in indoor mode.</source>
     </message>
     <message>
         <location/>
-        <source>url:https://github.com/reubenfirmin/droniNG/wiki/OnlineHelp:-Attitude</source>
+        <source>url:https://reubenfirmin.github.io/droniNG/OnlineHelp:-Attitude.html</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -10452,7 +10452,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <location/>
-        <source>url:https://github.com/reubenfirmin/droniNG/wiki/OnlineHelp:-Modules</source>
+        <source>url:https://reubenfirmin.github.io/droniNG/OnlineHelp:-Modules.html</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -13330,7 +13330,7 @@ p, li { white-space: pre-wrap; }
 &lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:&apos;MS Shell Dlg 2&apos;; font-size:10pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
 &lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;MS Shell Dlg 2&apos;; font-size:10pt;&quot;&gt;Please select one of the options below. If you are unsure about the capabilities of your ESCs, just leave the default option selected and continue the wizard.&lt;/span&gt;&lt;/p&gt;
 &lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:&apos;MS Shell Dlg 2&apos;; font-size:10pt;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;MS Shell Dlg 2&apos;; font-size:10pt;&quot;&gt;To read more regarding ESC refresh rates, please see &lt;/span&gt;&lt;a href=&quot;https://github.com/reubenfirmin/droniNG/wiki/OnlineHelp:-ESC-Refresh-Rate&quot;&gt;this article&lt;/a&gt;&lt;span style=&quot; font-family:&apos;MS Shell Dlg 2&apos;; font-size:10pt;&quot;&gt; in the droniNG wiki&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;MS Shell Dlg 2&apos;; font-size:10pt;&quot;&gt;To read more regarding ESC refresh rates, please see &lt;/span&gt;&lt;a href=&quot;https://reubenfirmin.github.io/droniNG/OnlineHelp:-ESC-Refresh-Rate.html&quot;&gt;this article&lt;/a&gt;&lt;span style=&quot; font-family:&apos;MS Shell Dlg 2&apos;; font-size:10pt;&quot;&gt; in the droniNG wiki&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
