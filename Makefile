@@ -12,7 +12,7 @@ TOOLS_DIR := $(ROOT_DIR)/tools
 BUILD_DIR := $(ROOT_DIR)/build
 DL_DIR := $(ROOT_DIR)/downloads
 
-export RM := rm
+export RM := rm -f
 export CCACHE_BIN := $(shell which ccache 2>/dev/null)
 
 # import macros that are OS specific
