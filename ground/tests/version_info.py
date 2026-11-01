@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -111,6 +112,25 @@ class VersionInfoTests(unittest.TestCase):
         path = self.root / "preserved metadata.json"
         path.write_text(json.dumps(metadata), encoding="utf-8")
         return path, metadata
+
+    def test_missing_legacy_next_ancestor_generates_zero_firmware_field(self):
+        path, metadata = self.preserved_metadata()
+        metadata["repository"]["ancestor"] = None
+        path.write_text(json.dumps(metadata))
+        result = self.run_cli("--uavodir", str(self.definitions), "--metadata", str(path),
+                              "--format", "0x${ANCESTOR16}")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "0x0000000000000000")
+
+    def test_semantic_version_tags_do_not_require_inherited_date_tags(self):
+        repo = version_info.Repo.__new__(version_info.Repo)
+        repo._tag = "v1.0.0-rc.1"
+        repo._rc = 0
+        repo._out = "a" * 40 + " refs/tags/v1.0.0-rc.1\n"
+        with mock.patch.object(repo, "_exec") as execute:
+            repo._get_authors_since_release()
+        execute.assert_called_once_with("show-ref --tags")
+        self.assertEqual(repo._authors_since_release, [])
 
     def test_product_release_preserves_dirty_build_provenance(self):
         metadata, _ = self.preserved_metadata()

@@ -10,7 +10,7 @@ public:
     explicit ImportedBoard(const Core::FirmwareBoardProfile &profile);
     QString shortName() override { return m_profile.name; }
     QString boardDescription() override { return m_profile.notes; }
-    QString getHwUAVO() override { return "HwImported"; }
+    QString getHwUAVO() override { return m_profile.id == "spracingf3" ? "HwSpracingF3" : "HwImported"; }
     QPixmap getBoardPicture() override { return QPixmap(":/core/images/cpu.png"); }
     bool queryCapabilities(BoardCapabilities capability) override;
     bool isInputConfigurationSupported(InputType type = INPUT_TYPE_ANY) override;
@@ -18,11 +18,12 @@ public:
     InputType getInputType() override;
     int queryMaxGyroRate() override { return m_profile.id == "radix" ? 1600 : 1000; }
     QVector<QVector<int>> getChannelBanks() override {
-        return m_profile.id == "radix" ? QVector<QVector<int>>{{1, 2}, {3}, {4}}
+        return m_profile.id == "spracingf3" ? QVector<QVector<int>>{{1}, {2}, {3, 4, 5, 6}, {7, 8}}
+            : m_profile.id == "radix" ? QVector<QVector<int>>{{1, 2}, {3}, {4}}
                                       : QVector<QVector<int>>{{1, 2}, {3, 4}};
     }
     bool supportsDShot() const override { return false; }
-    QStringList getAdcNames() override { return {"I", "V", "R"}; }
+    QStringList getAdcNames() override { return m_profile.id == "spracingf3" ? QStringList{"V", "I", "R"} : QStringList{"I", "V", "R"}; }
     bool hasAnnunciator(AnnunciatorType type) override;
     QWidget *getBoardConfiguration(QWidget *parent, bool connected) override;
 private:

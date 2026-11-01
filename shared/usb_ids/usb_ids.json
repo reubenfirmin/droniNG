@@ -134,6 +134,18 @@
 			]
 		},
 		{
+			"name": "Silicon Labs",
+			"devices": [
+				{
+					"name": "CP2102",
+					"comment": "Serial bridge on original SP Racing F3; board identity is checked separately",
+					"vid": "10c4",
+					"pid": "ea60",
+					"type": ["serial"]
+				}
+			]
+		},
+		{
 			"name": "ST",
 			"devices": [
 				{

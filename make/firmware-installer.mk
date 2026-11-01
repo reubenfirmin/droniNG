@@ -1,11 +1,15 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Linux first-install runtime and build-matched full images. No device writes.
-FIRMWARE_INSTALL_TARGETS ?= revolution radix omnibusf4sd
+FIRMWARE_INSTALL_TARGETS ?= revolution radix omnibusf4sd spracingf3
 FIRMWARE_INSTALLER_DIR := $(TOOLS_DIR)/firmware-installer
 FIRMWARE_RUNTIME_MARKER := $(FIRMWARE_INSTALLER_DIR)/.installed-0.11-1.0.29
 
 .PHONY: firmware_installer_runtime firmware_install_bundle
 .PHONY: ef_radix ef_radix_hex
+.PHONY: ef_spracingf3 ef_spracingf3_hex
+ef_spracingf3: ef_spracingf3_hex
+ef_spracingf3_hex: fw_spracingf3
+	$(V1) $(HOST_PYTHON) "$(ROOT_DIR)/make/scripts/package-imported-board.py" --build "$(BUILD_DIR)" --profile spracingf3
 .PHONY: ef_omnibusf4sd ef_omnibusf4sd_hex
 ef_omnibusf4sd: ef_omnibusf4sd_hex
 ef_omnibusf4sd_hex: fw_omnibusf4sd
@@ -30,6 +34,6 @@ $(FIRMWARE_RUNTIME_MARKER): $(ROOT_DIR)/shared/firmware/installer-sources.json $
 	+$(V1) $(MAKE) -C "$(DL_DIR)/dfu-util-0.11" install
 	$(V1) touch "$@"
 
-firmware_install_bundle: firmware_installer_runtime $(addprefix ef_,$(FIRMWARE_INSTALL_TARGETS))
+firmware_install_bundle: firmware_installer_runtime usb_id_udev $(addprefix ef_,$(FIRMWARE_INSTALL_TARGETS))
 	$(V1) $(HOST_PYTHON) "$(ROOT_DIR)/ground/tests/firmware_compatibility.py"
 	$(V1) $(HOST_PYTHON) "$(ROOT_DIR)/make/scripts/firmware-install-bundle.py" --root "$(ROOT_DIR)" --build "$(BUILD_DIR)" --runtime "$(FIRMWARE_INSTALLER_DIR)" $(FIRMWARE_INSTALL_TARGETS)

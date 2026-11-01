@@ -1,0 +1,37 @@
+name: Linux build
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: downloads
+          key: linux-downloads-${{ hashFiles('make/tools.mk', 'make/firmware-installer.mk') }}
+      - name: Build portable Linux package
+        env:
+          CONTAINER_ENGINE: docker
+          JOBS: '4'
+        run: bash package/linux-container.sh build
+      - name: Upload package and checksum
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: droning-linux-x86_64
+          path: |
+            build/linux/package-linux_x86_64/droning_linux_x86_64.tar.xz
+            build/linux/package-linux_x86_64/SHA256SUMS
+          if-no-files-found: error
+          compression-level: 0

@@ -34,6 +34,7 @@ bool Core::IDevice::plausibleControllerUsb(quint16 vendor, quint16 product, cons
     // A candidate is eligible for a read-only firmware probe, not an image mapping.
     // STM32 CDC is shared by Betaflight/Cleanflight controllers and development boards.
     if (vendor == 0x0483 && product == 0x5740) return true;
+    if (vendor == 0x10c4 && product == 0xea60) return true; // Probe CP2102; MSP supplies board identity.
     if ((vendor == 0x20a0 && (product == 0x4250 || product == 0x415b || product == 0x415d
             || product == 0x415e || product == 0x4242 || product == 0x41d0 || product == 0x4284))
         || (vendor == 0x0fda && product == 0x0100) || (vendor == 0x1209 && product == 0xf3fc)

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from __future__ import print_function
 
@@ -26,6 +26,11 @@ def generate_udev(fp, defs):
                    'MODE="0660", TAG+="uaccess", '
                    'ENV{{ID_MM_DEVICE_IGNORE}}="1"')
             print(usb.format(dev['vid'], dev['pid']), file=fp)
+
+            if 'serial' in dev['type']:
+                tty = ('SUBSYSTEM=="tty", ATTRS{{idVendor}}=="{:04x}", ATTRS{{idProduct}}=="{:04x}", '
+                       'MODE="0660", TAG+="uaccess", ENV{{ID_MM_DEVICE_IGNORE}}="1"')
+                print(tty.format(dev['vid'], dev['pid']), file=fp)
 
             if 'hid' in dev['type']:
                 hidraw = ('SUBSYSTEM=="hidraw", ATTRS{{idVendor}}=="{:04x}", ATTRS{{idProduct}}=="{:04x}", '

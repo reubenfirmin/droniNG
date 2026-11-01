@@ -7,6 +7,7 @@
 #include <QTemporaryDir>
 
 namespace Core {
+class UartInstaller;
 // Commands are argument lists, never shell commands. Tests substitute this transport.
 class CORE_EXPORT DfuCommandRunner : public QObject {
     Q_OBJECT
@@ -30,8 +31,8 @@ struct CORE_EXPORT DfuFlashDevice {
 class CORE_EXPORT DfuInstaller : public QObject {
     Q_OBJECT
 public:
-    enum class Stage { Idle, Waiting, NeedsBoot, Ready, Checking, Writing, Reading, Leaving, Restarting,
-                       AwaitingTelemetry, StartupFailed, Configuring, Complete, Failed };
+    enum class Stage { Idle, Waiting, NeedsBoot, Ready, Checking, BackingUp, Writing, Reading, Leaving, Restarting,
+                       AwaitingTelemetry, StartupFailed, Configuring, Complete, Restored, Failed };
     explicit DfuInstaller(QObject *parent = nullptr, DfuCommandRunner *runner = nullptr);
     static QString bundledHelper();
     static QString bundledUsbAccessRules();
@@ -41,6 +42,10 @@ public:
     void start(const FirmwareBoardProfile &board, const QString &imagePath,
                const QString &expectedUsbPath = {}, const QString &helper = bundledHelper(), bool automaticBoot = false);
     void cancel();
+    void restoreBackup(const QString &path);
+    bool serialBootloader() const { return m_image.profileId == "spracingf3"; }
+    QString backupPath() const { return m_backupPath; }
+    bool restoringBackup() const { return m_restoring; }
     void startInstalledFirmware();
     void nativeFirmwareStarted(bool success, const QString &message);
     void startupTimedOut(const QString &message = {});
@@ -62,6 +67,7 @@ signals:
     void firmwareWritten(const QString &usbPath);
     void nativeFirmwareStartRequested(const QString &usbPath, const QByteArray &descriptor);
     void boardSettingsRequested(const QJsonArray &settings);
+    void backupSaved(const QString &path);
 private:
     void commandFinished(int exitCode, const QString &output);
     void checkDevice();
@@ -73,6 +79,7 @@ private:
     void awaitTelemetry(const QString &startError = {});
     void change(Stage stage, const QString &message);
     void fail(const QString &message);
+    void startUart(const QString &restore = {});
     Stage m_stage = Stage::Idle;
     DfuCommandRunner *m_runner;
     FirmwareInstallImage m_image;
@@ -87,6 +94,9 @@ private:
     bool m_configured = false;
     bool m_usbAccessDenied = false;
     bool m_automaticBoot = false;
+    UartInstaller *m_uart = nullptr;
+    QString m_backupPath;
+    bool m_restoring = false;
 };
 }
 Q_DECLARE_METATYPE(Core::DfuInstaller::Stage)

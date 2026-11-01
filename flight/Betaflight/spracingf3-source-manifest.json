@@ -1,0 +1,179 @@
+{
+  "schema_version": 1,
+  "repositories": {
+    "betaflight_3_1_5": {
+      "repository": "betaflight/betaflight",
+      "commit": "4646f9df8f854c7875418d3635db4a3f84018cdb"
+    }
+  },
+  "files": [
+    {
+      "repository": "betaflight_3_1_5",
+      "path": "LICENSE",
+      "git_blob_sha1": "94a9ed024d3859793618152ea559a168bbcbb5e2",
+      "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+      "bytes": 35147
+    },
+    {
+      "repository": "betaflight_3_1_5",
+      "path": "Makefile",
+      "git_blob_sha1": "340dbcacb866a0591c8c31b24c86435a9cc7b2ea",
+      "sha256": "c422b65bbad65e56e00e4e2dbdc82f55764542680db272a680e8fa513574dd7a",
+      "bytes": 39876
+    },
+    {
+      "repository": "betaflight_3_1_5",
+      "path": "src/main/target/SPRACINGF3/target.h",
+      "git_blob_sha1": "644e81e7aa5f2f405425750f2a2d1404ef1cdaf4",
+      "sha256": "0bc4ec03a203b9f1fcc06a67bcca773b8ff922ba64cc110f1ce51faaa1e044aa",
+      "bytes": 5184
+    },
+    {
+      "repository": "betaflight_3_1_5",
+      "path": "src/main/target/SPRACINGF3/target.c",
+      "git_blob_sha1": "d6ff3401bf6b7173a0bf3caba4a68327374d4a54",
+      "sha256": "3c42ac5298d09944692ded637445e5f6c60daf15bc5abc1caffa5de4dcb86cff",
+      "bytes": 2641
+    },
+    {
+      "repository": "betaflight_3_1_5",
+      "path": "src/main/target/SPRACINGF3/target.mk",
+      "git_blob_sha1": "3668a83e72730ddbb41c28bbdd5a6f8244a45f08",
+      "sha256": "4d4b80f039068835ed435e25f0a62ac6b6ac9b873ce636592b49d5adcd692add",
+      "bytes": 590
+    },
+    {
+      "repository": "betaflight_3_1_5",
+      "path": "src/main/target/SPRACINGF3EVO/target.h",
+      "git_blob_sha1": "46be8a86c7a1d86bb0a3043df3b26f70a4304d71",
+      "sha256": "05024167ad419fdb7ee3cf8a257176511bc27deea7625a6f606e858d00c8f448",
+      "bytes": 4577
+    },
+    {
+      "repository": "betaflight_3_1_5",
+      "path": "src/main/target/SPRACINGF3EVO/target.c",
+      "git_blob_sha1": "670de0c3ec56db52159207d12ff49fd0f507be59",
+      "sha256": "4c0d3ead71c9b490111fe5dd92ecc65ff3e6a7992ed1c3bcf60e0eba554a8b1a",
+      "bytes": 2454
+    },
+    {
+      "repository": "betaflight_3_1_5",
+      "path": "src/main/target/common.h",
+      "git_blob_sha1": "38e562c1861e2f0cd2b1850dc53bbbe60a8ec99c",
+      "sha256": "4c52f4bc8de26a37815520d70d6a589728380ef1c7fe13e242600d98201e2eb6",
+      "bytes": 3178
+    },
+    {
+      "repository": "betaflight_3_1_5",
+      "path": "src/main/target/link/stm32_flash_f303_256k.ld",
+      "git_blob_sha1": "156bffd788594134cab37cd6c4344e58749c31b4",
+      "sha256": "5e13aaeca700a26f146ee370debc96a266b738505354e173d4f3abc98682132b",
+      "bytes": 701
+    },
+    {
+      "repository": "betaflight_3_1_5",
+      "path": "src/main/target/system_stm32f30x.c",
+      "git_blob_sha1": "e7f691817e5f52247e9011e362cebdcf7c4c3b17",
+      "sha256": "40a399aa9453131b9e3b5837b29fcc2a44d26e011686ceac288e2430b0ec44b1",
+      "bytes": 13578
+    },
+    {
+      "repository": "betaflight_3_1_5",
+      "path": "src/main/drivers/accgyro_mpu6050.c",
+      "git_blob_sha1": "631f7ec805f6f992a186748d96f9a99ea7394f9b",
+      "sha256": "20b35ba5de9ea9bfffbf1107d56ecf92b4862b24d25112e020e78008b644dd5d",
+      "bytes": 3787
+    },
+    {
+      "repository": "betaflight_3_1_5",
+      "path": "src/main/drivers/accgyro_mpu6050.h",
+      "git_blob_sha1": "eceb27986437d105a102fc0b612f6c0b8fefccf1",
+      "sha256": "e6b63071669b80ba9889e742c3de2b7fe3347c4049b4444461d392752ea89b6b",
+      "bytes": 784
+    },
+    {
+      "repository": "betaflight_3_1_5",
+      "path": "src/main/drivers/accgyro_mpu.c",
+      "git_blob_sha1": "b452afc774cf769afc2682f094ca36c4f6d44887",
+      "sha256": "c31df281c325a276c800075f15dd31c021ea3bd96c7cac515807a97a68210af8",
+      "bytes": 9652
+    },
+    {
+      "repository": "betaflight_3_1_5",
+      "path": "src/main/drivers/accgyro_mpu.h",
+      "git_blob_sha1": "8ba01540a34a7696e663cc3b91e8c06dcdf3d4bb",
+      "sha256": "640cc10c5ee05e23b1c9b686df8692dced63d2d9e931bea1ef0d4247760e7939",
+      "bytes": 6468
+    },
+    {
+      "repository": "betaflight_3_1_5",
+      "path": "src/main/drivers/bus_i2c.h",
+      "git_blob_sha1": "c207034a5d7e21d2f4f346fdf49499e5ce436739",
+      "sha256": "457ec09ece03164b2414b3848d887b6b05b5124301b2b498451a9b069fa73143",
+      "bytes": 2039
+    },
+    {
+      "repository": "betaflight_3_1_5",
+      "path": "src/main/drivers/bus_i2c_stm32f30x.c",
+      "git_blob_sha1": "d32085aa3ecbc7fa3861c659a2622d3a502f851f",
+      "sha256": "3812a1ee5f9cdbe3c739f48d06252c23b348517f23fa23f3b6ef99bb48e532d2",
+      "bytes": 7466
+    },
+    {
+      "repository": "betaflight_3_1_5",
+      "path": "src/main/drivers/bus_spi.c",
+      "git_blob_sha1": "b411c38457b220e28da2cdd14e719b00fbfec19e",
+      "sha256": "b194f7a73b6c9b4fa35fe33482b63e578dbc86960fd23b55829ca569a59f3876",
+      "bytes": 9946
+    },
+    {
+      "repository": "betaflight_3_1_5",
+      "path": "src/main/drivers/timer_def.h",
+      "git_blob_sha1": "8579a180f02625c1deefed390362effcb52b81ff",
+      "sha256": "b0609bc9c7f30f9be16600f06e3ebef68f2f0ea09e8eaf77ec83bfb0da8a5d61",
+      "bytes": 29262
+    },
+    {
+      "repository": "betaflight_3_1_5",
+      "path": "src/main/drivers/timer_stm32f30x.c",
+      "git_blob_sha1": "c168e4661660a907dda3cf0a7298e32ceec8e611",
+      "sha256": "2b8e75568486b2314766cfa242e9505c2d9917b11c24ba61fbaeb9c53c99ca9a",
+      "bytes": 1678
+    },
+    {
+      "repository": "betaflight_3_1_5",
+      "path": "src/main/drivers/system_stm32f30x.c",
+      "git_blob_sha1": "b62d8bb3c7511b34d48e78380238c1b0c0fe4d25",
+      "sha256": "0b3623dc7fcf28abac7f3f369eb8432512a6cffd7b466eaaad39e7d11b11a133",
+      "bytes": 2813
+    },
+    {
+      "repository": "betaflight_3_1_5",
+      "path": "src/main/sensors/boardalignment.c",
+      "git_blob_sha1": "c4f1988274ba23cc884944df44aa6dd998a69c87",
+      "sha256": "edb766e768b9a9c739fead0c243a391bc2b81566faea255f27cdfc26d446eb6d",
+      "bytes": 3193
+    },
+    {
+      "repository": "betaflight_3_1_5",
+      "path": "src/main/fc/fc_msp.c",
+      "git_blob_sha1": "6e7adf20270a425a67de17fe223420f410bd1578",
+      "sha256": "8c6ed0ed11ee3fa464be0d1e4252c54e74caed51ef58b6182901edd44197444a",
+      "bytes": 67475
+    },
+    {
+      "repository": "betaflight_3_1_5",
+      "path": "src/main/msp/msp_protocol.h",
+      "git_blob_sha1": "63d2b70bdb1b6dfa402a3f55598ba57e4471d2a5",
+      "sha256": "59c08dcb8840435a283b080fd7fa9fcd0fc37c16f7ac2f4feed9400749593837",
+      "bytes": 16070
+    },
+    {
+      "repository": "betaflight_3_1_5",
+      "path": "src/main/fc/cli.c",
+      "git_blob_sha1": "39e99d53d72aaa8fa35ed5bed3a382c9bbe89daf",
+      "sha256": "7c3ff9963862d059d9da0b6d06ebcd6ade52221113d95b29f49a9efd28439cab",
+      "bytes": 151818
+    }
+  ]
+}

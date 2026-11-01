@@ -14,6 +14,145 @@ pinned wiring and build native firmware images. No controller was
 flashed or reconfigured. The C probe simulates hardware; it does not validate
 STM32 SPI, interrupts, sample deadlines or flight behavior.
 
+## Original SP Racing F3 conversion practice
+
+On 2026-10-31, a read-only MSP probe of the owner's connected controller returned
+**Betaflight 3.1.5, board identifier `SRF3`, API 1.31**. Its CP2102 bridge appears
+as `/dev/ttyUSB0`. The six-byte board-info reply has no full target name; the
+inspector accepts that older format without inventing one. The board remains
+on its existing firmware and settings.
+
+This is the original **SP Racing F3**, with an I²C MPU6050. The existing native
+`sprf3e` target is the **Evo**, with different wiring, a SPI IMU and native USB.
+**Its image is incompatible with this board.** The original board's USB bridge
+uses UART1; PA11/PA12 serve motor outputs. The separate `spracingf3` native
+target now builds an experimental installable image with UART installation
+and backup restoration in the GCS. See the
+[official original-board reference](https://betaflight.com/docs/wiki/boards/legacy/SPRACINGF3).
+
+[spracingf3.lock.json](spracingf3.lock.json) pins the matching Betaflight `v3.1.5`
+source at commit `4646f9df8f854c7875418d3635db4a3f84018cdb`.
+[spracingf3-source-manifest.json](spracingf3-source-manifest.json) records the
+24 unchanged source files and license. The
+[offline exercise](../../make/scripts/spracingf3-dry-run.py) verifies those hashes,
+preprocesses the original target and F3 alternate-function tables, and checks all
+17 timer mappings, including eight motor outputs. It generates a wiring profile
+and a host-test report under `build/spracingf3-dry-run/`; neither is installable
+firmware.
+
+The driver exercise establishes a useful reuse path:
+
+- The untouched upstream MPU6050 chip source compiles through a bounded mock
+  and the real PiOS I²C API declarations. The probe checks detection, callback
+  registration, initialization registers, timing requests, scale factors, both
+  accelerometer silicon resolutions and failed-write reporting. Upstream's
+  shared acquisition/IRQ functions are stubs in this probe.
+- Functions extracted verbatim from the current
+  [native MPU driver](../PiOS/Common/pios_mpu.c) pass simulated I²C address
+  probing, configuration/readback, signed sample decoding, scaling, failed
+  reads/writes and recovery. This board can reuse the native driver rather
+  than introducing a duplicate MPU6050 implementation. The native driver now
+  reads MPU6050 revision registers and handles half-resolution accelerometers;
+  failed or unknown revision reads stop initialization.
+- Betaflight's `CW270_DEG` produces `(-rawY, rawX, rawZ)`. Converting the Y/Z
+  signs to native forward/right/down gives `(-rawY, -rawX, -rawZ)`, matching
+  `PIOS_MPU_TOP_180DEG`. The sample tests check this mapping; physical mounting
+  still needs bench verification.
+- The upstream initialization actually selects 16 g with 2,048 counts/g for
+  full-resolution silicon, despite its 8 g comment. The native exercise selects
+  8 g with 4,096 counts/g (2,048 for half-resolution silicon) and compares
+  normalized units. Optional MS5611 detection checks all eight PROM words and
+  CRC-4; the host probe checks a fixture and every coefficient bit.
+
+Run from the repository root:
+
+```sh
+# Fetch once; subsequent runs use the pinned local cache.
+python3 make/scripts/fetch-betaflight-survey.py \
+  --lock flight/Betaflight/spracingf3.lock.json \
+  --manifest flight/Betaflight/spracingf3-source-manifest.json
+
+# Offline: Python 3 and a host C compiler; no controller access.
+python3 make/scripts/spracingf3-dry-run.py
+python3 flight/Betaflight/survey/test_spracingf3.py
+python3 ground/tests/controller_inspection.py
+
+# Native image and build-matched GCS firmware installation bundle.
+make -j4 ef_spracingf3
+make -j4 firmware_install_bundle
+python3 flight/tests/run_spracingf3.py
+
+# Optional read-only identity probe of the connected controller.
+python3 make/scripts/inspect-controller.py --port /dev/ttyUSB0 \
+  --output build/spracingf3-dry-run/controller-identity.json
+```
+
+The host probe uses warnings as errors and undefined-behavior traps. It does
+not exercise STM32 I²C, EXTI, the RTOS, startup/reset, physical timing or flight
+behavior. The regression checks reject Evo/unreviewed identity, incomplete
+timer translations and modified pinned source, and cover CP2102 discovery and
+old/new MSP identity formats.
+
+The reviewed [profile](../../shared/firmware/profiles/spracingf3.json) uses
+256 KiB flash, 40 KiB SRAM and 8 KiB CCM. Vectors occupy flash page 0, immutable
+board identity page 1, settings pages 2–9, autotune pages 10–17, and application
+pages 18–127 (including its final 100-byte descriptor). The ELF and packaged
+image are checked against these bounds. The linker reserves CCM stacks and
+requires at least 24 KiB of initial SRAM heap; runtime headroom still needs
+measurement with the intended modules running.
+
+In the GCS, `SRF3` and `SPRACINGF3` select **SP Racing F3 (original)**. The
+CP2102 USB identity makes a device eligible for detection; MSP identifies the
+board. The installer asks for the physical BOOT bridge and keeps the same USB
+topology. It uses the STM32 ROM UART bootloader at 115200 8E1, verifies MCU PID
+`0x422`, reads the physical 256 KiB flash size and 96-bit UID, and refuses
+unsupported geometry or unreadable flash. It never issues mass erase,
+read-protection removal, option-byte programming or an automatic reset.
+
+Before erasing, it reads the entire flash twice, compares both copies, and
+saves and checks `flash.bin` plus its SHA-256/UID metadata. The persistent
+location is the GCS application data directory under
+`firmware-backups/<uid>/<UTC timestamp>/`; the installation screen displays
+the exact path and opens its folder. Application and identity pages are
+written first, vectors last, with every page read back before continuing.
+Settings and autotune pages remain intact. The GCS reports success only after
+matching descriptor/profile identity and live flight data arrive following
+manual BOOT removal and USB reconnection.
+
+**Restore backup…** is available while waiting for BOOT and after an error.
+Choose `flash.bin` alongside its `flash.bin.json`. Restoration requires the
+same MCU UID and matching checksum, first saves another complete backup, then
+restores all flash pages with vectors last. Disconnect USB and the flight
+battery, remove BOOT, and reconnect after verification. Linux packages include
+a CP2102 tty access rule and an inline copyable recovery command when access
+is denied.
+
+The configuration page exposes UART2, UART3, PPM on RC1 and DSM mode. UART1
+is reserved for USB/GCS. UART2 shares SWCLK; UART3 shares parallel PWM input
+pins. GPS on UART2 plus external MSP OSD on UART3 requires a PPM receiver on
+RC1. Conflicting port selections cannot be saved. Eight PWM/OneShot outputs
+are included; DShot, flash logging and onboard MAX7456 are unavailable.
+BMP280, CRC-validated MS5611 and HMC5883 are optional detected parts.
+
+Remaining physical acceptance work, with propellers removed:
+
+1. Exercise BOOT detection, full backup, installation, same-UID restoration,
+   manual BOOT removal, reconnection and live descriptor/profile verification.
+2. Confirm clocks, FPU, I²C timing, MPU revision, DRDY, axes and fitted optional
+   sensors. Measure runtime heap and scheduling with intended modules enabled.
+3. Test all eight outputs, receiver failsafe, GPS and external OSD together;
+   verify settings/autotune persistence across updates and power cycles.
+4. Exercise interrupted transfer and hardware-BOOT recovery. Bench acceptance
+   and flight acceptance have not been performed; support remains experimental.
+
+Protocol tests compile the production UART engine against a stateful STM32
+wire emulator (`ground/tests/romuart.pro`). They cover both page-erase
+commands, backup-before-erase, reserved regions, restoration, wrong geometry,
+protection rejection, corrupt/foreign backups and failed readback. GCS tests
+also load the actual packaged image and exercise detection/configuration and
+rendered BOOT, backup and recovery states. No connected controller is written
+by these tests.
+
 ## Sources and reproducibility
 
 The six definitions are representative familiar board families, selected to

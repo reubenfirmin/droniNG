@@ -276,4 +276,7 @@ LDFLAGS += -Wl,--fatal-warnings
 #Linker scripts
 LDFLAGS += -T memory.ld $(addprefix -T,$(LINKER_SCRIPTS_APP))
 
+ifneq ($(IMPORTED_F3_CONFIG),)
+include $(IMPORTED_F3_CONFIG)
+endif
 include $(MAKE_INC_DIR)/firmware-common.mk

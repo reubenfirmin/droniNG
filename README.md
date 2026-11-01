@@ -23,6 +23,9 @@ Development focuses on Linux, with modernization in progress:
 See the [project repository](https://github.com/reubenfirmin/droniNG) for source,
 documentation, and issue reports.
 
+For the Linux container builder, desktop launcher and GitHub artifacts, see the
+[build instructions](docs/releases.md).
+
 ## Supported Targets
 
 ### Flight Controllers
@@ -36,9 +39,13 @@ Support and validation are specific to the listed hardware:
 | HGLRC F4 V6PRO | `revolution` | [Reviewed compatibility profile](shared/firmware/compatibility/hglrc-f4-v6pro.json); installation applies sensor orientation and OSD settings. |
 | Omnibus F4 SD | `omnibusf4sd` | [Experimental](flight/Betaflight/OMNIBUSF4SD_IMPLEMENTATION.md); installation and live attitude telemetry confirmed. USB stability, peripheral acceptance, and flight validation remain in progress. |
 | BrainFPV RADIX (original) | `radix` | [Experimental](flight/Betaflight/RADIX_IMPLEMENTATION.md); native image and installer available. Bench and flight validation pending. RADIX LI and RADIX 2 are excluded. |
+| SP Racing F3 (original) | `spracingf3` | [Experimental](flight/Betaflight/README.md#original-sp-racing-f3-conversion-practice); native image and UART installer with full-flash backup and restoration available. Bench and flight validation pending. Evo is excluded. |
 
 RADIX and Omnibus F4 SD currently include four PWM/OneShot motor outputs,
 OSD, GPS, telemetry, and autotune modules. DShot and SD logging are not implemented.
+The original SP Racing F3 includes eight PWM/OneShot outputs, MPU6050, GPS,
+and external MSP OSD. Its CP2102 USB bridge uses UART1; GPS plus external OSD
+requires a PPM receiver on RC1. DShot and flash logging are not available.
 The linked board records describe capabilities, limitations, and remaining checks.
 Further Betaflight-based board coverage is tracked in the
 [firmware support plan](FIRMWARE_PLAN.md).
@@ -60,14 +67,14 @@ make -j4 BUILD_DIR="$PWD/build/qt612-release" GCS_BUILD_CONF=release gcs
 build/qt612-release/ground/gcs/bin/droning-gcs
 ```
 
-The Linux build bundles the STM32 DFU installer and firmware installation
+The Linux build includes STM32 USB DFU and UART installers and the firmware installation
 catalog. Install the pinned firmware compiler once with `make arm_sdk_install`.
 Click **Connect controller** on Welcome to open Firmware. The page detects connected
 USB controllers; select yours and connect. With DroniNG running, choose **Tune & configure**,
 **Flight data** or **Live graphs**. Firmware installation is a separate maintenance action.
 For supported controllers, click **Install DroniNG** and follow the board-specific
 BOOT instructions in the tab;
-installation starts automatically when DFU appears, verifies the firmware and
+installation starts automatically when the board's bootloader answers, verifies the firmware and
 checks flight data. See the [firmware plan](FIRMWARE_PLAN.md) for board support and
 installation details.
 Controllers already in STM32 BOOT mode can enter the same installer directly.
@@ -77,7 +84,7 @@ with an existing dRonin bootloader and individual partition operations.
 For development test resets, see the
 [controller restore script documentation](make/scripts/restore-board.md).
 
-Portable Linux packages include `rules.udev` for controller and STM32 DFU access.
+Portable Linux packages include `rules.udev` for controllers, CP2102 serial bridges and STM32 DFU access.
 From the extracted package directory, install these rules once:
 
 ```bash

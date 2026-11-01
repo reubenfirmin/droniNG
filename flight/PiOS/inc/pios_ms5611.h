@@ -32,6 +32,7 @@
 #define PIOS_MS5611_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #if defined(PIOS_INCLUDE_MS5611)
 #ifndef TARGET_MAY_HAVE_BARO
@@ -40,6 +41,7 @@
 
 /* Public Functions */
 extern int32_t PIOS_MS5611_Test(void);
+extern bool PIOS_MS5611_ValidatePROM(const uint16_t prom[8]);
 
 #endif
 

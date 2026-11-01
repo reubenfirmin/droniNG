@@ -142,6 +142,7 @@ SUBDIRS += plugin_qmlview
 plugin_pathplanner.subdir = pathplanner
 plugin_pathplanner.depends = plugin_coreplugin
 plugin_pathplanner.depends += plugin_uavobjects
+plugin_pathplanner.depends += plugin_uavtalk
 SUBDIRS += plugin_pathplanner
 
 # Telemetry Scheduler gadget

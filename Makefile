@@ -1014,7 +1014,7 @@ $(foreach board, $(FW_BOARDS), $(eval $(call FW_TEMPLATE,$(board),$($(board)_fri
 $(foreach board, $(BL_BOARDS), $(eval $(call BL_TEMPLATE,$(board),$($(board)_cpuarch),$($(board)_short))))
 
 # Expand the entire-flash rules
-$(foreach board, $(filter-out radix omnibusf4sd,$(EF_BOARDS)), $(eval $(call EF_TEMPLATE,$(board),$($(board)_friendly),$($(board)_short),$($(board)_bootloader))))
+$(foreach board, $(filter-out radix omnibusf4sd spracingf3,$(EF_BOARDS)), $(eval $(call EF_TEMPLATE,$(board),$($(board)_friendly),$($(board)_short),$($(board)_bootloader))))
 
 # Expand the upgrader rules
 $(foreach board, $(UP_BOARDS), $(eval $(call UP_TEMPLATE,$(board),$($(board)_cpuarch),$($(board)_short))))

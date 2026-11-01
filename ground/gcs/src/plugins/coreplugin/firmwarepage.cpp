@@ -513,7 +513,8 @@ void FirmwarePage::startInstallation(const FirmwareBoardProfile &board)
 {
     if (m_installation || m_externalBusy || !board.isValid()) return;
     const auto path = FirmwareCatalog::imagePath(board, FirmwareCatalog::ImageKind::FullInstall);
-    if (!FirmwareInstallImage::load(board, path).valid() || DfuInstaller::bundledHelper().isEmpty()) return;
+    if (!FirmwareInstallImage::load(board, path).valid()
+        || (board.id != "spracingf3" && DfuInstaller::bundledHelper().isEmpty())) return;
     m_pendingDismissed = false;
     m_probe->kill();
     if (m_manager->flightDataAvailable() && (!board.layoutId.isEmpty()
@@ -920,20 +921,21 @@ void FirmwarePage::refresh()
         m_install->style()->unpolish(m_install); m_install->style()->polish(m_install);
     }
     m_boards->setEnabled(!m_externalBusy && !detecting);
+    const bool installerAvailable = board.id == "spracingf3" || !DfuInstaller::bundledHelper().isEmpty();
     m_install->setEnabled(!m_externalBusy && !detecting && (legacyUpdate
-        || (board.isValid() && m_imageAvailable && !DfuInstaller::bundledHelper().isEmpty())));
+        || (board.isValid() && m_imageAvailable && installerAvailable)));
     m_notes->setText(!catalog.error().isEmpty() ? tr("The firmware catalog could not be loaded: %1").arg(catalog.error())
         : !board.isValid() ? tr("Select the model printed on your board. Unlisted boards have no compatible firmware candidate.")
-        : !m_imageAvailable ? m_imageError : DfuInstaller::bundledHelper().isEmpty() ? tr("The Linux firmware installer is missing from this build.") : board.notes);
+        : !m_imageAvailable ? m_imageError : !installerAvailable ? tr("The Linux firmware installer is missing from this build.") : board.notes);
     m_notes->setVisible(!board.layoutId.isEmpty() || !catalog.error().isEmpty()
-        || !board.isValid() || !m_imageAvailable || DfuInstaller::bundledHelper().isEmpty());
+        || !board.isValid() || !m_imageAvailable || !installerAvailable);
     m_retryConnection->setVisible(recoveryNeeded);
     m_retryConnection->setText(m_retryWait->isActive() ? tr("Waiting for controller…") : tr("Retry connection"));
     m_retryConnection->setEnabled(!m_externalBusy && !m_retryWait->isActive());
     m_recoverInstallation->setVisible(recoveryNeeded);
     m_recoverInstallation->setText(recoveryBoard.isValid() ? tr("Reinstall firmware…") : tr("Select board…"));
     m_recoverInstallation->setEnabled(!m_externalBusy && (!recoveryBoard.isValid()
-        || (m_imageAvailable && !DfuInstaller::bundledHelper().isEmpty())));
+        || (m_imageAvailable && installerAvailable)));
     const bool recoveryPrimary = !m_retryConnection->isEnabled() && m_recoverInstallation->isEnabled();
     if (m_recoverInstallation->property("primary").toBool() != recoveryPrimary) {
         m_recoverInstallation->setProperty("primary", recoveryPrimary);
@@ -945,7 +947,7 @@ void FirmwarePage::refresh()
     m_recoveryHint->setText(!recoveryBoard.isValid()
         ? tr("The board model could not be identified. Select the model printed on your controller to find compatible firmware.")
         : !m_imageAvailable ? tr("Compatible recovery firmware is missing from this build. %1").arg(m_imageError)
-        : DfuInstaller::bundledHelper().isEmpty() ? tr("The firmware installer is missing from this build.")
+        : !installerAvailable ? tr("The firmware installer is missing from this build.")
         : m_retryWait->isActive() ? tr("Reconnect USB to the same port. The connection will retry when this controller appears.")
         : m_retryWaitExpired ? tr("No USB connection appeared. Check the USB cable, then retry, or reinstall firmware using BOOT mode.")
         : tr("Retry connection checks this controller on the same USB port. Reinstall firmware guides you through its BOOT procedure."));

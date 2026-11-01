@@ -135,6 +135,9 @@ class Repo:
                         'rel': match.group('rel')
                     })
             tags.sort(reverse=True, key=lambda t: t['rel'])
+            if not tags:
+                # A new fork may use semantic version tags exclusively.
+                return
 
             date = tags[0]['date']
             if self._tag:
@@ -521,7 +524,9 @@ string given.
         ORIGIN = r.origin(),
         HASH = r.hash(),
         HASH8 = r.hash(8),
-        ANCESTOR16 = r.ancestor(16),
+        # Zero denotes an unknown legacy-next ancestor in the firmware blob.
+        # Forks and fresh release checkouts need not have either remote's next.
+        ANCESTOR16 = r.ancestor(16, '0000000000000000'),
         ANCESTOR = r.ancestor(),
         TAG = r.tag(''),
         TAG_OR_BRANCH = r.tag(r.branch('unreleased')),

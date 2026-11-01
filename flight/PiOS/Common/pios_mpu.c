@@ -107,6 +107,9 @@ struct pios_mpu_dev {
 #endif // PIOS_INCLUDE_MPU_MAG
 	volatile uint32_t interrupt_count;
 	volatile uint8_t sensor_ready;
+#ifdef PIOS_INCLUDE_MPU6050_REVISION
+	bool half_resolution_accel;
+#endif
 };
 
 #define SENSOR_ACCEL			(1 << 0)
@@ -472,11 +475,43 @@ static int32_t PIOS_MPU_Mag_Probe(void)
 }
 #endif // PIOS_INCLUDE_MPU_MAG
 
+#ifdef PIOS_INCLUDE_MPU6050_REVISION
+static int32_t PIOS_MPU_Check6050Revision(void)
+{
+	/* MPU6050 factory revision handling follows the pinned Betaflight 3.1.5
+	 * accgyro_mpu.c. Unlike its original probe, every read must succeed. */
+	if (mpu_dev->com_driver_type != PIOS_MPU_COM_I2C || mpu_dev->mpu_type != PIOS_MPU60X0)
+		return -PIOS_MPU_ERROR_WHOAMI;
+	uint8_t revision = 0;
+	for (unsigned i = 0; i < 3; ++i) {
+		int32_t value = PIOS_MPU_ReadReg(0x07 + 2 * i);
+		if (value < 0) return -PIOS_MPU_ERROR_READFAILED;
+		revision |= (value & 1) << i;
+	}
+	if (revision == 0) {
+		int32_t product = PIOS_MPU_ReadReg(0x0c);
+		if (product < 0) return -PIOS_MPU_ERROR_READFAILED;
+		if (!(product & 15)) return -PIOS_MPU_ERROR_WHOAMI;
+		mpu_dev->half_resolution_accel = (product & 15) == 4;
+	} else {
+		if (revision != 1 && revision != 2 && revision != 3 && revision != 7)
+			return -PIOS_MPU_ERROR_WHOAMI;
+		mpu_dev->half_resolution_accel = revision == 1;
+	}
+	return 0;
+}
+#endif
+
 static int32_t PIOS_MPU_Common_Init(void)
 {
 	/* Configure the MPU Sensor */
 	if (PIOS_MPU_Reset() != 0)
 		return -PIOS_MPU_ERROR_NOCONFIG;
+
+#ifdef PIOS_INCLUDE_MPU6050_REVISION
+	int32_t revision_result = PIOS_MPU_Check6050Revision();
+	if (revision_result) return revision_result;
+#endif
 
 #ifdef PIOS_INCLUDE_MPU_MAG
 	/* Probe for mag */
@@ -618,15 +653,20 @@ static float PIOS_MPU_GetGyroScale(void)
  */
 static float PIOS_MPU_GetAccelScale(void)
 {
+#ifdef PIOS_INCLUDE_MPU6050_REVISION
+	const float gravity = mpu_dev->half_resolution_accel ? GRAVITY * 2 : GRAVITY;
+#else
+	const float gravity = GRAVITY;
+#endif
 	switch (mpu_dev->accel_range) {
 	case PIOS_MPU_SCALE_2G:
-		return GRAVITY / 16384.0f;
+		return gravity / 16384.0f;
 	case PIOS_MPU_SCALE_4G:
-		return GRAVITY / 8192.0f;
+		return gravity / 8192.0f;
 	case PIOS_MPU_SCALE_8G:
-		return GRAVITY / 4096.0f;
+		return gravity / 4096.0f;
 	case PIOS_MPU_SCALE_16G:
-		return GRAVITY / 2048.0f;
+		return gravity / 2048.0f;
 	}
 	return 0;
 }

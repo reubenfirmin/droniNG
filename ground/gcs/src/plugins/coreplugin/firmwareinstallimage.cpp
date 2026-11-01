@@ -20,17 +20,26 @@ QByteArray FirmwareInstallImage::gcsUavoHash()
 
 QJsonObject FirmwareInstallImage::importedProfile(const QString &id)
 {
-    if (id != "radix" && id != "omnibusf4sd") return {};
+    if (id != "radix" && id != "omnibusf4sd" && id != "spracingf3") return {};
     QFile file(QString(":/core/firmware/profiles/%1.json").arg(id));
     if (!file.open(QIODevice::ReadOnly)) return {};
     const auto profile = QJsonDocument::fromJson(file.readAll()).object();
-    const int flash = id == "radix" ? 524288 : 1048576;
-    const QString layout = id == "radix" ? "radix-f446-rom-v1" : "omnibusf4sd-f405-rom-v1";
+    const bool f3 = id == "spracingf3";
+    const int flash = f3 ? 262144 : id == "radix" ? 524288 : 1048576;
+    const QString layout = f3 ? "spracingf3-f303-uart-v1"
+        : id == "radix" ? "radix-f446-rom-v1" : "omnibusf4sd-f405-rom-v1";
     if (profile.value("schemaVersion").toInt() != 1 || profile.value("id").toString() != id
-        || profile.value("boardType").toInt() != (id == "radix" ? 224 : 225)
+        || profile.value("boardType").toInt() != (f3 ? 226 : id == "radix" ? 224 : 225)
         || profile.value("boardRevision").toInt() != 1 || profile.value("flashBytes").toInt() != flash
-        || profile.value("ramBytes").toInt() != 131072 || profile.value("layoutId").toString() != layout)
+        || profile.value("ramBytes").toInt() != (f3 ? 40960 : 131072) || profile.value("layoutId").toString() != layout)
         return {};
+    const QJsonObject expected{{"vectors", QJsonArray{0, f3 ? 2048 : 16384}},
+        {"identity", QJsonArray{f3 ? 2048 : 49152, f3 ? 2048 : 16384}},
+        {"settings", QJsonArray{f3 ? 4096 : 16384, f3 ? 16384 : 32768}},
+        {"autotune", QJsonArray{f3 ? 20480 : 65536, f3 ? 16384 : 65536}},
+        {"application", QJsonArray{f3 ? 36864 : 131072, flash - (f3 ? 36864 : 131072)}},
+        {"descriptorOffset", flash - 100}};
+    if (profile.value("layout").toObject() != expected) return {};
     return profile;
 }
 
@@ -88,9 +97,20 @@ FirmwareInstallImage FirmwareInstallImage::load(const FirmwareBoardProfile &boar
     const qint64 blSize = bootloader.value("size").toInt(-1);
     if (!board.layoutId.isEmpty()) {
         const auto profile = importedProfile(board.id);
+        if (profile.isEmpty()) return fail(QObject::tr("The board profile is missing or invalid."));
         const int flashSize = profile.value("flashBytes").toInt();
         const int descriptorOffset = flashSize - 100;
-        const QList<Segment> ranges{{0, 16384}, {49152, 16384}, {131072, quint32(qMax(0, flashSize - 131072))}};
+        const auto layout = profile.value("layout").toObject();
+        const int identityOffset = layout.value("identity").toArray().at(0).toInt();
+        const int settingsOffset = layout.value("settings").toArray().at(0).toInt();
+        const int settingsSize = layout.value("settings").toArray().at(1).toInt();
+        const int application = layout.value("application").toArray().at(0).toInt();
+        QList<Segment> ranges;
+        for (const auto &name : {"vectors", "identity", "application"}) {
+            const auto range = layout.value(name).toArray();
+            if (range.size() != 2) return fail(QObject::tr("Invalid imported memory layout."));
+            ranges.append({quint32(range.at(0).toInt()), quint32(range.at(1).toInt())});
+        }
         const auto hash = importedProfileHash(board.id);
         if (profile.isEmpty() || board.layoutId != profile.value("layoutId").toString()
             || board.boardType != profile.value("boardType").toInt() || board.boardRevision != 1
@@ -99,8 +119,8 @@ FirmwareInstallImage FirmwareInstallImage::load(const FirmwareBoardProfile &boar
             || manifest.value("supportLevel").toString() != "experimental"
             || manifest.value("profileSha256").toString().toLatin1() != hash.toHex() || hash.size() != 32
             || base != 0x08000000 || size != flashSize || size != result.bytes.size()
-            || offset != 0 || fwSize < 131080 || fwSize > descriptorOffset || desc != descriptorOffset
-            || manifest.value("identityOffset").toInt() != 49152
+            || offset != 0 || fwSize < application + 8 || fwSize > descriptorOffset || desc != descriptorOffset
+            || manifest.value("identityOffset").toInt() != identityOffset
             || QCryptographicHash::hash(result.bytes, QCryptographicHash::Sha256).toHex() != image.value("sha256").toString().toLatin1())
             return fail(QObject::tr("The imported firmware profile, layout or image integrity does not match this GCS build."));
         const auto segments = manifest.value("programSegments").toArray();
@@ -121,16 +141,17 @@ FirmwareInstallImage FirmwareInstallImage::load(const FirmwareBoardProfile &boar
             || result.descriptor.mid(40, 20) != rawHash || rawHash.toHex() != firmware.value("sha1").toString().toLatin1()
             || result.descriptor.mid(60, 20) != gcsUavoHash()
             || firmware.value("uavoSha1").toString().toLatin1() != gcsUavoHash().toHex()
-            || word(49152) != 0xbdbdbdbd || quint8(result.bytes.at(49156)) != board.boardType
-            || quint8(result.bytes.at(49157)) != 1 || result.bytes.at(49158) != 0 || result.bytes.at(49159) != 1
-            || word(49160) != base || word(49164) != quint32(descriptorOffset) || word(49168) != base + desc
-            || word(49172) != 100 || word(49176) != 0x08004000 || word(49180) != 32768
-            || result.bytes.mid(49184, 4) != "BPrf" || word(49188) != 1
-            || result.bytes.mid(49192, 32) != board.id.toLatin1().leftJustified(32, '\0')
-            || result.bytes.mid(49224, 32) != board.layoutId.toLatin1().leftJustified(32, '\0')
-            || result.bytes.mid(49256, 32) != hash
-            || word(0) <= 0x20000000 || word(0) > 0x20020000 || (word(0) & 7)
-            || !(word(4) & 1) || word(4) < 0x08020000 || word(4) >= base + fwSize)
+            || word(identityOffset) != 0xbdbdbdbd || quint8(result.bytes.at(identityOffset + 4)) != board.boardType
+            || quint8(result.bytes.at(identityOffset + 5)) != 1 || result.bytes.at(identityOffset + 6) != 0 || result.bytes.at(identityOffset + 7) != 1
+            || word(identityOffset + 8) != base || word(identityOffset + 12) != quint32(descriptorOffset) || word(identityOffset + 16) != base + desc
+            || word(identityOffset + 20) != 100 || word(identityOffset + 24) != base + settingsOffset || word(identityOffset + 28) != quint32(settingsSize)
+            || result.bytes.mid(identityOffset + 32, 4) != "BPrf" || word(identityOffset + 36) != 1
+            || result.bytes.mid(identityOffset + 40, 32) != board.id.toLatin1().leftJustified(32, '\0')
+            || result.bytes.mid(identityOffset + 72, 32) != board.layoutId.toLatin1().leftJustified(32, '\0')
+            || result.bytes.mid(identityOffset + 104, 32) != hash
+            || !((word(0) > 0x20000000 && word(0) <= 0x20000000 + profile.value("ramBytes").toInt())
+                || (word(0) > 0x10000000 && word(0) <= 0x10000000 + profile.value("ccmBytes").toInt()))
+            || (word(0) & 7) || !(word(4) & 1) || word(4) < base + application || word(4) >= base + fwSize)
             return fail(QObject::tr("The imported image has an invalid board identity, protocol or direct-boot vector."));
         result.base = quint32(base); result.segments = ranges; result.romBoot = true;
         result.profileId = board.id; result.layoutId = board.layoutId; result.profileHash = hash;
