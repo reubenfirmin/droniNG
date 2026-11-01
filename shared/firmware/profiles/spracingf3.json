@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "spracingf3",
+  "name": "SP Racing F3 (original)",
+  "boardType": 226,
+  "boardRevision": 1,
+  "layoutId": "spracingf3-f303-uart-v1",
+  "supportLevel": "experimental",
+  "sourceLock": "flight/Betaflight/spracingf3.lock.json",
+  "target": "SPRACINGF3",
+  "mcu": "STM32F303xC",
+  "hseHz": 8000000,
+  "sysclkHz": 72000000,
+  "flashBytes": 262144,
+  "ramBytes": 40960,
+  "ccmBytes": 8192,
+  "motorCount": 8,
+  "imuOrientation": "PIOS_MPU_TOP_180DEG",
+  "layout": {
+    "vectors": [0, 2048],
+    "identity": [2048, 2048],
+    "settings": [4096, 16384],
+    "autotune": [20480, 16384],
+    "application": [36864, 225280],
+    "descriptorOffset": 262044
+  },
+  "requiredBackends": ["MPU6050_I2C", "UART1_UAVTalk", "GPS", "ExternalMSP_OSD"],
+  "limitations": ["Experimental original F3 only; excludes Evo", "Eight PWM/OneShot outputs; no DShot or flash logging", "External OSD uses an MSP UART; GPS and receiver allocation must match connected hardware", "Optional barometer and magnetometer support depends on the fitted parts"]
+}

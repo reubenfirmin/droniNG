@@ -130,7 +130,9 @@ static void gcsTelemetryStatsUpdated();
 static void updateSettings();
 static uintptr_t getComPort();
 static void update_object_instances(uint32_t obj_id, uint32_t inst_id);
+#if defined(PIOS_COM_TELEM_USB)
 static bool processUsbActivity(bool seen_active);
+#endif
 
 static int32_t fileReqCallback(void *ctx, uint8_t *buf,
                 uint32_t file_id, uint32_t offset, uint32_t len);

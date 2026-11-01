@@ -238,6 +238,21 @@ private slots:
         QCOMPARE(image.segments[1].offset, quint32(49152)); QCOMPARE(image.segments[1].size, quint32(16384));
         QCOMPARE(image.segments[2].offset, quint32(131072)); QCOMPARE(image.segments[2].size, quint32(flashSize - 131072));
     }
+    void originalF3BuildBundle() {
+        const auto board = FirmwareCatalog::instance().board("spracingf3");
+        const auto image = FirmwareInstallImage::load(board, INSTALL_IMAGE_ROOT "/ef_spracingf3.hex");
+        QVERIFY2(image.valid(), qPrintable(image.error));
+        QVERIFY(image.romBoot); QCOMPARE(image.bytes.size(), 262144);
+        QCOMPARE(board.boardType, 226); QCOMPARE(image.descriptor.mid(12, 2), QByteArray::fromHex("e201"));
+        QCOMPARE(image.bytes.mid(2152, 32), FirmwareInstallImage::importedProfileHash("spracingf3"));
+        QCOMPARE(image.segments.size(), 3);
+        QCOMPARE(image.segments[0].size, quint32(2048));
+        QCOMPARE(image.segments[1].offset, quint32(2048)); QCOMPARE(image.segments[1].size, quint32(2048));
+        QCOMPARE(image.segments[2].offset, quint32(36864)); QCOMPARE(image.segments[2].size, quint32(225280));
+        const auto candidates = FirmwareCatalog::instance().candidatesForMspTarget("SRF3");
+        QCOMPARE(candidates.size(), 1); QCOMPARE(candidates.first().id, board.id);
+        QVERIFY(FirmwareCatalog::imageName(board, FirmwareCatalog::ImageKind::Application).isEmpty());
+    }
     void importedWritesOnlyReviewedSectors_data() { importedBuildBundle_data(); }
     void importedWritesOnlyReviewedSectors() {
         QFETCH(QString, profile); QFETCH(int, flashSize);
@@ -290,7 +305,7 @@ private slots:
     void importedRejectsUnsafePackage_data() {
         QTest::addColumn<QString>("profile");
         QTest::addColumn<QString>("damage");
-        for (const auto &profile : {"radix", "omnibusf4sd"})
+        for (const auto &profile : {"radix", "omnibusf4sd", "spracingf3"})
         for (const auto &name : {"layout", "profile", "settings-sector", "autotune-sector", "identity", "vector", "uavo", "hash"})
             QTest::newRow(qPrintable(QString("%1-%2").arg(profile, name))) << QString(profile) << QString(name);
     }
@@ -313,7 +328,7 @@ private slots:
             regions[1] = region; manifest["programSegments"] = regions;
         } else {
             const int descriptor = bytes.size() - 100;
-            int offset = damage == "identity" ? 49256 : damage == "vector" ? 4 : damage == "uavo" ? descriptor + 60 : 200000;
+            int offset = damage == "identity" ? manifest["identityOffset"].toInt() + 104 : damage == "vector" ? 4 : damage == "uavo" ? descriptor + 60 : 200000;
             bytes[offset] ^= 1;
             if (damage != "hash") {
                 // Retain valid outer integrity so semantic identity/vector validation is exercised.

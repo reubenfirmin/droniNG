@@ -198,10 +198,8 @@ else {
     DEFINES += QWT_NO_SVG
 }
 
-else {
-
-    DEFINES += QWT_NO_OPENGL
-}
+# The legacy QGLWidget canvas is not built by the Qt 6 project.
+DEFINES += QWT_NO_OPENGL
 
 contains(QWT_CONFIG, QwtWidgets) {
 

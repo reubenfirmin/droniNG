@@ -9,6 +9,10 @@
 #include "idevice.h"
 #include <QApplication>
 #include <QClipboard>
+#include <QDesktopServices>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QUrl>
 #include <QDialogButtonBox>
 #include <QElapsedTimer>
 #include <QLabel>
@@ -80,6 +84,22 @@ FirmwareInstallWidget::FirmwareInstallWidget(ConnectionManager *manager,
     status->setWordWrap(true); status->setTextFormat(Qt::PlainText);
     status->setTextInteractionFlags(Qt::TextSelectableByMouse);
     layout->addWidget(status);
+    auto *backupRow = new QWidget(card);
+    auto *backupLayout = new QHBoxLayout(backupRow);
+    backupLayout->setContentsMargins(0, 0, 0, 0);
+    auto *backupStatus = FirmwareUi::label({}, "muted", backupRow);
+    backupStatus->setObjectName("firmwareBackupStatus");
+    backupStatus->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    auto *openBackup = new QPushButton(tr("Open backup folder"), backupRow);
+    openBackup->setObjectName("openFirmwareBackup");
+    backupLayout->addWidget(backupStatus, 1); backupLayout->addWidget(openBackup);
+    backupRow->hide(); layout->addWidget(backupRow);
+    connect(m_installer, &DfuInstaller::backupSaved, this, [backupRow, backupStatus](const QString &path) {
+        backupStatus->setText(tr("Verified backup saved: %1").arg(path)); backupRow->show();
+    });
+    connect(openBackup, &QPushButton::clicked, this, [this] {
+        QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(m_installer->backupPath()).absolutePath()));
+    });
     auto *accessRow = new QWidget(this);
     auto *accessLayout = new QHBoxLayout(accessRow);
     accessLayout->setContentsMargins(0, 0, 0, 0);
@@ -123,6 +143,8 @@ FirmwareInstallWidget::FirmwareInstallWidget(ConnectionManager *manager,
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Cancel, this);
     buttons->button(QDialogButtonBox::Cancel)->setIcon(QIcon());
     auto *retry = buttons->addButton(tr("Retry"), QDialogButtonBox::ActionRole);
+    auto *restore = buttons->addButton(tr("Restore backup…"), QDialogButtonBox::ActionRole);
+    restore->setObjectName("restoreFirmwareBackup"); restore->hide();
     retry->setProperty("primary", true);
     retry->setObjectName("firmwareInstallRetry"); retry->setEnabled(false);
     auto *startController = buttons->addButton(tr("Start controller"), QDialogButtonBox::ActionRole);
@@ -179,6 +201,17 @@ FirmwareInstallWidget::FirmwareInstallWidget(ConnectionManager *manager,
         m_manager->disconnectDevice(); m_manager->suspendPolling();
         m_installer->start(board, imagePath, originalPath, DfuInstaller::bundledHelper(), m_softwareBootSent);
     };
+    connect(restore, &QPushButton::clicked, this, [this, start] {
+        // Stop BOOT discovery before opening the chooser so installation cannot
+        // begin while the user selects an existing backup.
+        const bool waiting = m_installer->stage() == DfuInstaller::Stage::NeedsBoot;
+        if (waiting) m_installer->cancel();
+        const auto backup = QFileDialog::getOpenFileName(this, tr("Restore this controller's complete backup"),
+            m_installer->backupPath(), tr("Flash backup (flash.bin)"));
+        if (backup.isEmpty()) { if (waiting) start(); return; }
+        m_manager->disconnectDevice(); m_manager->suspendPolling();
+        m_installer->restoreBackup(backup);
+    });
     connect(retry, &QPushButton::clicked, this, [this, start] {
         m_softwareBootSent = false;
         start();
@@ -238,7 +271,7 @@ FirmwareInstallWidget::FirmwareInstallWidget(ConnectionManager *manager,
         m_manager->recordVerifiedInstallation(board.id, path, m_installer->installedDescriptor(), m_installer->log());
         m_manager->setFirmwareIdentity({}, {});
         m_manager->resumePolling(); reconnectElapsed->start(); reconnect->start();
-        if (!m_autoStartAttempted) {
+        if (!m_autoStartAttempted && !m_installer->serialBootloader()) {
             m_autoStartAttempted = true;
             QTimer::singleShot(5000, this, [this] {
                 if (m_installer->stage() == DfuInstaller::Stage::AwaitingTelemetry && !m_manager->isConnected()) {
@@ -285,10 +318,11 @@ FirmwareInstallWidget::FirmwareInstallWidget(ConnectionManager *manager,
     });
     connect(m_installer, &DfuInstaller::changed, this,
             [this, heading, readyActions, bootInstructions, manual, status, accessRow, accessCommand, copyAccessCommand,
-             progress, progressLabel, reconnectHint, startController, details, retry, buttons,
+             progress, progressLabel, reconnectHint, startController, details, retry, restore, buttons,
              reconnect, reconnectElapsed, refreshSetup, board](DfuInstaller::Stage stage, const QString &message) {
         if (stage != DfuInstaller::Stage::Restarting) emit m_manager->firmwareBootCancelled();
-        heading->setText(stage == DfuInstaller::Stage::Complete ? tr("Your controller is ready")
+        heading->setText(stage == DfuInstaller::Stage::Restored ? tr("Backup restored")
+            : stage == DfuInstaller::Stage::Complete ? tr("Your controller is ready")
             : stage == DfuInstaller::Stage::Failed ? tr("Installation needs attention")
             : stage == DfuInstaller::Stage::StartupFailed ? tr("Controller connection needs attention")
             : stage == DfuInstaller::Stage::Waiting || stage == DfuInstaller::Stage::NeedsBoot
@@ -297,19 +331,25 @@ FirmwareInstallWidget::FirmwareInstallWidget(ConnectionManager *manager,
                 || stage == DfuInstaller::Stage::Restarting ? tr("Starting your controller")
             : stage == DfuInstaller::Stage::Configuring ? tr("Setting up your controller")
             : stage == DfuInstaller::Stage::Reading ? tr("Verifying installation")
+            : stage == DfuInstaller::Stage::BackingUp ? tr("Backing up your controller")
             : stage == DfuInstaller::Stage::Checking || stage == DfuInstaller::Stage::Ready ? tr("Preparing installation")
             : tr("Installing DroniNG"));
         readyActions->setVisible(stage == DfuInstaller::Stage::Complete);
         const QString summary = stage == DfuInstaller::Stage::Waiting || stage == DfuInstaller::Stage::NeedsBoot
             ? (m_softwareBootSent ? tr("Restart command sent. Waiting for USB bootloader…")
-                : tr("Installation starts automatically when your controller reconnects in BOOT mode."))
-            : stage == DfuInstaller::Stage::Writing || stage == DfuInstaller::Stage::Reading ? tr("Keep USB connected.")
+                : m_installer->restoringBackup()
+                    ? tr("Backup restoration starts automatically when your controller reconnects in BOOT mode.")
+                    : tr("Installation starts automatically when your controller reconnects in BOOT mode."))
+            : stage == DfuInstaller::Stage::Writing || stage == DfuInstaller::Stage::Reading
+                || stage == DfuInstaller::Stage::BackingUp ? message
             : stage == DfuInstaller::Stage::AwaitingTelemetry || stage == DfuInstaller::Stage::Leaving
                 || stage == DfuInstaller::Stage::Restarting ? tr("Firmware installed and verified.")
             : stage == DfuInstaller::Stage::Configuring ? tr("Applying your board's hardware settings…")
             : stage == DfuInstaller::Stage::Ready || stage == DfuInstaller::Stage::Checking ? tr("Checking the connection…")
             : stage == DfuInstaller::Stage::Complete ? tr("DroniNG is connected and sending live data.") : message;
         status->setText(summary); details->setPlainText(m_installer->log());
+        restore->setVisible(board.id == "spracingf3" && (stage == DfuInstaller::Stage::Failed
+            || stage == DfuInstaller::Stage::NeedsBoot || stage == DfuInstaller::Stage::StartupFailed || stage == DfuInstaller::Stage::Restored));
         if (stage == DfuInstaller::Stage::AwaitingTelemetry) {
             m_manager->resumePolling(); reconnectElapsed->start(); reconnect->start();
             if (!m_installer->startError().isEmpty()) status->setText(m_installer->startError());
@@ -324,7 +364,8 @@ FirmwareInstallWidget::FirmwareInstallWidget(ConnectionManager *manager,
             || stage == DfuInstaller::Stage::StartupFailed);
         startController->setEnabled(stage == DfuInstaller::Stage::AwaitingTelemetry || stage == DfuInstaller::Stage::StartupFailed);
         reconnectHint->setVisible(stage == DfuInstaller::Stage::AwaitingTelemetry || stage == DfuInstaller::Stage::StartupFailed);
-        const QString task = stage == DfuInstaller::Stage::Waiting || stage == DfuInstaller::Stage::NeedsBoot
+        const QString task = stage == DfuInstaller::Stage::BackingUp ? tr("Reading and verifying the backup…")
+            : stage == DfuInstaller::Stage::Waiting || stage == DfuInstaller::Stage::NeedsBoot
             ? tr("Detecting BOOT mode…")
             : stage == DfuInstaller::Stage::Writing ? tr("Erasing previous firmware…")
             : stage == DfuInstaller::Stage::Reading ? tr("Verifying firmware…")
@@ -339,13 +380,14 @@ FirmwareInstallWidget::FirmwareInstallWidget(ConnectionManager *manager,
         accessRow->setVisible(!accessCommand->text().isEmpty());
         const bool showBootGuidance = !usbBlocked && ((!m_softwareBootSent && (stage == DfuInstaller::Stage::Waiting
             || stage == DfuInstaller::Stage::NeedsBoot
-            )) || (stage == DfuInstaller::Stage::Failed && m_installer->device().path.isEmpty()));
+            )) || (stage == DfuInstaller::Stage::Failed && (board.id == "spracingf3" || m_installer->device().path.isEmpty())));
         bootInstructions->setVisible(showBootGuidance);
         manual->setVisible(showBootGuidance && !manual->text().isEmpty());
         retry->setEnabled(stage == DfuInstaller::Stage::Failed);
         retry->setVisible(stage == DfuInstaller::Stage::Failed);
         buttons->button(QDialogButtonBox::Cancel)->setEnabled(!m_installer->transferring());
-        buttons->button(QDialogButtonBox::Cancel)->setText(stage == DfuInstaller::Stage::Complete ? tr("Done")
+        buttons->button(QDialogButtonBox::Cancel)->setText(stage == DfuInstaller::Stage::Complete
+            || stage == DfuInstaller::Stage::Restored ? tr("Done")
             : stage == DfuInstaller::Stage::AwaitingTelemetry || stage == DfuInstaller::Stage::StartupFailed ? tr("Close") : tr("Cancel"));
         if (stage == DfuInstaller::Stage::Ready) {
             m_manager->setNativeFirmwareIdentity({}, {}, tr("STM32 system bootloader"));
@@ -362,6 +404,7 @@ FirmwareInstallWidget::FirmwareInstallWidget(ConnectionManager *manager,
         progress->setValue(stage == DfuInstaller::Stage::Complete ? 100 : 0);
         const bool showProgress = !usbBlocked && stage != DfuInstaller::Stage::Failed
             && stage != DfuInstaller::Stage::Complete && stage != DfuInstaller::Stage::Idle
+            && stage != DfuInstaller::Stage::Restored
             && stage != DfuInstaller::Stage::StartupFailed;
         progress->setVisible(showProgress); progressLabel->setVisible(showProgress);
         refreshSetup();

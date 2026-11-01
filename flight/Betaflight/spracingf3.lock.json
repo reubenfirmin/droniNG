@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "purpose": "Original SP Racing F3 conversion practice, pinned to the connected controller's Betaflight 3.1.5; no installable image",
+  "repositories": {
+    "betaflight_3_1_5": {
+      "repository": "betaflight/betaflight",
+      "commit": "4646f9df8f854c7875418d3635db4a3f84018cdb",
+      "files": [
+        "LICENSE",
+        "Makefile",
+        "src/main/target/SPRACINGF3/target.h",
+        "src/main/target/SPRACINGF3/target.c",
+        "src/main/target/SPRACINGF3/target.mk",
+        "src/main/target/SPRACINGF3EVO/target.h",
+        "src/main/target/SPRACINGF3EVO/target.c",
+        "src/main/target/common.h",
+        "src/main/target/link/stm32_flash_f303_256k.ld",
+        "src/main/target/system_stm32f30x.c",
+        "src/main/drivers/accgyro_mpu6050.c",
+        "src/main/drivers/accgyro_mpu6050.h",
+        "src/main/drivers/accgyro_mpu.c",
+        "src/main/drivers/accgyro_mpu.h",
+        "src/main/drivers/bus_i2c.h",
+        "src/main/drivers/bus_i2c_stm32f30x.c",
+        "src/main/drivers/bus_spi.c",
+        "src/main/drivers/timer_def.h",
+        "src/main/drivers/timer_stm32f30x.c",
+        "src/main/drivers/system_stm32f30x.c",
+        "src/main/sensors/boardalignment.c",
+        "src/main/fc/fc_msp.c",
+        "src/main/msp/msp_protocol.h",
+        "src/main/fc/cli.c"
+      ]
+    }
+  }
+}

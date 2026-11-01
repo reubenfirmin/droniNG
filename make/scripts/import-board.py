@@ -30,6 +30,9 @@ def gpio(pin, mode="GPIO_Mode_AF", pull="GPIO_PuPd_NOPULL", output="GPIO_OType_P
 
 
 def generate(profile_id, output):
+    if profile_id == "spracingf3":
+        importer = module("spracing_import", ROOT / "make/scripts/spracingf3-import.py")
+        return importer.generate(ROOT, output, gpio, module)
     if profile_id == "omnibusf4sd":
         importer = module("omnibus_import", ROOT / "make/scripts/omnibusf4sd-import.py")
         audit = module("desk_check", ROOT / "make/scripts/betaflight-desk-check.py")

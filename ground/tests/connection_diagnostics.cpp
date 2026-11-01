@@ -44,6 +44,7 @@
 #include <actuatorsettings.h>
 #include <hwrevolution.h>
 #include <hwimported.h>
+#include <hwspracingf3.h>
 #include <boardprofile.h>
 #include <utils/pathutils.h>
 #include <utils/darktheme.h>
@@ -2000,6 +2001,7 @@ private slots:
         QTest::addColumn<quint16>("vendor"); QTest::addColumn<quint16>("product");
         QTest::addColumn<QString>("description"); QTest::addColumn<bool>("candidate");
         QTest::newRow("betaflight-stm32") << quint16(0x0483) << quint16(0x5740) << QString("OmnibusF4") << true;
+        QTest::newRow("original-f3-bridge") << quint16(0x10c4) << quint16(0xea60) << QString("CP2102 USB to UART Bridge") << true;
         QTest::newRow("native-dronin") << quint16(0x20a0) << quint16(0x4250) << QString("USB device") << true;
         QTest::newRow("catalog-model") << quint16(0x1234) << quint16(0x5678) << QString("HGLRC F4 V6PRO") << true;
         QTest::newRow("firmware-name") << quint16(0x1234) << quint16(0x5678) << QString("Betaflight STM32F7") << true;
@@ -2255,6 +2257,94 @@ private slots:
         QCOMPARE(board.boardType, 225);
         QVERIFY(Core::FirmwareCatalog::imageName(board, Core::FirmwareCatalog::ImageKind::Application).isEmpty());
         captureFirmwarePage("firmware-omnibus-image");
+    }
+    void originalF3OffersSerialInstallation_data()
+    {
+        QTest::addColumn<QString>("target");
+        QTest::newRow("full-target") << QString("SPRACINGF3");
+        QTest::newRow("old-MSP-four-byte-ID") << QString("SRF3");
+    }
+    void originalF3OffersSerialInstallation()
+    {
+        QFETCH(QString, target);
+        TestConnection connection("CP2102 USB to UART Bridge - ttyUSB0");
+        QVERIFY(manager->connectDevice({&connection, connection.device}));
+        manager->setFirmwareIdentity("BTFL", target, true, "3.1.5");
+        manager->telemetryConnectionFailed({"Foreign firmware detected", {}, {}});
+        QCOMPARE(page->findChild<QComboBox *>("firmwareBoardModel")->currentData().toString(), QString("spracingf3"));
+        QCOMPARE(page->findChild<QLabel *>("firmwareDetectedBoard")->text(), QString("SP Racing F3 (original)"));
+        QVERIFY(page->findChild<QLabel *>("firmwareDetectedBootloader")->text().contains("UART"));
+        auto *install = page->findChild<QPushButton *>("firmwareInstallAction");
+        QVERIFY(install->isVisible()); QVERIFY(install->isEnabled());
+        QVERIFY(page->findChild<QLabel *>("firmwareRecommendation")->text().contains("backup"));
+        captureFirmwarePage("spracingf3-install-offer");
+    }
+    void originalF3ConfigurationPreventsPortConflicts()
+    {
+        TelemetryManager telemetry; UAVObjectUtilManager util;
+        plugins.addObject(&telemetry); plugins.addObject(&util);
+        const auto remove = qScopeGuard([&] { plugins.removeObject(&util); plugins.removeObject(&telemetry); });
+        QPluginLoader loader(QDir(GCS_BUILD_TREE_PATH).filePath("lib/droning/plugins/droniNG/libDroning.so"));
+        auto *plugin = qobject_cast<ExtensionSystem::IPlugin *>(loader.instance());
+        QVERIFY2(plugin, qPrintable(loader.errorString()));
+        QString error; QVERIFY2(plugin->initialize({}, &error), qPrintable(error)); plugin->extensionsInitialized();
+        const auto unload = qScopeGuard([&] { loader.unload(); });
+        Core::IBoardType *board = nullptr;
+        for (auto *candidate : plugins.getObjects<Core::IBoardType>())
+            if (candidate->getBoardType() == 226) board = candidate;
+        QVERIFY(board); QCOMPARE(board->getHwUAVO(), QString("HwSpracingF3"));
+        QCOMPARE(board->getChannelBanks(), (QVector<QVector<int>>{{1}, {2}, {3, 4, 5, 6}, {7, 8}}));
+        QVERIFY(!board->supportsDShot()); QVERIFY(!board->isInputConfigurationSupported(Core::IBoardType::INPUT_TYPE_SBUS));
+        auto *settings = HwSpracingF3::GetInstance(objects); const auto previous = settings->getData();
+        const bool present = settings->getIsPresentOnHardware(); settings->setIsPresentOnHardware(true);
+        const auto restore = qScopeGuard([&] { settings->setData(previous); settings->setIsPresentOnHardware(present); });
+        QVERIFY(board->setInputType(Core::IBoardType::INPUT_TYPE_PPM));
+        QCOMPARE(board->getInputType(), Core::IBoardType::INPUT_TYPE_PPM);
+        std::unique_ptr<QWidget> widget(board->getBoardConfiguration(nullptr, true));
+        widget->resize(750, 550); widget->show(); QCoreApplication::processEvents();
+        auto *uart2 = widget->findChild<QComboBox *>("importedUart2");
+        auto *uart3 = widget->findChild<QComboBox *>("importedUart3");
+        auto *ppm = widget->findChild<QComboBox *>("importedPPM");
+        auto *save = widget->findChild<QPushButton *>("settingsSave");
+        QVERIFY(uart2 && uart3 && ppm && save);
+        uart2->setCurrentIndex(uart2->findText("GPS")); uart3->setCurrentIndex(uart3->findText("GPS"));
+        QCoreApplication::processEvents(); QVERIFY(!save->isEnabled());
+        uart3->setCurrentIndex(uart3->findText("MSP")); QCoreApplication::processEvents(); QVERIFY(save->isEnabled());
+        QCOMPARE(ppm->currentText(), QString("Enabled"));
+        const auto directory = qEnvironmentVariable("CONNECTION_DIALOG_CAPTURE_DIR");
+        if (!directory.isEmpty()) QVERIFY(widget->grab().save(directory + "/spracingf3-configuration.png"));
+        uart3->setCurrentIndex(uart3->findText("DSM")); QCoreApplication::processEvents(); QVERIFY(!save->isEnabled());
+        ppm->setCurrentIndex(ppm->findText("Disabled")); QCoreApplication::processEvents(); QVERIFY(save->isEnabled());
+    }
+    void originalF3BootAndRecoveryStayInline()
+    {
+        const auto board = Core::FirmwareCatalog::instance().board("spracingf3");
+        Core::FirmwareInstallWidget installation(manager, board, "/missing-droning-image.hex");
+        installation.resize(900, 680); installation.show();
+        auto *installer = installation.findChild<Core::DfuInstaller *>();
+        QTRY_COMPARE(installer->stage(), Core::DfuInstaller::Stage::Failed);
+        const QDir build(GCS_BUILD_TREE_PATH);
+        // An impossible physical topology prevents access to any attached controller.
+        installer->start(board, Core::FirmwareCatalog::imagePath(board,
+            Core::FirmwareCatalog::ImageKind::FullInstall, {build.filePath("firmware")}), "99-99");
+        QCOMPARE(installer->stage(), Core::DfuInstaller::Stage::NeedsBoot);
+        QVERIFY(installer->serialBootloader());
+        auto *boot = installation.findChild<QWidget *>("firmwareInstallBootInstructions");
+        auto *status = installation.findChild<QLabel *>("firmwareInstallStatus");
+        QVERIFY(boot && boot->isVisible()); QVERIFY(status);
+        QVERIFY(installation.findChild<QLabel *>("firmwareInstallBootStep2")->text().contains("CP2102"));
+        const auto directory = qEnvironmentVariable("CONNECTION_DIALOG_CAPTURE_DIR");
+        if (!directory.isEmpty()) QVERIFY(installation.grab().save(directory + "/spracingf3-boot.png"));
+        // Exercise the rendered progress and recovery states without a device write.
+        emit installer->backupSaved("/home/pilot/.local/share/DroniNG/firmware-backups/controller/flash.bin");
+        emit installer->changed(Core::DfuInstaller::Stage::BackingUp, "Saving and checking two complete flash reads before erasing… Keep USB connected.");
+        emit installer->transferProgress("Backing up existing firmware and settings", 42);
+        QVERIFY(!boot->isVisible());
+        if (!directory.isEmpty()) QVERIFY(installation.grab().save(directory + "/spracingf3-backup.png"));
+        emit installer->changed(Core::DfuInstaller::Stage::Failed, "Serial transfer interrupted. Reconnect with BOOT connected and retry.");
+        QVERIFY(installation.findChild<QPushButton *>("restoreFirmwareBackup")->isVisible());
+        if (!directory.isEmpty()) QVERIFY(installation.grab().save(directory + "/spracingf3-recovery.png"));
+        installer->cancel();
     }
     void importedNativeConfigurationUsesCommonFields_data()
     {

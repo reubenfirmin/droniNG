@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": "2026-10-11",
+  "catalogVersion": "2026-10-31",
   "boards": [
     {
       "id": "aq32", "name": "AeroQuad AQ32", "target": "aq32",
@@ -106,6 +106,17 @@
       "id": "sparky2", "name": "Tau Labs Sparky 2", "target": "sparky2",
       "boardType": 146, "boardRevision": 1, "mapping": "native",
       "aliases": ["Sparky2"], "evidence": "flight/targets/sparky2/board-info/board-info.mk"
+    },
+    {
+      "id": "spracingf3", "name": "SP Racing F3 (original)", "target": "spracingf3",
+      "boardType": 226, "boardRevision": 1, "mapping": "native",
+      "layoutId": "spracingf3-f303-uart-v1", "supportLevel": "experimental",
+      "systemBootloader": "STM32 system bootloader (UART)",
+      "bootInstructions": "Disconnect USB and the flight battery.\nBridge the original board's BOOT pads and reconnect USB to the same port. The CP2102 serial device stays visible in BOOT mode.\nAfter flash verification, disconnect USB, remove the BOOT bridge and reconnect USB to start your controller.",
+      "manualUrl": "https://betaflight.com/docs/wiki/boards/legacy/SPRACINGF3",
+      "mspTargets": ["SPRACINGF3", "SRF3"],
+      "notes": "Experimental original F3; excludes Evo. Includes eight PWM/OneShot outputs, MPU6050, GPS and external MSP OSD. USB/GCS uses UART1. GPS on UART2 plus OSD on UART3 requires a PPM receiver on RC1. No DShot or flash logging. A full flash backup is saved before installation.",
+      "evidence": "shared/firmware/profiles/spracingf3.json"
     },
     {
       "id": "sprf3e", "name": "SP Racing F3 Evo", "target": "sprf3e",

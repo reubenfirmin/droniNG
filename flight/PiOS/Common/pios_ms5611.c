@@ -135,6 +135,23 @@ static int32_t PIOS_MS5611_Validate(struct ms5611_dev *dev)
 	return 0;
 }
 
+/* MS5611 PROM CRC-4, polynomial x^4 + x + 1 (TE MS5611 datasheet).
+ * The final word's low byte is excluded from the calculation. */
+bool PIOS_MS5611_ValidatePROM(const uint16_t prom[8])
+{
+	uint16_t remainder = 0;
+	for (unsigned i = 1; i <= 6; ++i)
+		if (prom[i] == 0 || prom[i] == 0xffff) return false;
+	for (unsigned i = 0; i < 16; ++i) {
+		uint16_t word = prom[i / 2];
+		if (i / 2 == 7) word &= 0xff00;
+		remainder ^= (i & 1) ? word & 0xff : word >> 8;
+		for (unsigned bit = 0; bit < 8; ++bit)
+			remainder = (remainder << 1) ^ ((remainder & 0x8000) ? 0x3000 : 0);
+	}
+	return ((remainder >> 12) & 0xf) == (prom[7] & 0xf);
+}
+
 /**
  * Initialise the MS5611 sensor
  */
@@ -161,10 +178,20 @@ int32_t PIOS_MS5611_Init(const struct pios_ms5611_cfg *cfg, pios_i2c_t i2c_devic
 	uint8_t data[2];
 
 	/* Calibration parameters */
+#ifdef PIOS_MS5611_VALIDATE_PROM
+	uint16_t prom[8];
+	for (unsigned i = 0; i < NELEMENTS(prom); ++i) {
+		if (PIOS_MS5611_Read(0xa0 + i * 2, data, 2)) return -3;
+		prom[i] = (data[0] << 8) | data[1];
+	}
+	if (!PIOS_MS5611_ValidatePROM(prom)) return -4;
+	memcpy(dev->calibration, prom + 1, sizeof(dev->calibration));
+#else
 	for (int i = 0; i < NELEMENTS(dev->calibration); i++) {
-		PIOS_MS5611_Read(MS5611_CALIB_ADDR + i * 2, data, 2);
+		if (PIOS_MS5611_Read(MS5611_CALIB_ADDR + i * 2, data, 2)) return -3;
 		dev->calibration[i] = (data[0] << 8) | data[1];
 	}
+#endif
 
 	PIOS_SENSORS_Register(PIOS_SENSOR_BARO, dev->queue);
 

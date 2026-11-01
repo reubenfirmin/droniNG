@@ -99,13 +99,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--lock", type=Path, default=SURVEY / "survey.lock.json")
     parser.add_argument("--manifest", type=Path, default=SURVEY / "source-manifest.json")
-    parser.add_argument("--all", action="store_true", help="Fetch all survey, Radix and Omnibus pins in one run")
+    parser.add_argument("--all", action="store_true", help="Fetch all survey, Radix, Omnibus and original SP Racing F3 pins")
     args = parser.parse_args()
     selections = [(args.lock, args.manifest)]
     if args.all:
         selections = [(SURVEY / "survey.lock.json", SURVEY / "source-manifest.json"),
                       (SURVEY / "radix.lock.json", SURVEY / "radix-source-manifest.json"),
-                      (SURVEY / "omnibusf4sd.lock.json", SURVEY / "omnibusf4sd-source-manifest.json")]
+                      (SURVEY / "omnibusf4sd.lock.json", SURVEY / "omnibusf4sd-source-manifest.json"),
+                      (SURVEY / "spracingf3.lock.json", SURVEY / "spracingf3-source-manifest.json")]
     jobs = list(dict.fromkeys((key, repo["repository"], repo["commit"])
                              for lock_path, _ in selections
                              for key, repo in json.loads(lock_path.read_text())["repositories"].items()))

@@ -56,6 +56,8 @@ SOURCES += mainwindow.cpp \
     firmwarepage.cpp \
     firmwareinstallimage.cpp \
     dfuinstaller.cpp \
+    romuart.cpp \
+    uartinstaller.cpp \
     betaflightbootcontroller.cpp \
     firmwareinstallwidget.cpp \
     usbaccesssetup.cpp \
@@ -118,6 +120,8 @@ HEADERS += mainwindow.h \
     firmwarepage.h \
     firmwareinstallimage.h \
     dfuinstaller.h \
+    romuart.h \
+    uartinstaller.h \
     betaflightbootcontroller.h \
     firmwareinstallwidget.h \
     usbaccesssetup.h \

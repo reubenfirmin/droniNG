@@ -1,0 +1,17 @@
+<xml>
+  <object name="HwSpracingF3" settings="true" singleinstance="true">
+    <description>Original SP Racing F3 connectors. UART1 is reserved for the CP2102 USB bridge and GCS telemetry. Save and restart after changes.</description>
+    <access gcs="readwrite" flight="readwrite"/>
+    <logging updatemode="manual" period="0"/>
+    <telemetrygcs acked="true" updatemode="onchange" period="0"/>
+    <telemetryflight acked="true" updatemode="onchange" period="0"/>
+    <field name="Uart2" type="enum" elements="1" parent="HwShared.PortTypes" defaultvalue="GPS" units="TX2/RX2">
+      <options><option>Disabled</option><option>GPS</option><option>MSP</option></options>
+    </field>
+    <field name="Uart3" type="enum" elements="1" parent="HwShared.PortTypes" defaultvalue="Disabled" units="TX3/RX3">
+      <options><option>Disabled</option><option>GPS</option><option>MSP</option><option>DSM</option><option>S.Bus Non Inverted</option><option>HoTT SUMD</option><option>HoTT SUMH</option><option>SRXL</option><option>IBus</option><option>TBS Crossfire</option></options>
+    </field>
+    <field name="PPM" type="enum" elements="1" defaultvalue="Disabled" units="RC1/PA0"><options><option>Disabled</option><option>Enabled</option></options></field>
+    <field name="DSMxMode" type="enum" elements="1" parent="HwShared.DSMxMode" defaultvalue="Autodetect" units="mode"/>
+  </object>
+</xml>

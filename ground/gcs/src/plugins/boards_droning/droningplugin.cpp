@@ -54,7 +54,7 @@ bool DroningPlugin::initialize(const QStringList &arguments, QString *errorStrin
 
 void DroningPlugin::extensionsInitialized()
 {
-    for (const auto &id : {"radix", "omnibusf4sd"}) {
+    for (const auto &id : {"radix", "omnibusf4sd", "spracingf3"}) {
         const auto profile = Core::FirmwareCatalog::instance().board(id);
         if (profile.isValid()) addAutoReleasedObject(new ImportedBoard(profile));
     }

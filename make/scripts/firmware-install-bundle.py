@@ -20,7 +20,7 @@ def board_layout(root, target):
 
 
 def image_manifest(root, build, target):
-    if target in ("radix", "omnibusf4sd"):
+    if target in ("radix", "omnibusf4sd", "spracingf3"):
         spec = importlib.util.spec_from_file_location("package_imported", root / "make/scripts/package-imported-board.py")
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
@@ -70,10 +70,11 @@ def image_manifest(root, build, target):
 def bundle(root, build, runtime, targets):
     destination = build / "ground/gcs/firmware"
     destination.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(build / "shared/usb_ids/droning.udev", destination.parent / "rules.udev")
     for target in targets:
         manifest = image_manifest(root, build, target)
         images = [("ef", "hex"), ("ef", "bin")]
-        if target in ("radix", "omnibusf4sd"):
+        if target in ("radix", "omnibusf4sd", "spracingf3"):
             # This container has reserved gaps and cannot use the legacy HID uploader.
             (destination / f"fw_{target}.tlfw").unlink(missing_ok=True)
         else:

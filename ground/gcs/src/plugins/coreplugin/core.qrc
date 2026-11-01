@@ -11,6 +11,8 @@
         <file alias="firmware/board-catalog.json">../../../../../shared/firmware/board-catalog.json</file>
         <file alias="firmware/profiles/radix.json">../../../../../shared/firmware/profiles/radix.json</file>
         <file alias="firmware/profiles/omnibusf4sd.json">../../../../../shared/firmware/profiles/omnibusf4sd.json</file>
+        <file alias="firmware/profiles/spracingf3.json">../../../../../shared/firmware/profiles/spracingf3.json</file>
+        <file alias="firmware/spracingf3-source-manifest.json">../../../../../flight/Betaflight/spracingf3-source-manifest.json</file>
         <file alias="firmware/omnibusf4sd-source-manifest.json">../../../../../flight/Betaflight/omnibusf4sd-source-manifest.json</file>
         <file alias="firmware/radix-source-manifest.json">../../../../../flight/Betaflight/radix-source-manifest.json</file>
         <file>images/clean_pane_small.png</file>

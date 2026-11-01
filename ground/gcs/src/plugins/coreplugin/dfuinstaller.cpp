@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "dfuinstaller.h"
+#include "uartinstaller.h"
 #include <QCoreApplication>
 #include <QDir>
 #include <QDebug>
@@ -214,7 +215,7 @@ void DfuInstaller::fail(const QString &message) {
 }
 bool DfuInstaller::transferring() const
 {
-    return m_stage == Stage::Checking || m_stage == Stage::Writing || m_stage == Stage::Reading
+    return m_stage == Stage::Checking || m_stage == Stage::BackingUp || m_stage == Stage::Writing || m_stage == Stage::Reading
         || m_stage == Stage::Leaving || m_stage == Stage::Configuring;
 }
 
@@ -229,6 +230,8 @@ void DfuInstaller::start(const FirmwareBoardProfile &board, const QString &image
     m_settings = board.settings; m_configured = false;
     m_image = FirmwareInstallImage::load(board, imagePath);
     if (!m_image.valid()) { fail(m_image.error); return; }
+    m_backupPath.clear(); m_restoring = false;
+    if (serialBootloader()) { startUart(); return; }
     if (!QFileInfo(helper).isExecutable()) {
         fail(tr("The Linux firmware installer is missing from this build. Rebuild the firmware installation bundle.")); return;
     }
@@ -259,6 +262,10 @@ void DfuInstaller::checkDevice()
 void DfuInstaller::startInstalledFirmware()
 {
     if (m_stage != Stage::AwaitingTelemetry && m_stage != Stage::StartupFailed) return;
+    if (serialBootloader()) {
+        awaitTelemetry(tr("Disconnect USB and the flight battery, remove the BOOT bridge, then reconnect USB to the same port. Waiting for live data…"));
+        return;
+    }
     m_startError.clear(); m_restarting = true; ++m_startGeneration;
     m_usbAccessDenied = false; m_accessCommand.clear();
     change(Stage::Restarting, tr("Checking the installed controller's bootloader…"));
@@ -292,12 +299,68 @@ void DfuInstaller::cancel()
 {
     if (transferring()) return;
     const bool written = m_stage == Stage::AwaitingTelemetry || m_stage == Stage::StartupFailed
-        || m_stage == Stage::Complete || m_stage == Stage::Restarting;
+        || m_stage == Stage::Complete || m_stage == Stage::Restored || m_stage == Stage::Restarting;
     m_usbAccessDenied = false; m_accessCommand.clear();
     m_startError.clear(); ++m_startGeneration;
     change(Stage::Idle, written ? tr("Installation view closed. Verified firmware remains on the controller.")
                               : tr("Installation cancelled."));
     m_runner->cancel();
+    if (m_uart) m_uart->cancel();
+}
+
+void DfuInstaller::restoreBackup(const QString &path)
+{
+    if (!serialBootloader() || transferring() || path.isEmpty()) return;
+    if (m_uart) m_uart->cancel();
+    m_restoring = true;
+    startUart(path);
+}
+
+void DfuInstaller::startUart(const QString &restore)
+{
+    if (m_uart) { disconnect(m_uart, nullptr, this, nullptr); delete m_uart; }
+    m_usbAccessDenied = false; m_accessCommand.clear();
+    m_uart = new UartInstaller(this);
+    const auto generation = ++m_startGeneration;
+    connect(m_uart, &UartInstaller::connected, this, [this, generation](const QString &path) {
+        if (generation != m_startGeneration) return;
+        m_device.path = path;
+        change(Stage::Checking, tr("Checking the STM32 identity and flash size…"));
+    });
+    connect(m_uart, &UartInstaller::backingUp, this, [this, generation] {
+        if (generation != m_startGeneration) return;
+        change(Stage::BackingUp, tr("Saving and checking two complete flash reads before erasing… Keep USB connected."));
+    });
+    connect(m_uart, &UartInstaller::writing, this, [this, generation] {
+        if (generation != m_startGeneration) return;
+        change(Stage::Writing, tr("Writing and verifying each flash page… Keep USB connected."));
+    });
+    connect(m_uart, &UartInstaller::progress, this, [this, generation](const QString &task, int percent) {
+        if (generation == m_startGeneration) emit transferProgress(task, percent);
+    });
+    connect(m_uart, &UartInstaller::backupSaved, this, [this, generation](const QString &path) {
+        if (generation != m_startGeneration) return;
+        m_backupPath = path;
+        m_log += tr("\nVerified backup: %1\n").arg(path);
+        emit backupSaved(path);
+    });
+    connect(m_uart, &UartInstaller::accessDenied, this, [this, generation] {
+        if (generation != m_startGeneration) return;
+        m_usbAccessDenied = true;
+        m_accessCommand = usbAccessRulesCommand(bundledUsbAccessRules());
+        fail(m_accessCommand.isEmpty()
+            ? tr("Linux blocked access to the serial bridge and this build is missing its USB access rules. Reinstall the Linux package, reconnect in BOOT mode and retry.")
+            : tr("Linux blocked access to the serial bridge. Close other serial applications. Run the command below once in a terminal, reconnect the controller with BOOT connected and click Retry."));
+    });
+    connect(m_uart, &UartInstaller::finished, this, [this, generation](bool success, const QString &message) {
+        if (generation != m_startGeneration || m_stage == Stage::Idle) return;
+        if (!success) { fail(message); return; }
+        if (m_restoring) { change(Stage::Restored, tr("Backup restored and verified. %1").arg(message)); return; }
+        change(Stage::Leaving, message);
+        awaitTelemetry(message);
+    });
+    change(Stage::NeedsBoot, tr("Waiting for the STM32 serial bootloader. Disconnect USB and the flight battery, bridge BOOT, then reconnect USB to the same port."));
+    m_uart->start(m_image, m_expectedPath, restore);
 }
 void DfuInstaller::transfer(const QStringList &arguments)
 {
@@ -441,7 +504,7 @@ void DfuInstaller::telemetryReceived(const QByteArray &descriptor, int schema, c
         }
         if (schema != 1 || profile != m_image.profileId || layout != m_image.layoutId
             || profileHash != m_image.profileHash) {
-            fail(tr("The controller's board profile differs from the installed image. Reconnect in DFU mode and reinstall the matching firmware."));
+            fail(tr("The controller's board profile differs from the installed image. Reconnect in BOOT mode and reinstall the matching firmware."));
             return;
         }
     }

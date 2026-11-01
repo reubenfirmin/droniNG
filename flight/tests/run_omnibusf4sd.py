@@ -29,7 +29,7 @@ def module(name, path):
 
 def function(path, name):
     source = path.read_text()
-    match = re.search(r"^(?:static\s+)?(?:int32_t|int|float)\s+" + name + r"\([^;]+?\)\s*\{", source, re.M)
+    match = re.search(r"^(?:static\s+)?(?:int32_t|int|float|bool)\s+" + name + r"\([^;]+?\)\s*\{", source, re.M)
     if not match:
         raise ValueError(f"Production function not found: {name}")
     start, position, depth = match.start(), match.end(), 1
